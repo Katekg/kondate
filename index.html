@@ -404,6 +404,9 @@ main.fill .daycard .mcard { flex: 1 1 auto; }
 .nudge { display: grid; gap: 6px; background: var(--sky); }
 .sugg { display: grid; gap: 6px; background: linear-gradient(135deg, var(--lav), var(--fill)); }
 .sugg small { font-size: .8rem; color: var(--ink); }
+.tchips { position: absolute; left: 10px; top: 8px; display: flex; gap: 4px; }
+.tchip { border: 0; border-radius: 999px; padding: 2px 9px; font: inherit; font-size: .72rem; font-weight: 700; background: var(--lav); color: var(--accent); cursor: pointer; white-space: nowrap; }
+.tchip.hot { background: linear-gradient(135deg, #7a5cd6, #2f7a5f); color: #fff; }
 .nudge small { color: var(--sky-ink); font-size: .78rem; }
 .wiz { display: grid; gap: 8px; }
 .wstep { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: var(--bg); border-radius: var(--r-md); padding: 8px 10px; }
@@ -1033,9 +1036,8 @@ function drawMenu() {
   const future = ws > curWs || noPlan, mon = new Date(S.day + "T00:00:00").getMonth() + 1;
   $("app").classList.toggle("fill", !future && ws <= curWs);
   document.documentElement.classList.toggle("lock", !future && ws <= curWs); if (!future && ws <= curWs) window.scrollTo(0, 0);
-  $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button><button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => `<button class="dbtn${d === today() ? " today" : ""}${i === 0 ? " sun" : i === 6 ? " sat" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}><small>${"日月火水木金土"[i]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`).join("")}<button class="nav" id="wNext">›</button></div></section>
+  $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => `<button class="dbtn${d === today() ? " today" : ""}${i === 0 ? " sun" : i === 6 ? " sat" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}><small>${"日月火水木金土"[i]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`).join("")}<button class="nav" id="wNext">›</button></div></section>
     ${lsGet("buyChk") ? `<section class="card jobbn"><b>🧾 買った物の確認がまだです</b><small>量の直しと、合計金額の入力（相場合わせ）ができます。</small><button class="chip" id="bcOpen">開く</button></section>` : ""}
-    ${!future ? autoCardHtml() : ""}${!future && S.day === today() ? todayHtml(S.day) : ""}${!future ? nextWeekNudge(ws) : ""}
     ${future ? planCardHtml(ws) : ""}
     <section class="card daycard">
       <button class="kcalrow" id="kcal"><span>${esc(SET("人1"))} <b>${Math.round(nutP(S.day, 1).kcal)}</b> / ${t1.kcal}kcal</span><span>${esc(SET("人2"))} <b>${Math.round(nutP(S.day, 2).kcal)}</b> / ${t2.kcal}kcal</span></button>
@@ -1058,9 +1060,7 @@ function drawMenu() {
   $("app").querySelectorAll(".mcard").forEach(b => b.onclick = () => openSlot(S.day, b.dataset.m));
   const rb = $("reb"); if (rb) rb.onclick = () => openRebuild(ws);
   if ($("sikAdd")) $("sikAdd").onclick = () => openSlot(S.day, SIKOMI);
-  if (!future && S.day === today()) bindToday(S.day);
-  bindAutoCard();
-  if ($("nwGo")) $("nwGo").onclick = () => { S.day = shiftDay(ws, 7); drawMenu(); window.scrollTo(0, 0); };
+  bindTopChips(ws);
   if (future) bindPlanCard(ws);
 }
 // ===== 📋 今日やること（献立から、今日することを順に出す。タップで済みにできる） =====
@@ -1096,7 +1096,24 @@ function openToday(d) {
   document.querySelectorAll("#sheetBody .tck").forEach(b => b.onclick = () => { const all = lsGet("todayDone") || {}, l = all[d] || []; const k = b.dataset.k; all[d] = l.includes(k) ? l.filter(x => x !== k) : [...l, k]; Object.keys(all).forEach(x => { if (x < shiftDay(today(), -3)) delete all[x]; }); lsSet("todayDone", all); openToday(d); });
   document.querySelectorAll("#sheetBody .tgo").forEach(b => b.onclick = () => { const t = ts.find(x => x.k === b.dataset.k); if (!t) return; if (t.m) openSlot(d, t.m); else if (t.lo) { closeSheet(); if (S.autoDraft) { S.draft = S.autoDraft; S.autoDraft = null; draw(); } else if (!(S.jobWait && S.jobWait.auto)) { const it = leftovers(S.plans).filter(x => x.s.exp && x.s.exp <= shiftDay(today(), 3)); if (it.length) useLeftovers(it, "期限が近い物を優先して使い切る。余りそうな野菜は仕込み（浅漬けなど）にしてもよい"); else openAskAi("期限が近い物の使い道を考えてほしい"); } } else if (t.ask) openAskAi(t.ask); else if (t.tab) { closeSheet(); S.tab = t.tab; draw(); window.scrollTo(0, 0); } });
 }
-function bindToday(d) { if ($("tdOpen")) $("tdOpen").onclick = () => openToday(d); }
+// 献立の画面の左上の小さなボタン（✨提案・📋やること・🗓来週）。カードは出さず、押すと中身を開く
+function topChips(ws) {
+  const t = today(), ts = todayTasks(t), dn = (lsGet("todayDone") || {})[t] || [], left = ts.filter(x => !dn.includes(x.k)).length;
+  const nws = shiftDay(ws, 7), dow = new Date(t + "T00:00:00").getDay(), nw = ws === weekStartOf(t) && dow >= 4 && !S.plans.some(p => p.date >= nws && p.date <= shiftDay(nws, 6));
+  const cs = [S.autoDraft ? `<button class="tchip hot" id="tcSug" aria-label="AIからの提案">✨提案</button>` : "", left ? `<button class="tchip" id="tcDo" aria-label="料理のほかにやること">📋${left}</button>` : "", nw ? `<button class="tchip" id="tcNw" aria-label="来週の献立を作る">🗓来週</button>` : ""].join("");
+  return cs ? `<span class="tchips">${cs}</span>` : "";
+}
+function bindTopChips(ws) {
+  if ($("tcDo")) $("tcDo").onclick = () => openToday(today());
+  if ($("tcNw")) $("tcNw").onclick = () => { S.day = shiftDay(ws, 7); drawMenu(); window.scrollTo(0, 0); };
+  if ($("tcSug")) $("tcSug").onclick = () => {
+    const D = S.autoDraft, names = ((D && D.loItems) || []).map(x => (S.stock.find(s => s.id === x.id) || {}).name).filter(Boolean);
+    openSheet(`<h2>✨ AIからの提案</h2><p class="note">${names.length ? `期限が近い ${esc(names.join("、"))} を使い切る献立の案です。` : "献立の直しの案です。"}</p>${D && D.note ? `<div class="ok">${esc(D.note)}</div>` : ""}<div class="grid2"><button class="btn" id="sgOpen">案を見る</button><button class="btn ghost" id="sgNo">今回はいい</button></div><button class="btn ghost wide" id="sgClose">閉じる</button>`);
+    $("sgClose").onclick = closeSheet;
+    $("sgOpen").onclick = () => { closeSheet(); S.draft = S.autoDraft; S.autoDraft = null; draw(); window.scrollTo(0, 0); };
+    $("sgNo").onclick = () => { closeSheet(); const D2 = S.autoDraft; S.autoDraft = null; if (D2 && D2.jobId) run0("aiJobClear", D2.jobId).catch(() => {}); draw(); };
+  };
+}
 // これまでの献立を材料で探す（全期間の予定はサーバーから1回だけ読む。ひらがな・カタカナ・全角半角の違いは無視）
 const kanaN = t => String(t || "").normalize("NFKC").toLowerCase().replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/\s/g, "");
 async function openSearch() {
@@ -1815,7 +1832,7 @@ const QTY_RE = /(大さじ|小さじ)\s*\d+(?:と\d+\/\d+|\/\d+|\.\d+)?|\d+(?:�
 const HEAT_RE = /\d+(?:\.\d+)?\s*W|\d+\s*分|\d+\s*秒|弱火|中火|強火|余熱/g;
 function stepExtra(s, st) {
   const txt = st.text, out = [];
-  if (s.cut) s.cut.split(/[／\/]/).forEach(p => { const [n, how] = p.split(/[:：]/).map(x => (x || "").trim()); const nz = t => t.replace(/（[^）]*）|\([^)]*\)|[、。，,\s]/g, ""), base = nz(how); if (n && base && !nz(txt).includes(base)) out.push(`${n}は${how}`); });
+  if (s.cut) s.cut.split(/[／\/]/).forEach(p => { const [n = "", how = ""] = p.split(/[:：]/).map(x => (x || "").trim()); const nz = t => String(t || "").replace(/（[^）]*）|\([^)]*\)|[、。，,\s]/g, ""), base = nz(how); if (n && base && !nz(txt).includes(base)) out.push(`${n}は${how}`); });
   const heat = s.detail || (st.tool.split(/[｜|・]/).find(x => new RegExp(HEAT_RE.source).test(x)) || "").trim(), toks = heat.match(HEAT_RE) || [];
   if (heat && toks.length && !toks.every(t => txt.includes(t))) out.push(heat.replace(/[。.]$/, ""));
   // 加熱する手順なのに時間がどこにも無い時は、よくある目安を出す（レシピとAIの段取りの両方に無い時だけ）
