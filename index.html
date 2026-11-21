@@ -557,7 +557,6 @@ async function load() {
   if (await takeJob(S.job)) return;
   draw();
   setTimeout(precookSoon, 3000);
-  setTimeout(autoCheck, 1500);
 }
 const busy = (on, text, sub) => { $("busy").hidden = !on; if (text) $("busyText").textContent = text; $("busy").querySelector("small").textContent = sub || "30秒〜1分ほどかかります"; keepAwake("busy", on); };
 // 画面を消さない（Wake Lock が使えないときは、音なしの小さな動画を流し続ける）
@@ -1078,7 +1077,7 @@ function todayTasks(d) {
   thaw(nx, "今夜");
   // 期限が近いのに、献立で使わない物
   const res = reservations(gs), soon = S.stock.filter(x => hasQty(x) && x.exp && x.exp <= shiftDay(d, 2) && !res[x.id] && !isSeas(x.name));
-  if (soon.length) out.push({ k: "soon", ic: "⏰", t: `期限が近い: ${soon.map(x => x.name).join("、")}`, s: S.autoDraft ? "AIの提案があります（タップで見る）" : S.jobWait && S.jobWait.auto ? "AIが使い道を考えています" : "タップでAIに使い道を考えてもらう", lo: true });
+  if (soon.length) out.push({ k: "soon", ic: "⏰", t: `期限が近い: ${soon.map(x => x.name).join("、")}`, s: "早めに使うか、在庫の画面で量を直してください", tab: "stock" });
   const sh = shopItems(); if (sh.length) out.push({ k: "shop", ic: "🛒", t: `買い物が${sh.length}品あります`, s: sh.slice(0, 4).map(i => i.name).join("、") + (sh.length > 4 ? " など" : ""), tab: "stock" });
   return out;
 }
@@ -2495,7 +2494,8 @@ ${Object.keys(res).length ? "■ほかの予定で押さえている在庫\n" + 
 ${RULES}
 【依頼】${tg[0].d}〜${tg[tg.length - 1].d} の献立（2人分）${opts.stockOnly ? "を、買い物をせず、今の在庫だけで作る（在庫に無い食材・在庫より多い量は使わない）" : "と、足りない物の買い物の案を作る"}。
 - お店でもうカゴに入れた物（買うことが決まっている。値段があれば参考にする）: ${S.dealText || "なし"} → 必ず使い、量も使い切る
-${(l => l.length ? `- 調味料はまんべんなく使い、同じ物に偏らせない。次の調味料はしばらく献立に出ていないので、この期間にそれぞれ1回、味の合う料理で普通の量を使う（合う料理が無ければ使わなくてよい。1つの調味料を何度も使わない）: ${l.map(x => x.name).join("、")}\n` : "")(staleSeasonings(keepPlans))}- 使い切りたい食材（今の在庫。期間中にほかの予定で使う分は差し引き済み）: ${leftoverText(leftovers(keepPlans, tg[tg.length - 1].d)) || "なし"}
+${(l => l.length ? `- 調味料はまんべんなく使い、同じ物に偏らせない。次の調味料はしばらく献立に出ていないので、この期間にそれぞれ1回、味の合う料理で普通の量を使う（合う料理が無ければ使わなくてよい。1つの調味料を何度も使わない）: ${l.map(x => x.name).join("、")}\n` : "")(staleSeasonings(keepPlans))}- 仕込み: この期間の献立に、仕込み（meal:"仕込み"）を組み込む。余りそうな野菜があれば浅漬け・甘酢漬けを1回（夜ごはんが簡単か作り置きの日に、翌日以降の副菜を leftover:true で2〜3食）。塩麹が在庫に無く、最後に仕込んでから25日以上たっていれば塩麹も1回。どちらにも当てはまらなければ入れなくてよい。
+- 使い切りたい食材（今の在庫。期間中にほかの予定で使う分は差し引き済み）: ${leftoverText(leftovers(keepPlans, tg[tg.length - 1].d)) || "なし"}
 - 枠: ${tg.filter(x => x.st !== "out").map(x => `${x.d} ${x.m}（${x.st === "easy" ? "簡単なもの" : x.st === "lo" ? "前の料理の作り置き" : "レシピ"}${soloOf(x.d, x.m) ? `・${SET("人" + soloOf(x.d, x.m))}だけが食べる1人分。people=${soloPeople(soloOf(x.d, x.m))}` : ""}）`).join("、")}
 - 外食の枠（何も入れない。標準的な1食分の栄養（朝500・昼800・夜900kcal）を食べるものとして、その日の栄養を考える）: ${tg.filter(x => x.st === "out").map(x => `${x.d} ${x.m}`).join("、") || "なし"}
 ${rb ? `- これは今週の献立の組み直し。状態を変えていない枠は、今の料理をなるべくそのまま使う（recipe_id を書く）。状態を変えた枠と、それに関わる作り置きだけを作り直す。\n${curTxt}\n` : ""}${lackTxt ? `- 次の料理は在庫が足りない。状態を変えていない枠でも、なるべく今の在庫で作れる料理に作り直す（1日の栄養を考える）: ${lackTxt}\n` : ""}
