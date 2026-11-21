@@ -20,6 +20,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { overflow-x: hidden; max-width: 100%; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; font-size: 15px; line-height: 1.6; }
 main { padding: 12px 14px 96px; max-width: 40rem; margin: 0 auto; display: grid; gap: 12px; }
+/* 上の「帯」: 画面の一番上に、ページと同じ色の不透明な帯を固定する。iPhoneは、上に固定の帯があるとその色をそのまま出し、無いとグラデーションのもやをかける（作品鑑賞帳と同じ対策） */
+#topband { position: fixed; top: 0; left: 0; right: 0; height: calc(env(safe-area-inset-top, 0px) + 6px); background: var(--bg); z-index: 19; }
+main { padding-top: calc(env(safe-area-inset-top, 0px) + 12px); }
 h2 { font-size: 1.05rem; margin: 4px 0; }
 h3 { font-size: .95rem; margin: 0 0 6px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; }
@@ -457,7 +460,7 @@ li.gone .ckout { background: var(--fill); color: var(--fill-ink); border-color: 
 </head>
 <body>
 <div id="staleBn" hidden>最新の内容を読み込んでいます…</div>
-<main id="app"><div class="card">読み込んでいます…</div></main>
+<div id="topband"></div><main id="app"><div class="card">読み込んでいます…</div></main>
 <nav class="tabs" id="tabs"></nav>
 <div class="sheet" id="sheet" hidden><div class="sheet-bg" id="sheetBg"></div><div class="sheet-body" id="sheetBody"></div></div>
 <div class="ovl" id="ovl" hidden></div>
