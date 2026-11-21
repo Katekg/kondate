@@ -532,7 +532,7 @@ function keyGate(msg) {
   document.body.appendChild(d);
   d.querySelector("form").addEventListener("submit", e => { e.preventDefault(); const v = d.querySelector("input").value.trim(); if (!v) return; try { localStorage.setItem("kdKey", v); } catch (x) {} location.reload(); });
 }
-const keyErr = e => { const m = String((e && e.message) || e); if (m.indexOf("KEY") === 0) { try { localStorage.removeItem("kdKey"); } catch (x) {} keyGate("鍵がちがいます。もう一度入れてください。"); } return e; };
+const keyErr = e => { const m = String((e && e.message) || e); if (/^(Error:\s*)?KEY/.test(m)) { try { localStorage.removeItem("kdKey"); } catch (x) {} keyGate("鍵がちがいます。もう一度入れてください。"); } return e; };
 const run0 = (fn, ...a) => (inGAS
   ? new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => ng(e && e.message ? e : new Error(String(e)))).api(fn, KEY(), a))
   : (!KEY() ? (keyGate(), Promise.reject(new Error("KEY: 鍵がありません")))
@@ -3008,7 +3008,7 @@ async function checkDraftStock(D, used) {
   D.mode === "week" ? startWeek(S.rbWish || "", why) : startFix(bad.join("、"), D.picked, false, D.ngShop);
 }
 try { const c = JSON.parse(localStorage.getItem(DATA_KEY) || "null"); if (c) { WQ.forEach(op => wqApply(c, op.fn, op.a)); Object.assign(S, c); S.stale = true; draw(); showStale(true); } } catch (e) { S.stale = false; }
-load().catch(e => { if (S.stale) { const b = $("staleBn"); b.textContent = "最新の内容を読み込めませんでした（前回の内容を表示中）"; return; } $("app").innerHTML = `<div class="msg">読み込めませんでした: ${esc(e.message)}<br>スプレッドシートで setup() を実行したか確かめてください。</div>`; });
+load().catch(e => { if (S.stale) { const b = $("staleBn"); b.textContent = "最新の内容を読み込めませんでした（前回の内容を表示中）: " + String(e && e.message || e).slice(0, 120); return; } $("app").innerHTML = `<div class="msg">読み込めませんでした: ${esc(e.message)}<br>スプレッドシートで setup() を実行したか確かめてください。</div>`; });
 </script>
 <datalist id="qUnits"><option value="個"><option value="本"><option value="枚"><option value="パック"><option value="袋"><option value="束"><option value="株"><option value="切れ"><option value="玉"><option value="丁"><option value="節"><option value="尾"><option value="g"><option value="ml"><option value="あり"></datalist>
 </body>
