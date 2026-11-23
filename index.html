@@ -110,6 +110,9 @@ label { font-size: .8rem; font-weight: 700; color: var(--muted); display: grid; 
 .st-out { background: var(--alert-fill); }
 .st-skip { opacity: .45; }
 .st-solo { background: var(--sky); }
+.slot.one { box-shadow: inset 0 0 0 2px var(--sky-ink); }
+.slot .sl1 { display: block; font-style: normal; font-size: .62rem; font-weight: 700; color: var(--sky-ink); }
+.chip.on { background: var(--sky); border-color: var(--sky-ink); color: var(--sky-ink); font-weight: 700; }
 .seg.eatrow { display: inline-grid; grid-template-columns: repeat(3, auto); }
 .seg.eatrow button { border: 0; border-radius: 0; white-space: nowrap; }
 .seg.eatrow button[aria-pressed="true"] { background: var(--fill); color: var(--fill-ink); font-weight: 700; }
@@ -2471,11 +2474,18 @@ function slotTypeOf(d, m, list) {
 const NEXT_ST = { new: "easy", easy: "lo", lo: "out", out: "skip", skip: "new" };
 function slotRange(ws) { const from = ws > today() ? ws : today(), out = []; for (let d = from; d <= shiftDay(ws, 6); d = shiftDay(d, 1)) MEALS.forEach(m => { const l = S.plans.filter(p => p.date === d && p.meal === m); if (!(l.length && l.every(p => p.status === "作った"))) out.push({ d, m }); }); return out; }
 // 次の週以降: 献立を作る枠（予定が入っている枠は「なし」＝今のまま）
+const slotPat = () => { try { return JSON.parse(SET("枠のいつもの形") || "{}") || {}; } catch (e) { return {}; } };
+const dowOf = d => new Date(d + "T00:00:00").getDay();
+function saveSlotPat(sl) {
+  const pat = { ...slotPat() };
+  sl.list.forEach(x => { if (x.busy || x.st === "out") return; pat[dowOf(x.d) + "|" + x.m] = x.st; });
+  const v = JSON.stringify(pat); if (v !== SET("枠のいつもの形")) run("saveSetting", "枠のいつもの形", v);
+}
 function weekSel(ws) {
-  if (!S.slotSel || S.slotSel.ws !== ws || S.slotSel.mode !== "week") S.slotSel = { ws, mode: "week", list: slotRange(ws).map(x => ({ ...x, st: S.plans.some(p => p.date === x.d && p.meal === x.m && p.status !== "作った") || (x.d === today() && nowHM() > MEAL_END[x.m]) ? "skip" : x.m === "朝" ? "easy" : x.m === "昼" ? "lo" : x.m === "おやつ" ? "skip" : "new" })) };
+  if (!S.slotSel || S.slotSel.ws !== ws || S.slotSel.mode !== "week") { const pat = slotPat(); S.slotSel = { ws, mode: "week", list: slotRange(ws).map(x => { const busy = S.plans.some(p => p.date === x.d && p.meal === x.m && p.status !== "作った") || (x.d === today() && nowHM() > MEAL_END[x.m]); return { ...x, busy, st: busy ? "skip" : pat[dowOf(x.d) + "|" + x.m] || (x.m === "朝" ? "easy" : x.m === "昼" ? "lo" : x.m === "おやつ" ? "skip" : "new") }; }) }; }
   return S.slotSel;
 }
-const slotGridHtml = sl => { const days = [...new Set(sl.list.map(x => x.d))]; return `<div class="slotgrid">${days.map(d => `<div class="slotday"><b>${+d.slice(5, 7)}/${+d.slice(8)}</b>${MEALS.map(m => { const x = sl.list.find(y => y.d === d && y.m === m); return x ? `<button class="slot st-${x.st}" data-k="${d}|${m}"><b>${m}</b>${SLT[x.st]}</button>` : `<span></span>`; }).join("")}</div>`).join("")}</div>`; };
+const slotGridHtml = sl => { const days = [...new Set(sl.list.map(x => x.d))]; return `<div class="slotgrid">${days.map(d => `<div class="slotday"><b>${+d.slice(5, 7)}/${+d.slice(8)}</b>${MEALS.map(m => { const x = sl.list.find(y => y.d === d && y.m === m); const so = soloOf(d, m); return x ? `<button class="slot st-${x.st}${so ? " one" : ""}" data-k="${d}|${m}"><b>${m}</b>${SLT[x.st]}${so ? `<i class="sl1">${esc(SET("人" + so))}だけ</i>` : ""}</button>` : `<span></span>`; }).join("")}</div>`).join("")}</div>`; };
 // 来週の献立がまだ無いとき（木曜から）、今日の画面に案内を出す
 function nextWeekNudge(ws) {
   const nws = shiftDay(ws, 7), dow = new Date(today() + "T00:00:00").getDay();
@@ -2508,7 +2518,8 @@ function planCardHtml(ws) {
     ${S.hasKey ? "" : `<div class="msg">AIのキーが未設定です（Apps Script のスクリプト プロパティ GEMINI_API_KEY）。</div>`}
     <p class="note">3ステップで、献立と買い物リストの案ができます。確定するまで献立は変わりません。</p>
     <div class="wstep${chk ? " done" : ""}"><span class="wno">${chk ? "✓" : "1"}</span><div><b>在庫を確かめる</b><small>${chk ? "確かめました" : checkFocus().length ? `量が変わりやすい物 ${checkFocus().length}品だけ` : "今週は確かめる物はありません（ほぼ最新）"}</small></div><button class="btn${chk ? " ghost" : ""}" id="wkChk">${chk ? "もう一度" : "確かめる"}</button></div>
-    <div class="wstep"><span class="wno">2</span><div><b>予定を選ぶ</b><small>枠をタップで レシピ → 簡単 → 作り置き → 外食 → なし</small></div></div>
+    <div class="wstep"><span class="wno">2</span><div><b>予定を選ぶ</b><small>${S.soloMode ? `いまは「1人」を選ぶモード: 枠をタップで ${esc(SET("人1"))}だけ → ${esc(SET("人2"))}だけ → 2人` : "枠をタップで レシピ → 簡単 → 作り置き → 外食 → なし（前の週の形を覚えています）"}</small></div></div>
+    <button class="chip${S.soloMode ? " on" : ""}" id="soloMode" style="justify-self:start">${S.soloMode ? "✓ 1人の枠を選び終わった" : "👤 1人の時がある"}</button>
     ${slotGridHtml(sl)}
     <details class="wopt"${S.dealText || S.wishText ? " open" : ""}><summary>希望・カゴに入れた物・今月の食費（任意）</summary>
     <label>希望<input id="wish" value="${esc(S.wishText || "")}" placeholder="例: 魚を1回、平日の夜は30分以内"></label>
@@ -2521,7 +2532,11 @@ function planCardHtml(ws) {
 }
 function bindPlanCard(ws) {
   const keep = () => { S.dealText = $("deals").value; S.wishText = $("wish").value; };
-  $("app").querySelectorAll(".slot").forEach(b => b.onclick = () => { keep(); const x = S.slotSel.list.find(y => y.d + "|" + y.m === b.dataset.k); x.st = NEXT_ST[x.st]; drawMenu(); });
+  $("app").querySelectorAll(".slot").forEach(b => b.onclick = () => {
+    keep(); const [d, m] = b.dataset.k.split("|");
+    if (S.soloMode) { const mp = soloMap(), k = d + "|" + m, so = ((+mp[k] || 0) + 1) % 3; if (so) mp[k] = so; else delete mp[k]; run("saveSetting", "食べる人", JSON.stringify(mp)); drawMenu(); return; }
+    const x = S.slotSel.list.find(y => y.d + "|" + y.m === b.dataset.k); x.st = NEXT_ST[x.st]; drawMenu(); });
+  $("soloMode").onclick = () => { keep(); S.soloMode = !S.soloMode; drawMenu(); };
   $("goWeek").onclick = () => { keep(); startWeek(S.wishText.trim()); };
   $("wkChk").onclick = () => { keep(); openQuickCheck(ws); };
   $("spent").onchange = () => {
@@ -2573,6 +2588,7 @@ async function startWeek(wish, fixText, opts) {
   opts = opts || {};
   const sl = S.slotSel, rb = sl.mode === "rebuild", tg = sl.list.filter(x => x.st !== "skip" && !(x.keep && x.st === x.st0)), keys = new Set(tg.map(x => x.d + "|" + x.m));
   if (!tg.filter(x => x.st !== "out").length && !rb) { alert("献立を作る枠がありません"); return; }
+  if (!rb) saveSlotPat(sl);
   // 作る日変更では「なし」にした枠の予定も外す
   const clearKeys = rb ? sl.list.filter(x => x.st === "skip" && x.st0 !== "skip").map(x => x.d + "|" + x.m) : [];
   const removeIds = S.plans.filter(p => p.status !== "作った" && (keys.has(p.date + "|" + p.meal) || clearKeys.includes(p.date + "|" + p.meal))).map(p => p.id);
