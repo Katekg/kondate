@@ -173,7 +173,8 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .qf.vq select.vnum { height: 2.6em; width: 3.6em; text-align: center; }
 .qf.vq .vden { font-weight: 700; color: var(--ink); font-size: 1rem; padding-bottom: .5em; white-space: nowrap; }
 .tilebtn { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.sorting .tile { animation: jig .3s ease-in-out infinite alternate; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.tile { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.tile.drag { opacity: .25; }
 #dropZones { position: fixed; left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 50; background: color-mix(in srgb, var(--surface) 94%, transparent); border-radius: var(--r); box-shadow: var(--shadow); padding: 10px; display: grid; gap: 8px; }
 #dropZones p { margin: 0; text-align: center; font-size: .8rem; font-weight: 700; color: var(--muted); }
 #dropZones .dzs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -1443,25 +1444,21 @@ function stockState(d, m) {
   return t ? `<p class="note stst${cls}">${t}</p>` : "";
 }
 // --- 在庫の並び替え（今週使わない食材のタイルを長押し → ドラッグ。カテゴリの名前・追加・削除・順番） ---
+// カテゴリの編集（名前・追加・削除・順番）
+function openCatEdit(cats, saveCats) {
+  openSheet(`<h2>✎ カテゴリ</h2><ul class="list">${cats.map((c, i) => `<li><span class="nm">${esc(c)}<small>${S.stock.filter(s => s.cat === c).length}品</small></span><span class="row"><button class="chip" data-cup="${i}" ${i ? "" : "disabled"}>↑</button><button class="chip" data-cdn="${i}" ${i < cats.length - 1 ? "" : "disabled"}>↓</button><button class="chip" data-cren="${i}">名前</button><button class="chip" data-cdel="${i}">削除</button></span></li>`).join("")}</ul>
+    <button class="btn ghost wide" id="catAdd">＋ カテゴリを追加</button><button class="btn ghost wide" id="catClose">閉じる</button>`);
+  const done = async (l, mv) => { closeSheet(); await saveCats(l, mv); };
+  $("catClose").onclick = closeSheet;
+  $("catAdd").onclick = () => { const n = (prompt("新しいカテゴリの名前") || "").trim(); if (!n) return; if (cats.includes(n)) { alert("同じ名前のカテゴリがあります"); return; } done([...cats, n]); };
+  document.querySelectorAll("#sheetBody [data-cup],#sheetBody [data-cdn]").forEach(b => b.onclick = () => { const i = +(b.dataset.cup ?? b.dataset.cdn), j = b.dataset.cup != null ? i - 1 : i + 1, l = [...cats]; [l[i], l[j]] = [l[j], l[i]]; done(l); });
+  document.querySelectorAll("#sheetBody [data-cren]").forEach(b => b.onclick = () => { const old = cats[+b.dataset.cren], n = (prompt("カテゴリの新しい名前", old) || "").trim(); if (!n || n === old) return; if (cats.includes(n)) { alert("同じ名前のカテゴリがあります"); return; } done(cats.map(c => c === old ? n : c), S.stock.filter(s => s.cat === old).map(s => ({ ...s, cat: n }))); });
+  document.querySelectorAll("#sheetBody [data-cdel]").forEach(b => b.onclick = () => { const old = cats[+b.dataset.cdel], k = S.stock.filter(s => s.cat === old); if (!confirm(`カテゴリ「${old}」を削除しますか？${k.length ? `\n中の${k.length}品は「その他」に移ります。` : ""}`)) return; done(cats.filter(c => c !== old), k.map(s => ({ ...s, cat: "" }))); });
+}
 function stockSortSetup(cats) {
   const sec = $("restSec"); if (!sec) return;
   const saveCats = async (list, moves) => { busy(true, "保存しています…"); try { const v = list.join(","); S.settings["カテゴリ"] = v; await run("saveSetting", "カテゴリ", v); if (moves && moves.length) await run("saveStock", moves); await load(); } catch (e) { alert(e.message); } busy(false); };
-  if (!S.stockSort) {
-    // 長押しで並び替えモードへ
-    sec.querySelectorAll(".tilebtn").forEach(b => {
-      let t = null, x0 = 0, y0 = 0;
-      b.addEventListener("pointerdown", e => { x0 = e.clientX; y0 = e.clientY; S.lpFired = false; t = setTimeout(() => { S.lpFired = true; S.stockSort = true; try { navigator.vibrate && navigator.vibrate(20); } catch {} draw(); }, 500); });
-      const cancel = () => { clearTimeout(t); t = null; };
-      b.addEventListener("pointermove", e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 8) cancel(); });
-      b.addEventListener("pointerup", cancel); b.addEventListener("pointercancel", cancel); b.addEventListener("contextmenu", e => e.preventDefault());
-    });
-    return;
-  }
-  $("sortDone").onclick = () => { S.stockSort = false; draw(); };
-  $("catAdd").onclick = () => { const n = (prompt("新しいカテゴリの名前") || "").trim(); if (!n) return; if (cats.includes(n)) { alert("同じ名前のカテゴリがあります"); return; } saveCats([...cats, n]); };
-  sec.querySelectorAll("[data-cup],[data-cdn]").forEach(b => b.onclick = () => { const i = +(b.dataset.cup ?? b.dataset.cdn), j = b.dataset.cup != null ? i - 1 : i + 1, l = [...cats]; [l[i], l[j]] = [l[j], l[i]]; saveCats(l); });
-  sec.querySelectorAll("[data-cren]").forEach(b => b.onclick = () => { const old = cats[+b.dataset.cren], n = (prompt("カテゴリの新しい名前", old) || "").trim(); if (!n || n === old) return; if (cats.includes(n)) { alert("同じ名前のカテゴリがあります"); return; } saveCats(cats.map(c => c === old ? n : c), S.stock.filter(s => s.cat === old).map(s => ({ ...s, cat: n }))); });
-  sec.querySelectorAll("[data-cdel]").forEach(b => b.onclick = () => { const old = cats[+b.dataset.cdel], k = S.stock.filter(s => s.cat === old); if (!confirm(`カテゴリ「${old}」を削除しますか？${k.length ? `\n中の${k.length}品は「その他」に移ります。` : ""}`)) return; saveCats(cats.filter(c => c !== old), k.map(s => ({ ...s, cat: "" }))); });
+  if ($("catEdit")) $("catEdit").onclick = () => openCatEdit(cats, saveCats);
   // ドラッグ: 0.35秒押し続けたら「つかむ」（すぐ動かしたらスクロール）。つかむと、カテゴリの一覧が大きく出るので、そこへ動かして離すと移る（カテゴリの中は色の順に自動で並ぶ）
   let drag = null, hold = null;
   const allCats = [...cats, "その他"];
@@ -1472,7 +1469,7 @@ function stockSortSetup(cats) {
   };
   const zoneAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest("#dropZones .dz") : null; };
   const startDrag = (li, x, y) => {
-    try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
+    S.lpFired = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
     const r = li.getBoundingClientRect(), g = li.cloneNode(true); g.className = "tile tghost"; g.style.width = r.width + "px"; document.body.appendChild(g);
     drag = { li, g, dx: r.width / 2, dy: r.height / 2, from: li.parentNode.dataset.cat || "", zones: zonesOpen(li.parentNode.dataset.cat || "") };
     li.classList.add("drag"); moveTo(x, y);
@@ -1492,14 +1489,15 @@ function stockSortSetup(cats) {
     try { await run("saveStock", moves); } catch (e) { alert("移せませんでした: " + e.message); }
   };
   const cancelHold = () => { if (hold) { clearTimeout(hold.t); hold = null; } };
-  sec.querySelectorAll(".tile").forEach(li => {
+  $("app").querySelectorAll(".tile").forEach(li => {
     // 指: 押して0.35秒動かさなければつかむ。それまでに動いたらスクロール
-    li.addEventListener("touchstart", e => { if (drag) return; const t = e.touches[0]; cancelHold(); hold = { x: t.clientX, y: t.clientY, t: setTimeout(() => { hold = null; startDrag(li, t.clientX, t.clientY); }, 350) }; }, { passive: true });
+    li.addEventListener("contextmenu", e => e.preventDefault());
+    li.addEventListener("touchstart", e => { if (drag) return; S.lpFired = false; const t = e.touches[0]; cancelHold(); hold = { x: t.clientX, y: t.clientY, t: setTimeout(() => { hold = null; startDrag(li, t.clientX, t.clientY); }, 350) }; }, { passive: true });
     li.addEventListener("touchmove", e => { const t = e.touches[0]; if (hold && Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 8) cancelHold(); if (drag) { e.preventDefault(); moveTo(t.clientX, t.clientY); } }, { passive: false });
     li.addEventListener("touchend", e => { cancelHold(); if (drag) { const t = e.changedTouches[0]; endDrag(t.clientX, t.clientY); } });
     li.addEventListener("touchcancel", () => { cancelHold(); endDrag(); });
     // マウス（パソコン）: 押して0.35秒でつかむ
-    li.addEventListener("mousedown", e => { if (drag) return; cancelHold(); hold = { x: e.clientX, y: e.clientY, t: setTimeout(() => { hold = null; startDrag(li, e.clientX, e.clientY); }, 350) }; });
+    li.addEventListener("mousedown", e => { if (drag) return; S.lpFired = false; cancelHold(); hold = { x: e.clientX, y: e.clientY, t: setTimeout(() => { hold = null; startDrag(li, e.clientX, e.clientY); }, 350) }; });
   });
   // 画面を描き直すたびに増えないよう、前の分を外してから付ける
   if (window._sortMM) { document.removeEventListener("mousemove", window._sortMM); document.removeEventListener("mouseup", window._sortMU); }
@@ -1541,7 +1539,7 @@ function drawStock() {
       ${missing.length ? `<p class="note red">在庫に無い材料: ${esc(missing.join("、"))}</p>` : ""}
       <p class="note">タイルをタップすると、使う量の確認と、量の修正ができます。</p>
       ${gs.length ? (lackSet.size ? `<div class="fixbox ng"><b>このままだと献立に足りない材料があります: ${esc([...lackSet].join("、"))}</b><button class="btn wide" id="goFix">栄養を考えながら、在庫に合わせて献立を見直す</button></div>` : `<div class="fixbox okk"><b>今の在庫で、予定の献立は全部作れます</b></div>`) : ""}</section>
-    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3>${sorting ? `<button class="btn" id="sortDone">完了</button>` : ""}</div><p class="note">${sorting ? "タイルを別のカテゴリへドラッグすると、置き場所が変わります（カテゴリの中は色の順に並びます）。" : "量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへの移動とカテゴリの編集ができます。"}</p>${byCat(restList) || `<p class="note">ありません</p>`}${sorting ? `<button class="btn ghost wide" id="catAdd" style="margin-top:10px">＋ カテゴリを追加</button>` : ""}</section>`;
+    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3><button class="chip" id="catEdit">✎ カテゴリ</button></div><p class="note">量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへ移せます。</p>${byCat(restList) || `<p class="note">ありません</p>`}</section>`;
   $("app").querySelectorAll(".tilebtn").forEach(b => b.onclick = () => { if (S.stockSort || S.lpFired) { S.lpFired = false; return; } openStockItem(b.dataset.id); });
   stockSortSetup(cats);
   // 買い物リスト: チェックと量の直しは、画面を描き直しても残す（在庫に入れたら消す）
