@@ -173,12 +173,20 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .qf.vq select.vnum { height: 2.6em; width: 3.6em; text-align: center; }
 .qf.vq .vden { font-weight: 700; color: var(--ink); font-size: 1rem; padding-bottom: .5em; white-space: nowrap; }
 .tilebtn { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.sorting .tile { touch-action: none; animation: jig .3s ease-in-out infinite alternate; }
+.sorting .tile { animation: jig .3s ease-in-out infinite alternate; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#dropZones { position: fixed; left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 50; background: color-mix(in srgb, var(--surface) 94%, transparent); border-radius: var(--r); box-shadow: var(--shadow); padding: 10px; display: grid; gap: 8px; }
+#dropZones p { margin: 0; text-align: center; font-size: .8rem; font-weight: 700; color: var(--muted); }
+#dropZones .dzs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#dropZones .dz { border: 2px dashed var(--line); border-radius: var(--r-md); padding: 18px 6px; text-align: center; font-weight: 700; background: var(--bg); }
+#dropZones .dz small { display: block; font-size: .68rem; color: var(--muted); font-weight: 400; }
+#dropZones .dz.cur { opacity: .45; }
+#dropZones .dz.on { border-style: solid; border-color: var(--accent); background: var(--fill); color: var(--fill-ink); transform: scale(1.04); }
+#dropZones .dz.cancel { padding: 10px; color: var(--alert); border-color: var(--alert-fill); }
 .sorting .tile:nth-child(2n) { animation-delay: .15s; }
 @keyframes jig { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
 .sorting .tile.drag { opacity: .25; animation: none; }
 .sorting .tiles { min-height: 3.6rem; border-radius: 20px; outline: 1.5px dashed color-mix(in srgb, currentColor 25%, transparent); outline-offset: 2px; }
-.tghost { position: fixed; z-index: 99; pointer-events: none; transform: scale(1.08); filter: drop-shadow(0 6px 14px rgba(0,0,0,.25)); list-style: none; }
+.tghost { position: fixed; z-index: 60; pointer-events: none; transform: scale(1.08); filter: drop-shadow(0 6px 14px rgba(0,0,0,.25)); list-style: none; }
 .cathead { display: flex; align-items: center; gap: 4px; margin: 12px 0 6px; }
 .cathead h3 { margin: 0; flex: 1; }
 .tname { font-weight: 700; font-size: .8rem; line-height: 1.2; text-align: center; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -1454,37 +1462,50 @@ function stockSortSetup(cats) {
   sec.querySelectorAll("[data-cup],[data-cdn]").forEach(b => b.onclick = () => { const i = +(b.dataset.cup ?? b.dataset.cdn), j = b.dataset.cup != null ? i - 1 : i + 1, l = [...cats]; [l[i], l[j]] = [l[j], l[i]]; saveCats(l); });
   sec.querySelectorAll("[data-cren]").forEach(b => b.onclick = () => { const old = cats[+b.dataset.cren], n = (prompt("カテゴリの新しい名前", old) || "").trim(); if (!n || n === old) return; if (cats.includes(n)) { alert("同じ名前のカテゴリがあります"); return; } saveCats(cats.map(c => c === old ? n : c), S.stock.filter(s => s.cat === old).map(s => ({ ...s, cat: n }))); });
   sec.querySelectorAll("[data-cdel]").forEach(b => b.onclick = () => { const old = cats[+b.dataset.cdel], k = S.stock.filter(s => s.cat === old); if (!confirm(`カテゴリ「${old}」を削除しますか？${k.length ? `\n中の${k.length}品は「その他」に移ります。` : ""}`)) return; saveCats(cats.filter(c => c !== old), k.map(s => ({ ...s, cat: "" }))); });
-  // ドラッグ
-  let drag = null;
-  const se = document.scrollingElement || document.documentElement;
-  const tick = () => { if (!drag) return; const y = drag.y, m = 70; if (y < m) se.scrollBy(0, -12); else if (y > innerHeight - m) se.scrollBy(0, 12); place(drag.x, drag.y); requestAnimationFrame(tick); };
-  const place = (x, y) => {
-    const el = document.elementFromPoint(x, y); if (!el) return;
-    const li = el.closest("#restSec .tile"), ul = el.closest("#restSec .tiles");
-    if (li && li !== drag.li) { const r = li.getBoundingClientRect(), after = x > r.left + r.width / 2; li.parentNode.insertBefore(drag.li, after ? li.nextSibling : li); }
-    else if (!li && ul && !ul.contains(drag.li)) ul.appendChild(drag.li);
+  // ドラッグ: 0.35秒押し続けたら「つかむ」（すぐ動かしたらスクロール）。つかむと、カテゴリの一覧が大きく出るので、そこへ動かして離すと移る（カテゴリの中は色の順に自動で並ぶ）
+  let drag = null, hold = null;
+  const allCats = [...cats, "その他"];
+  const zonesOpen = from => {
+    const z = document.createElement("div"); z.id = "dropZones";
+    z.innerHTML = `<p>ここへ動かして離すと移ります</p><div class="dzs">${allCats.map(c => `<div class="dz${(c === "その他" ? "" : c) === from ? " cur" : ""}" data-cat="${esc(c === "その他" ? "" : c)}">${esc(c)}${(c === "その他" ? "" : c) === from ? "<small>今の場所</small>" : ""}</div>`).join("")}</div><div class="dz cancel" data-cancel="1">やめる</div>`;
+    document.body.appendChild(z); return z;
   };
-  sec.querySelectorAll(".tile").forEach(li => li.addEventListener("pointerdown", e => {
-    if (drag) return; e.preventDefault();
-    const r = li.getBoundingClientRect(), g = li.cloneNode(true); g.className = "tile tghost"; g.style.width = r.width + "px"; g.style.left = r.left + "px"; g.style.top = r.top + "px"; document.body.appendChild(g);
-    drag = { li, g, dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY, from: li.parentNode.dataset.cat }; li.classList.add("drag");
-    try { li.setPointerCapture(e.pointerId); } catch {}
-    requestAnimationFrame(tick);
-  }));
-  const move = e => { if (!drag) return; drag.x = e.clientX; drag.y = e.clientY; drag.g.style.left = (e.clientX - drag.dx) + "px"; drag.g.style.top = (e.clientY - drag.dy) + "px"; };
-  const end = async () => {
-    if (!drag) return; const d = drag; drag = null; d.g.remove(); d.li.classList.remove("drag");
-    // 並び順は画面の上から順。置き場所が変わった物は在庫も直す
-    const order = [...sec.querySelectorAll(".tile")].map(x => x.dataset.sid), to = d.li.parentNode.dataset.cat, id = d.li.dataset.sid;
-    const ids = new Set(order), old = (() => { try { return JSON.parse(SET("在庫の並び") || "[]"); } catch { return []; } })().filter(x => !ids.has(x) && S.stock.some(s => s.id === x));
-    const v = JSON.stringify([...order, ...old]); S.settings["在庫の並び"] = v;
-    const moves = [];
-    if (to !== d.from) { const s0 = S.stock.find(s => s.id === id); if (s0) { moves.push({ ...s0, cat: to }); if (normName(s0.name) === "長ねぎ白") S.stock.filter(s => normName(s.name) === "長ねぎ青").forEach(s => moves.push({ ...s, cat: to })); } }
-    moves.forEach(m => { const s0 = S.stock.find(s => s.id === m.id); if (s0) s0.cat = m.cat; });
-    if (moves.length) draw();
-    try { await run("saveSetting", "在庫の並び", v); if (moves.length) await run("saveStock", moves); } catch (e) { alert("並び替えを保存できませんでした: " + e.message); }
+  const zoneAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest("#dropZones .dz") : null; };
+  const startDrag = (li, x, y) => {
+    try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
+    const r = li.getBoundingClientRect(), g = li.cloneNode(true); g.className = "tile tghost"; g.style.width = r.width + "px"; document.body.appendChild(g);
+    drag = { li, g, dx: r.width / 2, dy: r.height / 2, from: li.parentNode.dataset.cat || "", zones: zonesOpen(li.parentNode.dataset.cat || "") };
+    li.classList.add("drag"); moveTo(x, y);
   };
-  sec.addEventListener("pointermove", move); sec.addEventListener("pointerup", end); sec.addEventListener("pointercancel", end);
+  const moveTo = (x, y) => {
+    if (!drag) return; drag.g.style.left = (x - drag.dx) + "px"; drag.g.style.top = (y - drag.dy) + "px";
+    drag.zones.querySelectorAll(".dz").forEach(z => z.classList.remove("on")); const z = zoneAt(x, y); if (z && !z.classList.contains("cur")) z.classList.add("on");
+  };
+  const endDrag = async (x, y) => {
+    if (!drag) return; const d = drag; drag = null; const z = x == null ? null : zoneAt(x, y);
+    d.g.remove(); d.zones.remove(); d.li.classList.remove("drag");
+    if (!z || z.dataset.cancel || z.classList.contains("cur")) return;
+    const to = z.dataset.cat, id = d.li.dataset.sid, s0 = S.stock.find(s => s.id === id); if (!s0) return;
+    const moves = [{ ...s0, cat: to }]; if (normName(s0.name) === "長ねぎ白") S.stock.filter(s => normName(s.name) === "長ねぎ青").forEach(s => moves.push({ ...s, cat: to }));
+    moves.forEach(m => { const x0 = S.stock.find(s => s.id === m.id); if (x0) x0.cat = m.cat; });
+    draw();
+    try { await run("saveStock", moves); } catch (e) { alert("移せませんでした: " + e.message); }
+  };
+  const cancelHold = () => { if (hold) { clearTimeout(hold.t); hold = null; } };
+  sec.querySelectorAll(".tile").forEach(li => {
+    // 指: 押して0.35秒動かさなければつかむ。それまでに動いたらスクロール
+    li.addEventListener("touchstart", e => { if (drag) return; const t = e.touches[0]; cancelHold(); hold = { x: t.clientX, y: t.clientY, t: setTimeout(() => { hold = null; startDrag(li, t.clientX, t.clientY); }, 350) }; }, { passive: true });
+    li.addEventListener("touchmove", e => { const t = e.touches[0]; if (hold && Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 8) cancelHold(); if (drag) { e.preventDefault(); moveTo(t.clientX, t.clientY); } }, { passive: false });
+    li.addEventListener("touchend", e => { cancelHold(); if (drag) { const t = e.changedTouches[0]; endDrag(t.clientX, t.clientY); } });
+    li.addEventListener("touchcancel", () => { cancelHold(); endDrag(); });
+    // マウス（パソコン）: 押して0.35秒でつかむ
+    li.addEventListener("mousedown", e => { if (drag) return; cancelHold(); hold = { x: e.clientX, y: e.clientY, t: setTimeout(() => { hold = null; startDrag(li, e.clientX, e.clientY); }, 350) }; });
+  });
+  // 画面を描き直すたびに増えないよう、前の分を外してから付ける
+  if (window._sortMM) { document.removeEventListener("mousemove", window._sortMM); document.removeEventListener("mouseup", window._sortMU); }
+  window._sortMM = e => { if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 8) cancelHold(); if (drag) moveTo(e.clientX, e.clientY); };
+  window._sortMU = e => { cancelHold(); if (drag) endDrag(e.clientX, e.clientY); };
+  document.addEventListener("mousemove", window._sortMM); document.addEventListener("mouseup", window._sortMU);
 }
 // --- 在庫（買う物があるときは、一番上に買い物リスト） ---
 function drawStock() {
