@@ -426,6 +426,14 @@ main.fill .daycard .mcard { flex: 1 1 auto; }
 .wstep small { display: block; color: var(--muted); font-size: .74rem; }
 .wno { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-weight: 700; background: var(--lav); color: var(--accent); }
 .wstep.done .wno { background: var(--fill); }
+.wbtn { width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.wbtn.open { background: var(--lav); }
+.wbtn .wchev { color: var(--muted); font-weight: 700; }
+.wbtn.go { background: var(--fill); }
+.wbtn.go .wno { background: var(--accent); color: #fff; }
+.wbtn.go b { color: var(--fill-ink); }
+.wpane { display: grid; gap: 6px; padding: 2px 4px 6px; }
+.wpane[hidden] { display: none; }
 .wstep .btn { padding: 6px 12px; font-size: .85rem; }
 .btn.big { padding: 13px 14px; font-size: 1rem; }
 .wopt { background: var(--bg); border-radius: var(--r-md); padding: 8px 10px; display: grid; gap: 6px; }
@@ -2513,22 +2521,32 @@ function openQuickCheck(ws) {
   };
 }
 function planCardHtml(ws) {
-  const sl = weekSel(ws), chk = (lsGet("wkChk") || {})[ws];
+  const sl = weekSel(ws), chk = (lsGet("wkChk") || {})[ws], seen = (S.wizSeen = S.wizSeen || {}), op = S.wizOpen || "";
+  const nNew = sl.list.filter(x => x.st !== "skip" && x.st !== "out").length, nOne = sl.list.filter(x => soloOf(x.d, x.m)).length, sp = spentNow();
+  const done = { 1: !!chk, 2: !!seen[2], 3: sp != null && sp !== "", 4: !!(S.dealText || S.wishText || seen[4]) };
+  const sub = {
+    1: chk ? "確かめました" : checkFocus().length ? `量が変わりやすい物 ${checkFocus().length}品だけ` : "確かめる物はありません（ほぼ最新）",
+    2: `作る枠 ${nNew}${nOne ? `・1人の枠 ${nOne}` : ""}（タップで開く）`,
+    3: sp != null && sp !== "" ? `今月 ${Number(sp).toLocaleString()}円 使った` : "家計簿の今月の食費を入れる（任意）",
+    4: S.dealText ? "カゴに入れた物を入れました" : S.wishText ? `希望: ${S.wishText}` : "お店でカゴに入れた物・希望（任意）"
+  };
+  const head = (n, t) => `<button class="wstep wbtn${done[n] ? " done" : ""}${op === String(n) ? " open" : ""}" data-w="${n}"><span class="wno">${done[n] ? "✓" : n}</span><span><b>${t}</b><small>${esc(sub[n])}</small></span><span class="wchev">${n === 1 ? "›" : op === String(n) ? "▴" : "▾"}</span></button>`;
+  const pane = (n, html) => `<div class="wpane"${op === String(n) ? "" : " hidden"}>${html}</div>`;
   return `<section class="card wiz"><h3>🗓 この週の献立を作る</h3>
     ${S.hasKey ? "" : `<div class="msg">AIのキーが未設定です（Apps Script のスクリプト プロパティ GEMINI_API_KEY）。</div>`}
-    <p class="note">3ステップで、献立と買い物リストの案ができます。確定するまで献立は変わりません。</p>
-    <div class="wstep${chk ? " done" : ""}"><span class="wno">${chk ? "✓" : "1"}</span><div><b>在庫を確かめる</b><small>${chk ? "確かめました" : checkFocus().length ? `量が変わりやすい物 ${checkFocus().length}品だけ` : "今週は確かめる物はありません（ほぼ最新）"}</small></div><button class="btn${chk ? " ghost" : ""}" id="wkChk">${chk ? "もう一度" : "確かめる"}</button></div>
-    <div class="wstep"><span class="wno">2</span><div><b>予定を選ぶ</b><small>${S.soloMode ? `いまは「1人」を選ぶモード: 枠をタップで ${esc(SET("人1"))}だけ → ${esc(SET("人2"))}だけ → 2人` : "枠をタップで レシピ → 簡単 → 作り置き → 外食 → なし（前の週の形を覚えています）"}</small></div></div>
-    <button class="chip${S.soloMode ? " on" : ""}" id="soloMode" style="justify-self:start">${S.soloMode ? "✓ 1人の枠を選び終わった" : "👤 1人の時がある"}</button>
-    ${slotGridHtml(sl)}
-    <details class="wopt"${S.dealText || S.wishText ? " open" : ""}><summary>希望・カゴに入れた物・今月の食費（任意）</summary>
-    <label>希望<input id="wish" value="${esc(S.wishText || "")}" placeholder="例: 魚を1回、平日の夜は30分以内"></label>
-    <label>カゴに入れたもの<textarea id="deals" placeholder="例: 鶏むね肉 600g 348円、白菜1/4 98円、ぶり切り身 2切れ">${esc(S.dealText || "")}</textarea></label>
-    <p class="note">ここに書いた物は必ず使う献立にし、買い物リストでもカゴに入れた印を付けます。</p>
-    <label>今月使った食費（円）<input id="spent" inputmode="numeric" value="${spentNow() ?? ""}" placeholder="例: 12000（家計簿の今月の食費）"></label></details>
-    ${budgetNote()}
-    <div class="wstep"><span class="wno">3</span><div><b>AIに作ってもらう</b><small>1〜3分。画面を消しても続きます</small></div></div>
-    <button class="btn wide big" id="goWeek">✨ 献立と買い物リストを作る</button></section>`;
+    <p class="note">上から順に押していくと、献立と買い物リストの案ができます。確定するまで献立は変わりません。</p>
+    ${head(1, "在庫を確かめる")}
+    ${head(2, "予定を選ぶ")}
+    ${pane(2, `<p class="note">${S.soloMode ? `「1人」を選ぶモード: 枠をタップで ${esc(SET("人1"))}だけ → ${esc(SET("人2"))}だけ → 2人` : "枠をタップで レシピ → 簡単 → 作り置き → 外食 → なし（前の週の形を覚えています）"}</p>
+      <button class="chip${S.soloMode ? " on" : ""}" id="soloMode" style="justify-self:start">${S.soloMode ? "✓ 1人の枠を選び終わった" : "👤 1人の時がある"}</button>
+      ${slotGridHtml(sl)}`)}
+    ${head(3, "今月の食費を入れる")}
+    ${pane(3, `<label>今月使った食費（円）<input id="spent" inputmode="numeric" value="${sp ?? ""}" placeholder="例: 12000（家計簿の今月の食費）"></label>${budgetNote()}`)}
+    ${head(4, "お店で買う物・希望")}
+    ${pane(4, `<label>カゴに入れたもの<textarea id="deals" placeholder="例: 鶏むね肉 600g 348円、白菜1/4 98円、ぶり切り身 2切れ">${esc(S.dealText || "")}</textarea></label>
+      <p class="note">ここに書いた物は必ず使う献立にし、買い物リストでもカゴに入れた印を付けます。</p>
+      <label>希望<input id="wish" value="${esc(S.wishText || "")}" placeholder="例: 魚を1回、平日の夜は30分以内"></label>`)}
+    <button class="wstep wbtn go" id="goWeek"><span class="wno">5</span><span><b>✨ 献立と買い物リストを作る</b><small>AIが作ります（1〜3分）。画面を消しても続きます</small></span><span class="wchev">›</span></button></section>`;
 }
 function bindPlanCard(ws) {
   const keep = () => { S.dealText = $("deals").value; S.wishText = $("wish").value; };
@@ -2538,7 +2556,12 @@ function bindPlanCard(ws) {
     const x = S.slotSel.list.find(y => y.d + "|" + y.m === b.dataset.k); x.st = NEXT_ST[x.st]; drawMenu(); });
   $("soloMode").onclick = () => { keep(); S.soloMode = !S.soloMode; drawMenu(); };
   $("goWeek").onclick = () => { keep(); startWeek(S.wishText.trim()); };
-  $("wkChk").onclick = () => { keep(); openQuickCheck(ws); };
+  $("app").querySelectorAll(".wbtn[data-w]").forEach(b => b.onclick = () => {
+    keep(); const n = b.dataset.w;
+    if (n === "1") { openQuickCheck(ws); return; }
+    S.wizSeen = S.wizSeen || {}; if (S.wizOpen === n) { S.wizSeen[n] = true; S.wizOpen = ""; } else { if (S.wizOpen) S.wizSeen[S.wizOpen] = true; S.wizOpen = n; }
+    drawMenu();
+  });
   $("spent").onchange = () => {
     const v = $("spent").value.normalize("NFKC").replace(/[^\d]/g, ""), val = v ? `${ymKey()} ${+v}` : "";
     keep(); S.settings["今月の食費"] = val; drawMenu();
