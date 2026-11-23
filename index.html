@@ -2703,7 +2703,14 @@ async function askAi(prompt, meta) {
   if (!meta.auto) { closeSheet(); window.scrollTo(0, 0); } draw();
   let res;
   try { res = await run0("aiJob", id, prompt, JSON.stringify({ ...meta, prompt })); }
-  catch (e) { S.jobWait = null; draw(); if (S.applied === id) return; const j = await run("aiJobGet").catch(() => null); if (j && j.id === id && j.status === "done" && await takeJob(j)) return; S.errShown = id; if (j && j.id === id) run("aiJobClear", id).catch(() => {}); alert(String(e.message).replace(/^Error:\s*/, "")); return; }
+  catch (e) {
+    if (S.applied === id) return;
+    // 通信が切れただけ（Load failed など）のときは、AIはサーバーで考え続けている → 待ち続けて、できたらシートから受け取る
+    const net = /Load failed|Failed to fetch|NetworkError|network connection|timed out/i.test(String((e && e.message) || e));
+    const j = await run("aiJobGet").catch(() => null);
+    if (j && j.id === id && j.status === "done") { S.jobWait = null; if (await takeJob(j)) return; }
+    if (net && (!j || (j.id === id && j.status === "running"))) { draw(); return; }
+    S.jobWait = null; draw(); S.errShown = id; if (j && j.id === id) run("aiJobClear", id).catch(() => {}); alert(String(e.message).replace(/^Error:\s*/, "")); return; }
   S.jobWait = null;
   await applyAi(res, meta, prompt, id);
 }
@@ -2740,6 +2747,7 @@ async function takeJob(j) {
   if (!j || j.status === "used") { S.jobWait = null; return false; }
   if (j.status === "done") { if (S.draft || S.applied === j.id || (S.autoDraft && S.autoDraft.jobId === j.id)) return false; let m, r; try { m = JSON.parse(j.meta); r = JSON.parse(j.result); } catch (e) { return false; } await applyAi(r, m, m.prompt, j.id); return true; }
   if (j.status === "error") { if (S.errShown !== j.id) { S.errShown = j.id; S.jobWait = null; alert("AIの献立づくりがうまくいきませんでした: " + j.result); run("aiJobClear", j.id).catch(() => {}); } return false; }
+  if (Date.now() - j.startedAt >= 7 * 60e3) { if (j.id === S.jobId && S.errShown !== j.id) { S.errShown = j.id; S.jobWait = null; alert("AIの返事が7分たっても届きませんでした（Googleのサーバーの時間切れ）。もう一度お願いします。"); run("aiJobClear", j.id).catch(() => {}); } S.jobWait = null; return false; }
   S.jobWait = Date.now() - j.startedAt < 7 * 60e3 ? { ...j, auto: /"auto":true/.test(j.meta), label: (() => { try { return JSON.parse(j.meta).kind === "ask" ? "頼んだことを考えています" : "献立を作成中です"; } catch (e) { return "考えています"; } })() } : null;
   return false;
 }
