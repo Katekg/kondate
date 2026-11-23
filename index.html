@@ -402,6 +402,8 @@ main.fill .daycard .mcard { flex: 1 1 auto; }
 .jobbn { display: grid; gap: 4px; background: var(--butter); border-color: transparent; }
 .jobbn small { color: var(--butter-ink); font-size: .78rem; }
 .jobbn .chip { justify-self: start; }
+.jobbn.fail { background: #fde9e7; }
+.jobbn.fail small { color: #8a2f25; }
 .spin.sm { width: 18px; height: 18px; border-width: 3px; border-color: color-mix(in srgb, var(--butter-ink) 25%, transparent); border-top-color: var(--butter-ink); }
 .jobbn { grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 8px 12px; }
 .jobbn b { display: block; font-size: .85rem; }
@@ -2698,6 +2700,7 @@ ${FORMAT}
 async function askAi(prompt, meta) {
   if (S.jobWait && !S.jobWait.auto && Date.now() - S.jobWait.startedAt < 3 * 60e3 && !(meta && meta.retried)) { alert("AIが考えている途中です。終わってから、もう一度お願いします。"); return; }
   const id = "j" + Date.now();
+  if (S.jobFail) { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} }
   meta = { ...meta, ctx: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" } };
   S.jobId = id; S.jobWait = { id, startedAt: Date.now(), auto: !!meta.auto, label: meta.auto ? "期限が近い物の使い道を考えています" : meta.kind === "ask" ? "頼んだことを考えています" : "献立を作成中です" };
   if (!meta.auto) { closeSheet(); window.scrollTo(0, 0); } draw();
@@ -2710,7 +2713,8 @@ async function askAi(prompt, meta) {
     const j = await run("aiJobGet").catch(() => null);
     if (j && j.id === id && j.status === "done") { S.jobWait = null; if (await takeJob(j)) return; }
     if (net && (!j || (j.id === id && j.status === "running"))) { draw(); return; }
-    S.jobWait = null; draw(); S.errShown = id; if (j && j.id === id) run("aiJobClear", id).catch(() => {}); alert(String(e.message).replace(/^Error:\s*/, "")); return; }
+    if (j && j.id === id && j.status === "error") { await takeJob(j); draw(); return; }
+    failJob(String(e.message).replace(/^Error:\s*/, ""), id, prompt, meta); return; }
   S.jobWait = null;
   await applyAi(res, meta, prompt, id);
 }
@@ -2732,13 +2736,14 @@ async function applyAi(res, meta, prompt, id) {
     // パックで売る物（卵・納豆）を数個だけ買い足す案はやめさせる
     { const odd = packShort(shopItems(st.plans)).filter(x => own.has(normName(x.i.name))); if (odd.length) bad.push(odd.map(x => `${x.label}が${x.n}${x.u}だけ足りない（${x.label}は${x.pack}${x.u}入りで買うので、数${x.u}だけの買い足しはしない）。${x.label}を使う量を在庫の分に収めるか、${x.label}を使わない料理に変える`).join("。")); }
     const left = leftovers(st.plans).filter(x => (meta.mustUse || []).includes(x.s.id)); if (left.length) bad.push(`使い切るはずの食材がまだ残る: ${leftoverText(left)}。分量を増やすか、この食材を使う料理を足して使い切る`);
-    if (bad.length) { S.draft = null; await askAi(prompt + `\n【前の案の問題】${bad.join("。")}`, { ...m0, retried: true }); return; }
+    if (bad.length) { S.prevDraft = S.draft; S.draft = null; await askAi(prompt + `\n【前の案の問題】${bad.join("。")}`, { ...m0, retried: true }); return; }
   }
   if (meta.mode === "fix") {
     const lacks = draftLacks();
-    if (lacks.length && !meta.retried) { S.draft = null; await askAi(prompt + `\n【前の案の問題】次の材料が足りなかった: ${lacks.join("、")}。この材料を使わずに作り直す。`, { ...m0, retried: true }); return; }
+    if (lacks.length && !meta.retried) { S.prevDraft = S.draft; S.draft = null; await askAi(prompt + `\n【前の案の問題】次の材料が足りなかった: ${lacks.join("、")}。この材料を使わずに作り直す。`, { ...m0, retried: true }); return; }
   }
   if (meta.auto) { S.autoDraft = S.draft; S.draft = null; draw(); if (S.autoDraft) chime(); return; }
+  S.prevDraft = null; keepDraft();
   S.tab = "menu"; draw(); window.scrollTo(0, 0);
   if (S.draft) chime();
 }
@@ -2746,16 +2751,34 @@ async function applyAi(res, meta, prompt, id) {
 async function takeJob(j) {
   if (!j || j.status === "used") { S.jobWait = null; return false; }
   if (j.status === "done") { if (S.draft || S.applied === j.id || (S.autoDraft && S.autoDraft.jobId === j.id)) return false; let m, r; try { m = JSON.parse(j.meta); r = JSON.parse(j.result); } catch (e) { return false; } await applyAi(r, m, m.prompt, j.id); return true; }
-  if (j.status === "error") { if (S.errShown !== j.id) { S.errShown = j.id; S.jobWait = null; alert("AIの献立づくりがうまくいきませんでした: " + j.result); run("aiJobClear", j.id).catch(() => {}); } return false; }
-  if (Date.now() - j.startedAt >= 7 * 60e3) { if (j.id === S.jobId && S.errShown !== j.id) { S.errShown = j.id; S.jobWait = null; alert("AIの返事が7分たっても届きませんでした（Googleのサーバーの時間切れ）。もう一度お願いします。"); run("aiJobClear", j.id).catch(() => {}); } S.jobWait = null; return false; }
-  S.jobWait = Date.now() - j.startedAt < 7 * 60e3 ? { ...j, auto: /"auto":true/.test(j.meta), label: (() => { try { return JSON.parse(j.meta).kind === "ask" ? "頼んだことを考えています" : "献立を作成中です"; } catch (e) { return "考えています"; } })() } : null;
+  const jm = () => { try { return JSON.parse(j.meta); } catch (e) { return {}; } };
+  if (j.status === "error") { const m = jm(); if (!m.auto) failJob(j.result, j.id, m.prompt, m); else S.jobWait = null; return false; }
+  // Googleのサーバーは1回の作業を6分で打ち切る。7分たっても「作業中」のままなら、サーバー側で止まっている
+  if (Date.now() - j.startedAt >= 7 * 60e3) { const m = jm(); if (!m.auto) failJob("Googleのサーバーが6分の制限で作業を止めました（AIが混み合っていたためです）。", j.id, m.prompt, m); else S.jobWait = null; return false; }
+  S.jobWait = { ...j, auto: /"auto":true/.test(j.meta), label: (() => { try { return JSON.parse(j.meta).kind === "ask" ? "頼んだことを考えています" : "献立を作成中です"; } catch (e) { return "考えています"; } })() };
   return false;
 }
+// うまくいかなかったとき: 上の知らせを「失敗しました」に変えて残す（アラートは、アプリを閉じている間だと見えないため）
+function failJob(msg, id, prompt, meta) {
+  S.jobWait = null;
+  if (meta && meta.retried && S.prevDraft) { const D = S.prevDraft; S.prevDraft = null; D.note = (D.note || "") + "（見直しのやり直しはできなかったので、最初の案を出しています）"; S.draft = D; keepDraft(); S.tab = "menu"; draw(); if (id) run("aiJobClear", id).catch(() => {}); return; }
+  S.jobFail = { msg: String(msg || "原因が分かりませんでした"), id, prompt, meta }; lsSet("jobFail", S.jobFail); draw();
+}
+// できた案はスマホにも残す（アプリが閉じられても、開き直せば出る）
+function keepDraft() { const c = { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }; S.draft ? lsSet("draftKeep", { draft: S.draft, ctx: c }) : localStorage.removeItem("draftKeep"); }
 // 作業中の知らせ（どのタブでも一番上）。開いている間は、ときどき確かめる
 function jobBanner() {
+  const f = S.jobFail;
+  if (f && !S.jobWait && !$("jobBn")) {
+    $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn fail" id="jobBn"><span>⚠️</span><span><b>AIの献立づくりが失敗しました</b><small>${esc(f.msg)}</small></span>${f.prompt ? `<button class="chip" id="jobRe">もう一度</button>` : ""}<button class="chip" id="jobX">閉じる</button></section>`);
+    const clr = () => { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} if (f.id) run("aiJobClear", f.id).catch(() => {}); };
+    $("jobX").onclick = () => { clr(); draw(); };
+    if ($("jobRe")) $("jobRe").onclick = () => { clr(); const { ctx, prompt: _p, retried, ...m } = f.meta || {}; askAi(f.prompt, m); };
+    return;
+  }
   const j = S.jobWait; if (!j || $("jobBn")) return;
   const min = Math.max(0, Math.round((Date.now() - j.startedAt) / 60e3));
-  $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn" id="jobBn"><span class="spin sm"></span><span><b>✨ AIが${esc(j.label || "考えています")}</b><small>${min ? `${min}分前から・` : ""}1〜3分。ほかの操作も、画面を消してもOK</small></span><button class="chip" id="jobChk">確かめる</button></section>`);
+  $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn" id="jobBn"><span class="spin sm"></span><span><b>✨ AIが${esc(j.label || "考えています")}</b><small>${min ? `${min}分前から・` : ""}ふだん1〜3分（混んでいると6分まで）。アプリを閉じてもOK、できたらカレンダーで知らせます</small></span><button class="chip" id="jobChk">確かめる</button></section>`);
   $("jobChk").onclick = () => load();
 }
 setInterval(async () => { if (!S.jobWait || document.visibilityState !== "visible") return; const j = await run("aiJobGet").catch(() => null); if (!j || j.status !== "running") load(); }, 15000);
@@ -2986,7 +3009,7 @@ function drawDraft() {
   });
   $("app").querySelectorAll(".shopprop .seg button").forEach(b => b.onclick = () => { const x = D.shop[+b.dataset.i]; x.mark = x.mark === b.dataset.v ? "" : b.dataset.v; drawDraft(); });
   const ngb = $("dfNg"); if (ngb) ngb.onclick = () => { const ng = [...(D.ngShop || []), ...D.shop.filter(x => x.mark === "ng").map(x => x.name)]; D.kind === "boost" ? boostPlan(D.yen, D.short, ng) : startFix("", D.picked, false, ng); };
-  $("dfDrop").onclick = () => { if (confirm("この案を捨てますか？")) { if (D.jobId) run("aiJobClear", D.jobId).catch(() => {}); S.draft = null; draw(); } };
+  $("dfDrop").onclick = () => { if (confirm("この案を捨てますか？")) { if (D.jobId) run("aiJobClear", D.jobId).catch(() => {}); S.draft = null; keepDraft(); draw(); } };
   const loLeft = () => leftoverText(leftovers(st.plans).filter(x => pick.has(x.s.id)));
   $("app").querySelectorAll("[data-lp]").forEach(b => b.onclick = () => { const id = b.dataset.lp; pick.has(id) ? pick.delete(id) : pick.add(id); drawDraft(); });
   $("dfFix").onclick = () => { const w = $("fixText").value.trim(), lo = pick.size ? `次の食材は、週の終わりに残る見込みの量（カッコ内）も必ず使い切る: ${loLeft()}。分量を増やすか料理を変えて使い切る` : "";
@@ -3020,7 +3043,7 @@ function drawDraft() {
       if (more.length) { await load(); await spreadExtra(more); }
       if (D.jobId) await run("aiJobClear", D.jobId).catch(() => {});
       if (chk.length) lsSet("buyChk", D.kind === "boost" ? { at: today(), lim: +D.yen || 0, cost: chk.reduce((s, x) => s + (x.est || 0), 0), days: D.short || [], items: chk } : { at: today(), lim: lim, cost: D.cost || 0, days, items: chk });
-      S.draft = null; S.tmpRecipes = []; S.slotSel = null; await load(); S.tab = "menu"; draw(); window.scrollTo(0, 0);
+      S.draft = null; keepDraft(); S.tmpRecipes = []; S.slotSel = null; await load(); S.tab = "menu"; draw(); window.scrollTo(0, 0);
       busy(false); if (chk.length) openBuyCheck(); return;
     } catch (e) { alert(e.message); }
     busy(false);
@@ -3183,6 +3206,8 @@ async function checkDraftStock(D, used) {
   D.mode === "week" ? startWeek(S.rbWish || "", why) : startFix(bad.join("、"), D.picked, false, D.ngShop);
 }
 try { const c = JSON.parse(localStorage.getItem(DATA_KEY) || "null"); if (c) { WQ.forEach(op => wqApply(c, op.fn, op.a)); Object.assign(S, c); S.stale = true; draw(); showStale(true); } } catch (e) { S.stale = false; }
+{ const k = lsGet("draftKeep"); if (k && k.draft && !S.draft) { S.draft = k.draft; S.applied = k.draft.jobId; const c = k.ctx || {}; S.slotSel = S.slotSel || c.slotSel; S.rbWish = S.rbWish || c.rbWish || ""; S.dealText = S.dealText || c.dealText || ""; S.tab = "menu"; } }
+{ const f = lsGet("jobFail"); if (f) S.jobFail = f; }
 load().catch(e => { if (S.stale) { const b = $("staleBn"); b.textContent = "最新の内容を読み込めませんでした（前回の内容を表示中）: " + String(e && e.message || e).slice(0, 120); return; } $("app").innerHTML = `<div class="msg">読み込めませんでした: ${esc(e.message)}<br>スプレッドシートで setup() を実行したか確かめてください。</div>`; });
 </script>
 <datalist id="qUnits"><option value="個"><option value="本"><option value="枚"><option value="パック"><option value="袋"><option value="束"><option value="株"><option value="切れ"><option value="玉"><option value="丁"><option value="節"><option value="尾"><option value="g"><option value="ml"><option value="あり"></datalist>
