@@ -2709,7 +2709,9 @@ async function askAi(prompt, meta) {
   if (S.jobFail) { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} }
   meta = { ...meta, ctx: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" } };
   S.jobId = id; S.jobWait = { id, startedAt: Date.now(), auto: !!meta.auto, label: meta.auto ? "期限が近い物の使い道を考えています" : meta.kind === "ask" ? "頼んだことを考えています" : "献立を作成中です" };
-  if (!meta.auto) { closeSheet(); window.scrollTo(0, 0); } draw();
+  // 頼んだらすぐ献立タブの一番上へ（上の帯で「作成中」が見える）。見ていた案はしまっておき、失敗したら戻す
+  if (!meta.auto) { closeSheet(); if (S.draft) { S.holdDraft = S.draft; lsSet("draftHold", S.draft); S.draft = null; keepDraft(); } S.tab = "menu"; window.scrollTo(0, 0); }
+  draw(); window.scrollTo(0, 0);
   let res;
   try { res = await run0("aiJob", id, prompt, JSON.stringify({ ...meta, prompt })); }
   catch (e) {
@@ -2755,7 +2757,7 @@ async function applyAi(res, meta, prompt, id) {
     if (lacks.length && !meta.retried) { S.prevDraft = S.draft; S.draft = null; await askAi(prompt + `\n【前の案の問題】次の材料が足りなかった: ${lacks.join("、")}。この材料を使わずに作り直す。`, { ...m0, retried: true }); return; }
   }
   if (meta.auto) { S.autoDraft = S.draft; S.draft = null; draw(); if (S.autoDraft) chime(); return; }
-  S.prevDraft = null; keepDraft();
+  S.prevDraft = null; S.holdDraft = null; try { localStorage.removeItem("draftHold"); } catch (e) {} keepDraft();
   S.tab = "menu"; draw(); window.scrollTo(0, 0);
   if (S.draft) chime();
 }
@@ -2774,7 +2776,9 @@ async function takeJob(j) {
 function failJob(msg, id, prompt, meta) {
   S.jobWait = null;
   if (meta && meta.retried && S.prevDraft) { const D = S.prevDraft; S.prevDraft = null; D.note = (D.note || "") + "（見直しのやり直しはできなかったので、最初の案を出しています）"; S.draft = D; keepDraft(); S.tab = "menu"; draw(); if (id) run("aiJobClear", id).catch(() => {}); return; }
-  S.jobFail = { msg: String(msg || "原因が分かりませんでした"), id, prompt, meta }; lsSet("jobFail", S.jobFail); draw();
+  const hold = S.holdDraft || lsGet("draftHold"); S.holdDraft = null; try { localStorage.removeItem("draftHold"); } catch (e) {}
+  if (hold && !S.draft) { S.draft = hold; keepDraft(); }
+  S.jobFail = { msg: String(msg || "原因が分かりませんでした"), id, prompt, meta }; lsSet("jobFail", S.jobFail); draw(); window.scrollTo(0, 0);
 }
 // できた案はスマホにも残す（アプリが閉じられても、開き直せば出る）
 function keepDraft() { const c = { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }; S.draft ? lsSet("draftKeep", { draft: S.draft, ctx: c }) : localStorage.removeItem("draftKeep"); }
@@ -3018,6 +3022,7 @@ function drawDraft() {
     <label>変えてほしいこと<textarea id="fixText" placeholder="例: 水曜の夜を魚にしたい、なすを使ってほしい"></textarea></label>
     <button class="btn ghost wide" id="dfFix" hidden>🔄 この希望で考え直す</button>
     <button class="btn ghost wide" id="dfDrop">この案を捨てる</button>`;
+  jobBanner();   // 失敗の知らせ（赤い帯）は、案の画面でも一番上に出す
   $("app").querySelectorAll("[data-dish]").forEach(b => b.onclick = () => {
     const tmp = st.tmp.find(r => r.title === b.dataset.dish) || S.recipes.find(r => r.title === b.dataset.dish); if (!tmp) return;
     openSheet(`<h2>${esc(tmp.title)}</h2><p class="note">${esc(tmp.servings)}人分・1人分 ${esc(tmp.kcal)}kcal・P${esc(tmp.p)}</p><div class="card"><h3>材料</h3><ul class="list">${ingsOf(tmp).map(i => `<li><span class="nm">${esc(i.name)}</span><b>${esc(withGram(i.name, i.amount))}</b></li>`).join("")}</ul></div><div class="card"><h3>作り方</h3><ol class="steps">${stepsOf(tmp).map(s => `<li>${esc(s)}</li>`).join("")}</ol></div><button class="btn ghost wide" id="x">閉じる</button>`);
