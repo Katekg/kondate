@@ -2742,11 +2742,25 @@ const ASK_EX = ["鶏むね肉600gと卵10個を買った", "今日の昼は作�
 function openAskAi(pre) {
   openSheet(`<h2>✨ AIに頼む</h2><p class="note">買った物・使い切った物・予定の変更などを、ふだんの言葉で書いてください。AIが在庫と献立を直します（あとで取り消せます）。</p>
     <textarea id="askTx" rows="3" placeholder="例: ピーナッツクリームと鰹節を買った。ビスケットは作らなかった">${esc(pre || "")}</textarea>
+    ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="btn alt wide" id="askMic">🎤 話して入力</button>` : `<p class="note">🎤 キーボードのマイクのボタンでも、話して入力できます。</p>`}
     <div class="row">${ASK_EX.map(t => `<button class="chip" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
     <button class="btn wide" id="askGo">頼む</button><button class="btn ghost wide" id="askNo">閉じる</button>`);
-  $("askNo").onclick = closeSheet;
+  $("askNo").onclick = () => { if (S.rec) try { S.rec.stop(); } catch (e) {} closeSheet(); };
   document.querySelectorAll("#sheetBody [data-ex]").forEach(b => b.onclick = () => { const t = $("askTx"); t.value = (t.value ? t.value + "。" : "") + b.dataset.ex; t.focus(); });
   $("askGo").onclick = () => { const text = $("askTx").value.trim(); if (!text) return; askAi(askPrompt(text), { kind: "ask", text }); };
+  // マイク: 話した言葉を文字にして欄に足す（iPhoneの音声認識。AIの無料枠は使わない）
+  if ($("askMic")) $("askMic").onclick = () => {
+    const R = window.SpeechRecognition || window.webkitSpeechRecognition, b = $("askMic"), t = $("askTx");
+    if (S.rec) { try { S.rec.stop(); } catch (e) {} return; }
+    let rec; try { rec = new R(); } catch (e) { b.outerHTML = `<p class="note">この端末では使えませんでした。キーボードのマイクのボタンで話して入力してください。</p>`; return; }
+    const base = t.value ? t.value.replace(/[。、\s]*$/, "") + "。" : "";
+    rec.lang = "ja-JP"; rec.interimResults = true; rec.continuous = false; S.rec = rec;
+    b.textContent = "● 聞いています…（もう一度押すと止める）";
+    rec.onresult = e => { t.value = base + [...e.results].map(r => r[0].transcript).join(""); };
+    rec.onerror = e => { if (e.error === "not-allowed" || e.error === "service-not-allowed") alert("マイクが許可されていません。キーボードのマイクのボタンで話して入力してください。"); };
+    rec.onend = () => { S.rec = null; if ($("askMic")) $("askMic").textContent = "🎤 話して入力"; };
+    try { rec.start(); } catch (e) { S.rec = null; b.textContent = "🎤 話して入力"; }
+  };
   setTimeout(() => { const t = $("askTx"); if (t) t.focus(); }, 50);
 }
 function askPrompt(text) {
