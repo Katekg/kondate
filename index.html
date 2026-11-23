@@ -963,6 +963,8 @@ function tileStyle(name) {
   let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 360; return `--h:${h};--s:45%`;
 }
 const expSoon = s => s.exp && s.exp <= shiftDay(today(), 2);
+// 色の順（赤→橙→黄→緑→青→紫）。色の薄い物（灰色っぽい物）は後ろ。カテゴリの中はこの順に並べる
+const hueKey = name => { const m = tileStyle(name).match(/--h:(\d+);--s:(\d+)%/); if (!m) return 999; let h = +m[1]; if (h >= 345) h -= 360; return (+m[2] < 30 ? 400 : 0) + h; };
 // ===== 画面 =====
 const TABS = [["menu", "献立"], ["stock", "在庫"], ["tools", "器具"]];
 const OUT_EST = { 朝: { kcal: 500, p: 18, f: 15, c: 70 }, 昼: { kcal: 800, p: 28, f: 28, c: 105 }, おやつ: { kcal: 200, p: 3, f: 8, c: 28 }, 夜: { kcal: 900, p: 35, f: 35, c: 105 } };
@@ -1508,7 +1510,7 @@ function drawStock() {
   // 並び順: 長押しで並び替えた順（設定「在庫の並び」）。並べていない物は名前順で後ろに
   const ord = (() => { try { return JSON.parse(SET("在庫の並び") || "[]"); } catch { return []; } })(), oi = id => { const i = ord.indexOf(id); return i < 0 ? 1e9 : i; };
   const sorting = !!S.stockSort;
-  const byCat = list => [...cats, "その他"].map((c, ci) => { const l = list.filter(s => (cats.includes(s.cat) ? s.cat : "その他") === c).sort((a, b) => (oi(a.id) - oi(b.id)) || a.name.localeCompare(b.name, "ja")); const own = c !== "その他";
+  const byCat = list => [...cats, "その他"].map((c, ci) => { const l = list.filter(s => (cats.includes(s.cat) ? s.cat : "その他") === c).sort((a, b) => (hueKey(a.name) - hueKey(b.name)) || a.name.localeCompare(b.name, "ja")); const own = c !== "その他";
     return l.length || (sorting && own) ? `<div class="cathead"><h3>${esc(c)}（${l.length}）</h3>${sorting && own ? `<button class="chip" data-cup="${ci}" ${ci ? "" : "disabled"}>↑</button><button class="chip" data-cdn="${ci}" ${ci < cats.length - 1 ? "" : "disabled"}>↓</button><button class="chip" data-cren="${ci}">名前</button><button class="chip" data-cdel="${ci}">削除</button>` : ""}</div><ul class="tiles" data-cat="${esc(own ? c : "")}">${l.map(s => tile(s, false, true)).join("")}</ul>` : ""; }).join("");
   $("app").innerHTML = `<div class="h2row"><h2>在庫</h2><div class="btns"><button class="btn ghost" id="ckBtn">📋 在庫確認</button><button class="btn" id="addBtn">＋ 追加</button></div></div>
     ${items.length ? `<section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3><button class="chip" id="copy">コピー</button></div><p class="note">買った物にチェックし、量が違えば直してから「在庫へ」を押すと、まとめて在庫に入ります。</p><ul class="list" id="sbList">${items.map((i, n) => { const s = matchStock(i.name), e = (S.buyEd || {})[i.name] || {}; return `<li class="qrow"><label class="bcck"><input type="checkbox" data-i="${n}" ${e.ck ? "checked" : ""}><span class="nmt">${esc(i.name)}<small>${(lsGet("laterBuy") || {})[i.name] ? `<span class="tag">後で買う</span>` : ""}${s && s.qty !== OUT ? `在庫: ${esc(s.qty)}・` : "在庫なし・"}使う: ${esc([...new Set(i.when)].join("、"))}</small></span></label>${qtyBox(e.q || buyText(i), "q sbq", n, i.name)}</li>`; }).join("")}</ul><div class="grid2" style="margin-top:8px"><button class="btn ghost" id="sbAll">全部選ぶ</button><button class="btn" id="sbGo">在庫へ</button></div></section>` : ""}
@@ -1518,7 +1520,7 @@ function drawStock() {
       ${missing.length ? `<p class="note red">在庫に無い材料: ${esc(missing.join("、"))}</p>` : ""}
       <p class="note">タイルをタップすると、使う量の確認と、量の修正ができます。</p>
       ${gs.length ? (lackSet.size ? `<div class="fixbox ng"><b>このままだと献立に足りない材料があります: ${esc([...lackSet].join("、"))}</b><button class="btn wide" id="goFix">栄養を考えながら、在庫に合わせて献立を見直す</button></div>` : `<div class="fixbox okk"><b>今の在庫で、予定の献立は全部作れます</b></div>`) : ""}</section>
-    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3>${sorting ? `<button class="btn" id="sortDone">完了</button>` : ""}</div><p class="note">${sorting ? "タイルをドラッグして並べ替えます。別のカテゴリへ動かすと、置き場所も変わります。" : "量はどこも「今ある量」です。タイルを長押しすると、並び替えとカテゴリの編集ができます。"}</p>${byCat(restList) || `<p class="note">ありません</p>`}${sorting ? `<button class="btn ghost wide" id="catAdd" style="margin-top:10px">＋ カテゴリを追加</button>` : ""}</section>`;
+    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3>${sorting ? `<button class="btn" id="sortDone">完了</button>` : ""}</div><p class="note">${sorting ? "タイルを別のカテゴリへドラッグすると、置き場所が変わります（カテゴリの中は色の順に並びます）。" : "量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへの移動とカテゴリの編集ができます。"}</p>${byCat(restList) || `<p class="note">ありません</p>`}${sorting ? `<button class="btn ghost wide" id="catAdd" style="margin-top:10px">＋ カテゴリを追加</button>` : ""}</section>`;
   $("app").querySelectorAll(".tilebtn").forEach(b => b.onclick = () => { if (S.stockSort || S.lpFired) { S.lpFired = false; return; } openStockItem(b.dataset.id); });
   stockSortSetup(cats);
   // 買い物リスト: チェックと量の直しは、画面を描き直しても残す（在庫に入れたら消す）
