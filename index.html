@@ -1057,12 +1057,14 @@ function openSheet(html) { if ($("sheet").hidden) S.sheetY = { y: window.scrollY
 function closeSheet() {
   $("sheet").hidden = true; document.documentElement.classList.remove("sheetOpen");
   const o = S.sheetY, t0 = Date.now(); if (!o) return; S.sheetY = null;
-  const back = () => { if (_lastScroll <= t0 && S.tab === o.tab && !!S.draft === o.draft && $("sheet").hidden) _scrollTo(0, o.y); };
+  // 指で触ったら、それ以降は戻さない（スクロールの途中で位置を戻すと、ガクンと跳ねるため）
+  let off = false; const stop = () => { off = true; }; ["touchstart", "wheel"].forEach(ev => window.addEventListener(ev, stop, { once: true, passive: true }));
+  const back = () => { if (!off && _lastScroll <= t0 && S.tab === o.tab && !!S.draft === o.draft && $("sheet").hidden && Math.abs(window.scrollY - o.y) > 2) _scrollTo(0, o.y); };
   requestAnimationFrame(back); setTimeout(back, 150); setTimeout(back, 450);   // キーボードが閉じて画面が戻るのを待ってもう一度
 }
 // キーボードが出たら、下から出る画面をキーボードの上に収める（入力欄がキーボードに隠れないように）。後ろの画面は動かさない
 function fitSheet() {
-  const vv = window.visualViewport, el = $("sheet"); if (!el) return;
+  const vv = window.visualViewport, el = $("sheet"); if (!el || el.hidden) return;
   if (!vv) { el.style.top = ""; el.style.height = ""; return; }
   el.style.top = vv.offsetTop + "px"; el.style.height = vv.height + "px"; el.style.bottom = "auto";
 }
