@@ -1052,6 +1052,11 @@ const swipeEnd = e => {
 };
 document.addEventListener("touchend", swipeEnd);
 document.addEventListener("touchcancel", swipeEnd);
+// 見えないところで起きたエラー（ボタンを押しても何も起きない、を防ぐ）。通信の切れは除く
+window.addEventListener("unhandledrejection", e => {
+  const m = String((e.reason && e.reason.message) || e.reason || ""); if (!m || /KEY|Load failed|Failed to fetch|NetworkError|network|timed out|aborted/i.test(m)) return;
+  alert("うまく動きませんでした: " + m.slice(0, 160));
+});
 // 下から出る画面を閉じたら、開く前に見ていた位置に戻す（キーボードで画面が上にずれても、元の材料を見失わない）
 // ただし閉じたあとにプログラムが自分で位置を変えたとき（「一番上へ」など）は、そちらを優先する
 const _scrollTo = window.scrollTo.bind(window); let _lastScroll = 0;
@@ -2760,7 +2765,10 @@ function openRebuild(ws) {
 // 買い出しの日
 async function startWeek(wish, fixText, opts) {
   opts = opts || {};
-  const sl = S.slotSel, rb = sl.mode === "rebuild", tg = sl.list.filter(x => x.st !== "skip" && !(x.keep && x.st === x.st0)), keys = new Set(tg.map(x => x.d + "|" + x.m));
+  // 枠の選び方は、なければ見ている案（またはしまってある案）から戻す
+  const sl = S.slotSel || (S.slotSel = ((S.draft || S.holdDraft || lsGet("draftHold") || {}).ctx0 || {}).slotSel);
+  if (!sl) { alert("この週の枠の情報が見つかりませんでした。献立タブの「この週の献立を作る」から、もう一度お願いします。"); return; }
+  const rb = sl.mode === "rebuild", tg = sl.list.filter(x => x.st !== "skip" && !(x.keep && x.st === x.st0)), keys = new Set(tg.map(x => x.d + "|" + x.m));
   if (!tg.filter(x => x.st !== "out").length && !rb) { alert("献立を作る枠がありません"); return; }
   if (!rb) saveSlotPat(sl);
   // 作る日変更では「なし」にした枠の予定も外す
@@ -2839,13 +2847,14 @@ async function askAi(prompt, meta) {
   try { res = await run0("aiJob", id, prompt, JSON.stringify({ ...meta, prompt })); }
   catch (e) {
     if (S.applied === id || (S.cancelled && S.cancelled.has(id))) return;
-    // 通信が切れただけ（Load failed など）のときは、AIはサーバーで考え続けている → 待ち続けて、できたらシートから受け取る
-    const net = /Load failed|Failed to fetch|NetworkError|network connection|timed out/i.test(String((e && e.message) || e));
-    const j = await run("aiJobGet").catch(() => null);
-    if (j && j.id === id && j.status === "done") { S.jobWait = null; if (await takeJob(j)) return; }
-    if (net && (!j || (j.id === id && j.status === "running"))) { draw(); return; }
-    if (j && j.id === id && j.status === "error") { await takeJob(j); draw(); return; }
-    failJob(String(e.message).replace(/^Error:\s*/, ""), id, prompt, meta); return; }
+    // 答えを待つ通信が切れても（アプリを閉じた・電波など）、サーバーでは考え続けている。サーバーの記録で決める:
+    //   作業中 → 待ち続ける／できた・失敗 → その結果を出す／記録を確かめられない → 待ち続ける（ときどき確かめ直す）
+    //   記録がこの依頼でない → 依頼がサーバーに届かなかった → 失敗として知らせる（カレンダーにも）
+    const msg = String((e && e.message) || e).replace(/^Error:\s*/, "");
+    const j = await run("aiJobGet").catch(() => undefined);
+    if (j === undefined) { draw(); return; }
+    if (j && j.id === id) { if (j.status === "running") { draw(); return; } S.jobWait = null; await takeJob(j); draw(); return; }
+    failJob("依頼がサーバーに届きませんでした（" + msg + "）", null, prompt, meta); run("aiNotify", "献立の依頼がサーバーに届きませんでした: " + msg).catch(() => {}); return; }
   if (S.cancelled && S.cancelled.has(id)) return;   // 中止した依頼の答えは使わない
   // 混んでいて、サーバーが続きを予約した → 作業中のまま待つ（できたらシートとカレンダーで届く）
   if (res && res._pending) { draw(); return; }
@@ -2862,7 +2871,7 @@ async function applyAi(res, meta, prompt, id) {
   const meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; return { ...m, meal, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : (+m.people || 2) }; });
   const shop = (Array.isArray(res.shopping) ? res.shopping : []).filter(x => x && x.name).map(x => ({ name: String(x.name), amount: String(x.amount || ""), reason: String(x.reason || ""), mark: "" }));
   const { ctx, prompt: _p, ...m0 } = meta;
-  S.draft = { ...m0, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
+  S.draft = { ...m0, ctx0: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
   // 「在庫だけで」なのに買い物が出た／「使い切る」と選んだ食材がまだ残る → 問題を伝えて1回だけ考え直す
   if (!meta.retried) {
     const st = draftState(S.draft), bad = [];
@@ -2893,7 +2902,7 @@ async function takeJob(j) {
   const jm = () => { try { return JSON.parse(j.meta); } catch (e) { return {}; } };
   if (j.status === "error") { const m = jm(); if (!m.auto) failJob(j.result, j.id, m.prompt, m); else S.jobWait = null; return false; }
   // サーバーは数分ごとに「更新」を書く（混んでいるときは自動でやり直す・15分まで）。9分以上「更新」が無いなら、サーバー側で止まっている
-  if (Date.now() - (j.beat || j.startedAt) >= 9 * 60e3) { const m = jm(); if (!m.auto) failJob("サーバーの作業が途中で止まりました。もう一度お願いします。", j.id, m.prompt, m); else S.jobWait = null; return false; }
+  if (Date.now() - (j.beat || j.startedAt) >= 9 * 60e3) { const m = jm(); if (!m.auto) { if (S.jobFail && S.jobFail.id === j.id) return false; failJob("サーバーの作業が途中で止まりました。もう一度お願いします。", j.id, m.prompt, m); run("aiNotify", "サーバーの作業が途中で止まりました").catch(() => {}); } else S.jobWait = null; return false; }
   S.jobWait = { ...j, auto: /"auto":true/.test(j.meta), label: (() => { try { return JSON.parse(j.meta).kind === "ask" ? "頼んだことを考えています" : "献立を作成中です"; } catch (e) { return "考えています"; } })() };
   return false;
 }
@@ -2914,7 +2923,12 @@ function jobBanner() {
     $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn fail" id="jobBn"><span>⚠️</span><span><b>AIの献立づくりが失敗しました</b><small>${esc(f.msg)}</small></span><span class="jbtn">${f.prompt ? `<button class="chip" id="jobRe">もう一度</button>` : ""}<button class="chip" id="jobX">閉じる</button></span></section>`);
     const clr = () => { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} if (f.id) run("aiJobClear", f.id).catch(() => {}); };
     $("jobX").onclick = () => { clr(); draw(); };
-    if ($("jobRe")) $("jobRe").onclick = () => { clr(); const { ctx, prompt: _p, retried, ...m } = f.meta || {}; askAi(f.prompt, m); };
+    if ($("jobRe")) $("jobRe").onclick = async () => {
+      // サーバーでまだ考えている（9分以内に動いている）なら、頼み直さずに待つ
+      const g = f.id ? await run0("aiJobGet").catch(() => null) : null;
+      if (g && g.id === f.id && g.status === "running" && Date.now() - (g.beat || g.startedAt) < 9 * 60e3) { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} S.jobId = g.id; S.jobWait = { ...g, label: "献立を作成中です" }; draw(); return; }
+      clr(); const { ctx, prompt: _p, retried, ...m } = f.meta || {}; askAi(f.prompt, m);
+    };
     return;
   }
   const j = S.jobWait; if (!j || $("jobBn")) return;
