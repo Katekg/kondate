@@ -464,6 +464,7 @@ main.fill .daycard .mcard { flex: 1 1 auto; }
 .cart li.incart .nm, .cart li.incart b { color: var(--muted); }
 .cart li.incart .nm { text-decoration: line-through; }
 .cart.buy li { align-items: center; }
+.cart.buy li.aisle { display: block; font-size: .74rem; font-weight: 700; color: var(--muted); padding: 8px 0 2px; border-bottom: 0; }
 .cart.buy .ckb { flex: none; border: 0; background: none; padding: 0; cursor: pointer; }
 .cart.buy .ckb .ck { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 700; color: #fff; }
 .cart.buy li.incart .ckb .ck { background: var(--accent); border-color: var(--accent); }
@@ -1568,7 +1569,7 @@ function stockSortSetup(cats) {
 // --- 在庫（買う物があるときは、一番上に買い物リスト） ---
 function drawStock() {
   const cats = String(S.settings["カテゴリ"] || "冷蔵室,瞬冷凍,野菜室,冷凍庫,コンロ下").split(",").map(s => s.trim()).filter(Boolean);
-  const gs = planGroups(), res = reservations(gs), lackSet = new Set(), items = shopItems();
+  const gs = planGroups(), res = reservations(gs), lackSet = new Set(), items = sortAisle(shopItems());
   gs.forEach(x => lacksOf(x).forEach(o => lackSet.add(normName(o.it.name))));
   const period = gs.length ? `${fmtDay(gs[0].date)} ${MEAL_LABEL[gs[0].meal]} 〜 ${fmtDay(gs[gs.length - 1].date)} ${MEAL_LABEL[gs[gs.length - 1].meal]}` : "";
   const isLack = s => lackSet.has(normName(s.name)) || [...lackSet].some(n => n.length >= 2 && (normName(s.name).includes(n) || n.includes(normName(s.name))));
@@ -2588,8 +2589,9 @@ function rateText() {
     + (bad.length ? `■「いまいち」だったレシピ（この recipe_id の作り方だけは使わない。同じ食材・同じ種類の料理・似た料理は、ふつうに使ってよい）\n${bad.map(r => `- id=${r.id}｜${r.title}`).join("\n")}\n` : "");
 }
 const RICE_AM = "c42de0bbb0e641bc", RICE_LD = "rice15go2p000001";   // 白ごはんのレシピ（朝 1合／昼・夜 1.25合、どちらも2人分）
-const rules = () => RULES.replace("{{BUY_PACK}}", buyPackText() || "決まりなし");
+const rules = () => RULES.replace("{{BUY_PACK}}", buyPackText() || "決まりなし").replace("{{MONTH}}", String(+today().slice(5, 7)));
 const RULES = `【献立のルール】
+- 旬: 今は{{MONTH}}月。この時期が旬の野菜・魚・果物（安くておいしい物）を、毎日の献立のどこかに必ず使う。買い足す物も、なるべく旬の物から選ぶ。
 - 在庫は、消費期限が近いもの → 生の肉・魚 → 野菜 → 加工品の順に優先して使う。
 - 肉・魚・野菜など日持ちしない食材は、この期間の献立で使い切る（在庫にある分も、買い足す分も）。1つの料理で使い切れないときは、ほかの料理にも分けて使い、半端な量が残らないようにする。下の「使い切りたい食材」は必ず全部使う。
 - ねぎは材料名を「長ねぎ」と書く（白ねぎ・長ネギとは書かない）。青い部分・白い部分だけを使うときは「長ねぎ（青い部分）：1本」「長ねぎ（白い部分）：1/2本」のように、使う部分と本数を書く。部分を書かない「長ねぎ：1本」は、白い部分と青い部分の両方を使う意味。
@@ -2783,8 +2785,8 @@ async function startWeek(wish, fixText, opts) {
   const ask = `${context("（ほかの予定で使う分は差し引いて考える）")}
 ${Object.keys(res).length ? "■ほかの予定で押さえている在庫\n" + Object.entries(res).map(([id, l]) => `- ${(S.stock.find(s => s.id === id) || {}).name}: ${l.map(x => x.amount).join("＋")}`).join("\n") : ""}
 ${rules()}
-【依頼】${tg[0].d}〜${tg[tg.length - 1].d} の献立（2人分）${opts.stockOnly ? "を、買い物をせず、今の在庫だけで作る（在庫に無い食材・在庫より多い量は使わない）" : "と、足りない物の買い物の案を作る"}。
-- お店でもうカゴに入れた物（買うことが決まっている。値段があれば参考にする）: ${S.dealText || "なし"} → 必ず使い、量も使い切る
+【依頼】${tg[0].d}〜${tg[tg.length - 1].d} の献立（2人分）${opts.buyOnly ? "を、これ以上買い物をせず、今の在庫と、お店でカゴに入れた物（下の量まで）だけで作る（それ以外の食材は使わない。在庫・カゴの量より多くは使わない）" : opts.stockOnly ? "を、買い物をせず、今の在庫だけで作る（在庫に無い食材・在庫より多い量は使わない）" : "と、足りない物の買い物の案を作る"}。
+- お店でもうカゴに入れた物（買うことが決まっている。値段があれば参考にする）: ${S.dealText || "なし"} → ${opts.buyOnly ? "この量まで使ってよい。1日の栄養の目標を満たせるなら、残ってもよい" : "必ず使い、量も使い切る"}
 ${(l => l.length ? `- 調味料はまんべんなく使い、同じ物に偏らせない。次の調味料はしばらく献立に出ていないので、この期間にそれぞれ1回、味の合う料理で普通の量を使う（合う料理が無ければ使わなくてよい。1つの調味料を何度も使わない）: ${l.map(x => x.name).join("、")}\n` : "")(staleSeasonings(keepPlans))}- 仕込み: この期間の献立に、仕込み（meal:"仕込み"）を組み込む。余りそうな野菜があれば浅漬け・甘酢漬けを1回（夜ごはんが簡単か作り置きの日に、翌日以降の副菜を leftover:true で2〜3食）。塩麹が在庫に無く、最後に仕込んでから25日以上たっていれば塩麹も1回。どちらにも当てはまらなければ入れなくてよい。
 - 使い切りたい食材（今の在庫。期間中にほかの予定で使う分は差し引き済み）: ${leftoverText(leftovers(keepPlans, tg[tg.length - 1].d)) || "なし"}
 - 枠: ${tg.filter(x => x.st !== "out").map(x => `${x.d} ${x.m}（${x.st === "easy" ? "簡単なもの" : x.st === "lo" ? "前の料理の作り置き" : "レシピ"}${soloOf(x.d, x.m) ? `・${SET("人" + soloOf(x.d, x.m))}だけが食べる1人分。people=${soloPeople(soloOf(x.d, x.m))}` : ""}）`).join("、")}
@@ -2794,7 +2796,7 @@ ${rb ? `- これは今週の献立の組み直し。状態を変えていない�
 ${wish ? `- 希望: ${wish}\n` : ""}${prev && fixText ? `- 前回の案: ${prev.meals.map(m => `${m.date} ${m.meal} ${m.dish}`).join("／")}\n- 変えてほしいこと: ${fixText}${opts.stockOnly || (opts.mustUse || []).length ? "（そのために必要な料理は作り直してよい）" : "（関係ない料理は前回のまま）"}\n` : ""}
 ${FORMAT}`;
   const slotTypesNew = Object.fromEntries(sl.list.filter(x => x.st !== "skip" || !S.plans.some(p => p.date === x.d && p.meal === x.m && p.status !== "作った")).map(x => [x.d + "|" + x.m, x.st]));
-  await askAi(ask, { mode: "week", slotTypes: slotTypesNew, removeIds, slotKeys: [...keys], outKeys: tg.filter(x => x.st === "out").map(x => x.d + "|" + x.m), clearKeys, stockOnly: !!opts.stockOnly, mustUse: opts.mustUse || [] });
+  await askAi(ask, { mode: "week", slotTypes: slotTypesNew, removeIds, slotKeys: [...keys], outKeys: tg.filter(x => x.st === "out").map(x => x.d + "|" + x.m), clearKeys, stockOnly: !!opts.stockOnly, buyOnly: opts.buyOnly || null, mustUse: opts.mustUse || [] });
 }
 // 在庫に合わせて見直す: 足りない料理（と、その作り置き）だけを作り直す
 async function startFix(extra, picked, all, ngShop) {
@@ -2878,7 +2880,7 @@ async function applyAi(res, meta, prompt, id) {
     const st = draftState(S.draft), bad = [];
     // 案の料理で使う材料だけを見る（前から決まっているほかの日の料理の買い物は、AIでは直せないので数えない）
     const own = new Set(st.newPlans.flatMap(p => ingsOf(recipeOf(p.recipeId)).map(i => normName(riceIng(i).name))));
-    if (meta.stockOnly) { const sh = shopItems(st.plans).filter(i => own.has(normName(i.name))); if (sh.length) bad.push(`在庫に無い・足りない食材を使っている: ${sh.map(i => `${i.name} ${buyText(i)}`).join("、")}。これらを使わない料理・量にする`); }
+    if (meta.stockOnly) { const bo = (meta.buyOnly || []).map(normName), sh = shopItems(st.plans).filter(i => own.has(normName(i.name)) && !bo.includes(normName(i.name))); if (sh.length) bad.push(`在庫に無い・足りない食材を使っている: ${sh.map(i => `${i.name} ${buyText(i)}`).join("、")}。これらを使わない料理・量にする`); }
     // パックで売る物（卵・納豆）を数個だけ買い足す案はやめさせる
     { const odd = packShort(shopItems(st.plans)).filter(x => own.has(normName(x.i.name))); if (odd.length) bad.push(odd.map(x => `${x.label}が${x.n}${x.u}だけ足りない（${x.label}は${x.pack}${x.u}入りで買うので、数${x.u}だけの買い足しはしない）。${x.label}を使う量を在庫の分に収めるか、${x.label}を使わない料理に変える`).join("。")); }
     // 栄養が目標より大きく少ない日がある → 予算の中で、1回だけ組み直してもらう（それでも届かないときだけ、画面で知らせる）
@@ -3122,6 +3124,24 @@ function draftUse(D, st) {
   const keys = new Set(D.meals.map(m => m.date + "|" + m.meal));
   return weekUse(planGroups(st.plans).filter(x => keys.has(x.date + "|" + x.meal)));
 }
+// 買い物リストは、お店を回りやすい順（売り場ごと）に並べる
+const AISLES = ["🥬 野菜・果物", "🍄 きのこ", "🫘 豆腐・納豆", "🥩 肉", "🐟 魚", "🥚 卵・乳製品", "🍞 パン・麺", "🥫 乾物・缶詰・粉", "🧂 調味料", "🧊 冷凍", "📦 その他"];
+function aisleOf(name) {
+  const n = normName(name) || String(name);
+  if (/冷凍/.test(n)) return 9;
+  if (/缶/.test(n)) return 7;
+  if (/しめじ|えのき|まいたけ|しいたけ|エリンギ|きのこ|なめこ/.test(n)) return 1;
+  if (vegBase(n) || /白菜|キャベツ|トマト|もやし|豆苗|かぶ|レタス|オクラ|セロリ|ズッキーニ|アスパラ|枝豆|ゴーヤ|生姜|しょうが|にんにく|大葉|しそ|パセリ|ねぎ|りんご|バナナ|みかん|レモン|いちご|キウイ|ぶどう|梨|柿/.test(n)) return 0;
+  if (/豆腐|納豆|油揚げ|厚揚げ|こんにゃく|ちくわ|かまぼこ|はんぺん/.test(n)) return 2;
+  if (/卵|たまご|牛乳|ヨーグルト|チーズ|バター|生クリーム|豆乳/.test(n)) return 5;
+  if (/醤油|しょうゆ|味噌|みそ|^酒$|料理酒|みりん|酢|砂糖|^塩$|油|ソース|ケチャップ|マヨ|だし|顆粒|コンソメ|スパイス|胡椒|こしょう|カレー粉|たれ|ドレッシング|めんつゆ|ガラ/.test(n)) return 8;
+  if (/粉|乾燥|わかめ|ひじき|のり|海苔|ごま|麹|ゼラチン|春雨|かつお節|鰹節|昆布|乾物/.test(n)) return 7;
+  if (/肉|ひき|豚|鶏|牛|ベーコン|ハム|ソーセージ|ウインナー/.test(n)) return 3;
+  if (/鮭|さけ|魚|さば|鯖|ぶり|たら|あじ|いわし|えび|いか|たこ|ツナ|しらす/.test(n)) return 4;
+  if (/パン|うどん|そば|麺|パスタ|スパゲ|焼きそば/.test(n)) return 6;
+  return 10;
+}
+const sortAisle = items => items.map((i, k) => ({ i, k, a: aisleOf(i.name) })).sort((x, y) => x.a - y.a || x.k - y.k).map(x => x.i);
 // 買って余る分（売る単位・1週間の量で切り上げた残り）を、その食材を使う料理に少しずつ足して使い切る（AIに頼まずに、アプリで直す）
 // 栄養は、足した重さ × 100gあたりの栄養（日本食品標準成分表をもとにした目安）を、その料理の1人分に足す: [食材, kcal, P, F, C]
 // 表に無い食材も、野菜なら「野菜の平均」、それ以外は「ふつうの食品の平均」で足す（足さないままにはしない）
@@ -3170,7 +3190,7 @@ function nutShort(plans, days) {
 }
 function drawDraft() {
   if (S.draft && !S.draft.absorbed) { S.draft.absorbed = true; absorbRest(S.draft); keepDraft(); }   // 前に作った案も、余りを料理に足して使い切る
-  const D = S.draft, st = draftState(D), items = shopItems(st.plans), days = [...new Set(D.meals.map(m => m.date))].sort();
+  const D = S.draft, st = draftState(D), items = sortAisle(shopItems(st.plans)), days = [...new Set(D.meals.map(m => m.date))].sort();
   D.checked = true;   // 在庫の確認は、献立を頼む前に済ませている
   const pick = D.loPick || (D.loPick = new Set());   // 使い切りたい食材（残る見込みの中から選ぶ）
   const { tg, nutOf, short } = nutShort(st.plans, days);
@@ -3194,15 +3214,15 @@ function drawDraft() {
   const unchecked = items.filter(i => !got(i) && !isNg(i)), ngs = items.filter(isNg), extra = items.filter(i => i.rest);   // extra: 売っている単位で買って余る野菜
   $("app").innerHTML = `<h2>${D.kind === "boost" ? "💰 追加購入の案" : D.mode === "week" ? "🛒 1週間の献立の案" : "🔄 見直しの案"}</h2>
     ${D.note ? `<p class="note">${esc(D.note)}</p>` : ""}
-    ${D.stockOnly && items.length ? `<div class="msg">在庫だけで考え直しましたが、まだ買い物が必要な材料があります（下の買い物リスト）。</div>` : ""}
+    ${D.stockOnly && items.some(i => !(D.buyOnly || []).some(n => normName(n) === normName(i.name))) ? `<div class="msg">在庫だけで考え直しましたが、まだ買い物が必要な材料があります（下の買い物リスト）。</div>` : ""}
     ${D.mode === "fix" && draftLacks(D).length ? `<div class="msg">この案でも足りない材料があります: ${esc(draftLacks(D).join("、"))}。買い足してください。</div>` : ""}
     <section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3>${items.length ? `<small>カゴ ${inCart}/${items.length}</small>` : ""}</div>
       ${items.length ? `<p class="note">カゴに入れたら ✓。買わない物は NG。名前をタップすると、その食材の単位と1週間の量を直せます（直したら ✓ を付けずに下のボタンで考え直し）。量がリストと違うときは「買った量」へ。</p>
-      <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i); return `<li class="${g ? "incart" : isNg(i) ? "ngrow" : ""}"><button class="ckb" data-c="${n}" aria-label="カゴに入れた"><span class="ck">${g ? "✓" : ""}</span></button><button class="ngb${isNg(i) ? " on" : ""}" data-ng="${n}">NG</button><button class="cartbtn" data-un="${n}"><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" && c !== "ng" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
+      <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i), ah = n === 0 || aisleOf(items[n - 1].name) !== aisleOf(i.name) ? `<li class="aisle">${AISLES[aisleOf(i.name)]}</li>` : ""; return ah + `<li class="${g ? "incart" : isNg(i) ? "ngrow" : ""}"><button class="ckb" data-c="${n}" aria-label="カゴに入れた"><span class="ck">${g ? "✓" : ""}</span></button><button class="ngb${isNg(i) ? " on" : ""}" data-ng="${n}">NG</button><button class="cartbtn" data-un="${n}"><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" && c !== "ng" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
       ${pend ? `<p class="note red">下の「栄養のための買い足しの提案」で、買える／買えないを選んでください</p>`
         : ngProp ? `<button class="btn alt wide" id="dfNg">買えない物を除いて、献立を考え直す</button>`
         : !items.length || allIn ? `<button class="btn wide" id="dfGo">${!items.length ? "この内容で献立を決める" : "🧾 献立を確定して、レジへ"}</button>`
-        : `<button class="btn alt wide" id="dfNg2">${ngs.length ? `NGの${ngs.length}品を除いて` : "今の単位で"}、献立を考え直す</button><p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。${unchecked.length ? `✓もNGも無い${unchecked.length}品は、今の「1週間の量」で組み直します。` : ""}</p>`}
+        : `<button class="btn alt wide" id="dfNg2">${ngs.length ? `NGの${ngs.length}品を除いて` : "今の単位で"}、献立を考え直す</button>${D.mode === "week" && inCart ? `<button class="btn ghost wide" id="dfBuyOnly">✓した${inCart}品と量だけで、献立を組み直す（もう買わない）</button>` : ""}<p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。${unchecked.length ? `✓もNGも無い${unchecked.length}品は、今の「1週間の量」で組み直します。` : ""}</p>`}
       ${D.kind === "boost" ? `<p class="note">予算の余り 約${(+D.yen || 0).toLocaleString()}円${D.buyCost ? `／この案の買い足し 約${D.buyCost.toLocaleString()}円` : ""}</p>` : D.cost ? `<p class="note">材料費の目安 約${D.cost.toLocaleString()}円（在庫から使う分も含む${D.buyCost ? `・うち買い足し 約${D.buyCost.toLocaleString()}円` : ""}）／予算の目安 ${days.length}日分 約${lim.toLocaleString()}円</p>` : ""}</section>
     ${lo.length || extra.length ? `<section class="card"><div class="secthead"><h3>🥕 週の終わりに残る見込み（${lo.length + extra.length}品）</h3><button class="chip${pick.size ? " on" : ""}" id="loBtn">${pick.size ? `${pick.size}品を使い切って再検討` : D.loMode ? "選ぶのをやめる" : "使い切りたい食材がある"}</button></div>
       ${D.loMode ? `<p class="note">使い切りたい物をタップして選び、上のボタンを押してください。</p>` : ""}
@@ -3243,7 +3263,14 @@ function drawDraft() {
     const re = unchecked.map(i => { const v = unitOf(i.name); return v && v.pack ? `${i.name}（${fracText(v.pack)}${v.u}ずつ）` : i.name; });
     redo([ngN.length ? `次の食材はお店で買わないので使わない: ${ngN.join("、")}` : "", re.length ? `次の食材は、1週間で使い切る量を見直したので、その量の倍数で買って使い切るように組み直す: ${re.join("、")}` : "", okL.length ? `カゴに入れた食材（${okL.join("、")}）は必ず使う` : "", wish()].filter(Boolean).join("。また、"), { ng: ngN });
   };
-  $("app").querySelectorAll("[data-bq]").forEach(el => el.onchange = () => { const i = items[+el.dataset.bq], v = el.value.trim(); if (v) cart[i.name] = v; else if (cart[i.name]) cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
+  // ✓した物と入れた量だけで組み直す（これ以上は買わない。残っても栄養が足りればよい）
+  const bob = $("dfBuyOnly"); if (bob) bob.onclick = () => {
+    const ok = items.filter(got), okL = ok.map(i => `${i.name} ${typeof cart[i.name] === "string" ? cart[i.name] : buyText(i)}`);
+    S.dealText = okL.join("、");
+    redo([`買い物はこれで終わり。今の在庫と、カゴに入れた物（${okL.join("、")}）だけで作り直す。カゴの量より多くは使わない（例: にんじん 2本 なら2本まで）`, wish()].filter(Boolean).join("。また、"), { stockOnly: true, buyOnly: ok.map(i => i.name) });
+  };
+  // 買った量: 数字だけなら、リストの単位を付ける（2 → 2本）。0 は「買わなかった」= NG
+  $("app").querySelectorAll("[data-bq]").forEach(el => el.onchange = () => { const i = items[+el.dataset.bq], v = el.value.trim().normalize("NFKC"); if (v && numOf(v) === 0 && /^[\d.\/\s]+$/.test(v)) cart[i.name] = "ng"; else if (v) cart[i.name] = withUnit(i, v); else if (cart[i.name]) cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-ng]").forEach(b => b.onclick = () => { const i = items[+b.dataset.ng]; if (isNg(i)) delete cart[i.name]; else cart[i.name] = "ng"; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-un]").forEach(b => b.onclick = () => openUnitSet(items[+b.dataset.un].name, () => { closeSheet(); drawDraft(); }));
   $("app").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { const i = items[+b.dataset.c]; if (got(i)) delete cart[i.name]; else cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
@@ -3260,7 +3287,7 @@ function drawDraft() {
       // カゴに入れた物を在庫に入れる
       const cats = String(S.settings["カテゴリ"] || "").split(",").map(x => x.trim()).filter(Boolean);
       // 「後で」にしていない物は、カゴの印が無くても買った物として在庫に入れる。買った物の確認の画面のために、元の在庫の量を覚えておく
-      const addOf = i => typeof cart[i.name] === "string" && cart[i.name] !== "later" ? cart[i.name] : buyText(i), chk = [];
+      const addOf = i => typeof cart[i.name] === "string" && cart[i.name] !== "later" && cart[i.name] !== "ng" ? withUnit(i, cart[i.name]) : buyText(i), chk = [];
       const bought = items.filter(i => !isLater(i)).map(i => { const add = addOf(i), hit = matchStock(i.name); chk.push({ name: i.name, sname: hit ? hit.name : isRice(i.name) ? "米" : i.name, before: hit && hit.qty !== OUT ? hit.qty : "", qty: add, plan: buyText(i), est: priceOf(D, i.name), ck: !!got(i) }); if (hit) return { ...hit, qty: addQty(hit.qty, add), exp: hit.qty === OUT || !hit.exp ? guessExp(i.name, hit.cat).exp : hit.exp }; const g = guessExp(i.name, ""), cat = cats.includes(g.cat) ? g.cat : ""; return { name: isRice(i.name) ? "米" : i.name, qty: add, cat, exp: guessExp(i.name, cat).exp }; });
       if (bought.length) await run("saveStock", bought);
       const more = items.filter(i => typeof cart[i.name] === "string" && cart[i.name] !== "later").map(i => i.name);
@@ -3269,13 +3296,15 @@ function drawDraft() {
       try { localStorage.removeItem(cartKey); } catch (e) {}
       if (more.length) { await load(); await spreadExtra(more); }
       if (D.jobId) await run("aiJobClear", D.jobId).catch(() => {});
-      if (chk.length) lsSet("buyChk", D.kind === "boost" ? { at: today(), lim: +D.yen || 0, cost: chk.reduce((s, x) => s + (x.est || 0), 0), days: D.short || [], items: chk } : { at: today(), lim: lim, cost: D.cost || 0, days, items: chk });
+      // 買った物の確認の画面（量・金額を入れ直す画面）は出さない（2026-11-24）
       S.draft = null; keepDraft(); S.tmpRecipes = []; S.slotSel = null; await load(); S.tab = "menu"; draw(); window.scrollTo(0, 0);
-      busy(false); if (chk.length) openBuyCheck(); return;
+      busy(false); return;
     } catch (e) { alert(e.message); }
     busy(false);
   };
 }
+// 数字だけの量に、買い物リストの単位を付ける（"2" → "2本"、"1/2" → "1/2個"）
+function withUnit(i, v) { const t = String(v || "").trim().normalize("NFKC"); if (!/^\d+(?:\.\d+)?(?:\/\d+)?$|^\d+と\d+\/\d+$/.test(t)) return t; const u = (pqAll(buyText(i))[0] || {}).u || ""; return t + u; }
 // 案の買い物の値段（AIの見積もり）
 function priceOf(D, name) {
   const P = (D && D.prices) || {}, n = normName(name), ks = Object.keys(P);
