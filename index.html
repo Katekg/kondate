@@ -402,7 +402,10 @@ main.fill .daycard .mcard { flex: 1 1 auto; }
 
 .jobbn { display: grid; gap: 4px; background: var(--butter); border-color: transparent; }
 .jobbn small { color: var(--butter-ink); font-size: .78rem; }
-.jobbn .chip { justify-self: start; }
+.jobbn { grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+.jobbn .jbtn { display: flex; flex-direction: column; gap: 4px; }
+.jobbn .jbtn .chip { padding: 3px 10px; font-size: .74rem; line-height: 1.3; }
+.jobbn small { display: block; line-height: 1.35; }
 .jobbn.fail { background: #fde9e7; }
 .jobbn.fail small { color: #8a2f25; }
 .spin.sm { width: 18px; height: 18px; border-width: 3px; border-color: color-mix(in srgb, var(--butter-ink) 25%, transparent); border-top-color: var(--butter-ink); }
@@ -2908,7 +2911,7 @@ function keepDraft() { const c = { slotSel: S.slotSel, rbWish: S.rbWish || "", d
 function jobBanner() {
   const f = S.jobFail;
   if (f && !S.jobWait && !$("jobBn")) {
-    $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn fail" id="jobBn"><span>⚠️</span><span><b>AIの献立づくりが失敗しました</b><small>${esc(f.msg)}</small></span>${f.prompt ? `<button class="chip" id="jobRe">もう一度</button>` : ""}<button class="chip" id="jobX">閉じる</button></section>`);
+    $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn fail" id="jobBn"><span>⚠️</span><span><b>AIの献立づくりが失敗しました</b><small>${esc(f.msg)}</small></span><span class="jbtn">${f.prompt ? `<button class="chip" id="jobRe">もう一度</button>` : ""}<button class="chip" id="jobX">閉じる</button></span></section>`);
     const clr = () => { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} if (f.id) run("aiJobClear", f.id).catch(() => {}); };
     $("jobX").onclick = () => { clr(); draw(); };
     if ($("jobRe")) $("jobRe").onclick = () => { clr(); const { ctx, prompt: _p, retried, ...m } = f.meta || {}; askAi(f.prompt, m); };
@@ -2916,7 +2919,7 @@ function jobBanner() {
   }
   const j = S.jobWait; if (!j || $("jobBn")) return;
   const min = Math.max(0, Math.round((Date.now() - j.startedAt) / 60e3));
-  $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn" id="jobBn"><span class="spin sm"></span><span><b>✨ AIが${esc(j.label || "考えています")}</b><small>${min ? `${min}分前から・` : ""}ふだん1〜3分。混んでいるときは自動でやり直します（15分まで）。アプリを閉じてもOK、できたらカレンダーで知らせます</small></span><span class="row" style="gap:6px"><button class="chip" id="jobChk">確かめる</button><button class="chip" id="jobStop">中止する</button></span></section>`);
+  $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn" id="jobBn"><span class="spin sm"></span><span><b>✨ AIが${esc(j.label || "考えています")}</b><small>${min ? `${min}分前から・` : ""}閉じてもOK。できたら通知します</small></span><span class="jbtn"><button class="chip" id="jobChk">確かめる</button><button class="chip" id="jobStop">中止する</button></span></section>`);
   // 確かめる: サーバーに今の様子を聞く。できていれば案を出し、まだなら「まだ考え中（最後の動き 〇分前）」と出す
   $("jobChk").onclick = async () => {
     const sm = $("jobBn").querySelector("small"); sm.textContent = "確かめています…";
