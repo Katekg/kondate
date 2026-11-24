@@ -600,7 +600,7 @@ async function load() {
   WQ.forEach(op => wqApply(d, op.fn, op.a));
   (d.stock || []).forEach(s => { s.qty = toFrac(s.qty); });
   Object.assign(S, d); S.stale = false; showStale(false); saveCache(d);
-  vegMigrate();
+  vegMigrate(); unitMigrate();
   if (await takeJob(S.job)) return;
   draw();
   setTimeout(precookSoon, 3000);
@@ -937,10 +937,11 @@ function shopItems(plans, stock) {
     }
   });
   // 長ねぎ: 白い部分と青い部分の、足りない方の本数だけ買う
-  map.forEach(o => { if (o.name !== "長ねぎ") return; const t = l => (pqAll(sumAmounts(l)).find(p => p.u === "本") || { n: 0 }).n, w = t(o.parts.白), g = t(o.parts.青); o.buy = [(w >= g ? sumAmounts(o.parts.白) : sumAmounts(o.parts.青)) || sumAmounts(o.parts.白.concat(o.parts.青))]; });
+  map.forEach(o => { if (o.name !== "長ねぎ") return; const t = l => (pqAll(sumAmounts(l)).find(p => COUNT_U.test(p.u)) || { n: 0 }).n, w = t(o.parts.白), g = t(o.parts.青); o.buy = [(w >= g ? sumAmounts(o.parts.白) : sumAmounts(o.parts.青)) || sumAmounts(o.parts.白.concat(o.parts.青))]; });
   // 野菜: 決まった分母（大根は1/8本など）に切り上げ、売っている単位（玉ねぎ3個入りなど）でまとめて買う。買って余る分は rest に
   map.forEach(o => {
-    if (o.name === "長ねぎ") return; const v = vegOf(o.name); if (!v) return;
+    if (o.name === "長ねぎ") return; const v = vegOf(o.name);
+    if (!v) { const pk = packOf(o.name), p = pk && pqAll(sumAmounts(o.buy)).find(x => x.u === pk.u); if (p && p.n > 0) { const n = Math.ceil(p.n / pk.n - 1e-6) * pk.n; o.buy = [`${exactNum(n)}${pk.u}`]; o.rest = n - p.n > 1e-6 ? `${exactNum(Math.round((n - p.n) * 10) / 10)}${pk.u}` : ""; } return; }
     const need = vegN(o.name, sumAmounts(o.buy), v); if (!(need > 0)) return;
     const d = v.d || 1, up = Math.ceil(need * d - 1e-6) / d, n = v.pack > 0 ? Math.ceil(up / v.pack - 1e-6) * v.pack : up;
     o.buy = [vegFmt(n, v)]; o.need = vegFmt(up, v); o.rest = n - up > 1e-6 ? vegFmt(n - up, v) : "";
@@ -1766,6 +1767,15 @@ function openStockItem(id) {
   $("sDel").onclick = async () => { if (!confirm(`${s.name} を在庫から消しますか？`)) return; busy(true, "消しています…"); try { await run("deleteStock", [s.id]); await load(); closeSheet(); } catch (e) { alert(e.message); } busy(false); };
 }
 
+// 2026-11-24: 単位を g・ml・個・袋 の4つにまとめる（本・株・節などの在庫と設定を「個」に）。1回だけ
+function unitMigrate() {
+  if (SET("単位を4つに統一") || WQ.length) return;
+  const m = vegMap(); let ch = false; Object.keys(m).forEach(k => { const e = m[k]; if (!e.off && e.u && !VEG_UNITS.includes(e.u)) { m[k] = { ...e, u: "個" }; ch = true; } });
+  if (ch) { const v = JSON.stringify(m); S.settings["野菜の単位"] = v; run("saveSetting", "野菜の単位", v); }
+  const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || v.u !== "個" || /^(あり|わずか)$/.test(x.qty) || !/(本|株|節|玉|丁|房)/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
+  if (ups.length) run("saveStock", ups);
+  S.settings["単位を4つに統一"] = today(); run("saveSetting", "単位を4つに統一", today());
+}
 function vegMigrate() {
   if (SET("野菜単位の移行") || WQ.length) return;
   const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || /^(あり|わずか)$/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
@@ -1773,15 +1783,25 @@ function vegMigrate() {
   run("saveSetting", "野菜単位の移行", today());
 }
 // 単位の設定: 野菜の単位と分母（1/4・1/8 など）を決める。「グラムなどで数える」で分数をやめる
-const VEG_UNITS = ["本", "個", "袋", "玉", "株", "節", "パック", "枚", "缶", "丁", "切れ", "房"];
-function unitSetHtml(v) {
-  return `<div class="grid2 vset"><label>単位<select class="vsU"><option value="off" ${v ? "" : "selected"}>g・mlで数える（分数にしない）</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>分けかた<select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select></label></div><label>1週間で使い切りたい量（使うならこの量の倍数で。例: 1 → 1缶・2缶…で、1/2缶にはしない。空なら決まりなし）<input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></label>`;
+// 単位は4つだけ。g・ml は分数にしない（レシピに書いた量のまま数える）。個・袋は「分けかた」で数える
+const VEG_UNITS = ["g", "ml", "個", "袋"], GM = u => u === "g" || u === "ml";
+// その食材の今の設定（g・ml の物も含む）: {u, d, pack}
+function unitOf(name) {
+  const v = vegOf(name); if (v) return v;
+  const m = vegMap(), b = vegBase(name), hit = m[name] || m[normName(name)] || (b && m[b.name]);
+  return { u: hit && hit.off && GM(hit.u) ? hit.u : "g", d: 1, pack: hit && hit.off ? +hit.pack || 0 : 0 };
 }
-const unitSetVal = el => { const u = el.querySelector(".vsU").value, p = el.querySelector(".vsP"); return u === "off" ? { off: true } : { u, d: +el.querySelector(".vsD").value, pack: p ? numOf(p.value.normalize("NFKC")) || 0 : 0 }; };
+// 1週間の量（この倍数で使う・買う）: {u, n}
+const packOf = name => { const v = unitOf(name); return v.pack > 0 ? { u: v.u, n: v.pack } : null; };
+function unitSetHtml(v) {
+  v = v || { u: "g", d: 1, pack: 0 };
+  return `<div class="grid2 vset"><label>単位<select class="vsU">${VEG_UNITS.map(u => `<option ${v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>分けかた（個・袋のとき）<select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select></label></div><label>1週間で使い切りたい量（使うならこの量の倍数で。例: 1 → 1缶・2缶…で、1/2缶にはしない。空なら決まりなし）<input class="vsP" value="${v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></label>`;
+}
+const unitSetVal = el => { const u = el.querySelector(".vsU").value, p = el.querySelector(".vsP"), pack = p ? numOf(p.value.normalize("NFKC")) || 0 : 0; return GM(u) ? { off: true, u, pack } : { u, d: +el.querySelector(".vsD").value, pack }; };
 async function saveVegUnits(add) { const m = { ...vegMap(), ...add }, v = JSON.stringify(m); S.settings["野菜の単位"] = v; await run("saveSetting", "野菜の単位", v); }
 function openUnitSet(name, back) {
   const v = vegOf(name), list = S.stock.filter(x => normName(x.name) === normName(name) || x.name === name);
-  openSheet(`<h2>⚙ ${esc(name)} の単位</h2><p class="note">野菜は、決めた単位と分けかた（1/4ずつ・1/8ずつ）で数えます。グラムは出しません。</p>${unitSetHtml(v)}<div class="grid2"><button class="btn" id="vsOk">保存</button><button class="btn ghost" id="vsNo">戻る</button></div>`);
+  openSheet(`<h2>⚙ ${esc(name)} の単位</h2><p class="note">個・袋の食材は、分けかた（1/4ずつ・1/8ずつ）で数えます。g・ml の食材は、分数にせずそのまま数えます。</p>${unitSetHtml(unitOf(name))}<div class="grid2"><button class="btn" id="vsOk">保存</button><button class="btn ghost" id="vsNo">戻る</button></div>`);
   $("vsNo").onclick = back || closeSheet;
   $("vsOk").onclick = async () => {
     const nv = unitSetVal($("sheetBody")); await saveVegUnits({ [name]: nv });
@@ -1793,18 +1813,17 @@ function openUnitSet(name, back) {
 }
 // 🥕 野菜の単位: 全部の野菜の「単位・分けかた（分母）・買う単位」を1つの画面で決める（在庫に無い野菜も）
 function openVegSet() {
-  const row = (nm, v) => `<li class="vrow" data-n="${esc(nm)}"><b>${esc(nm)}</b><div class="vctl"><select class="vsU"><option value="off" ${v ? "" : "selected"}>g・ml</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select><select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select><input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></div></li>`;
-  openSheet(`<h2>📏 食材の単位</h2><p class="note">在庫は「単位」を「分けかた」で数えます（例: 大根は 本 を 1/8ずつ）。「g・mlで数える」は、分数にせず、レシピに書いた g・ml のまま数える食材です。<br>「1週間の量」は、1週間で使い切りたい量です。使うときはこの量の倍数（1缶なら 1缶・2缶…）で使って買い、半端（1/2缶）にしません。使わない週があってもかまいません。空なら決まりなしです。野菜以外（ツナ缶など）も、下の「食材を足す」で入れられます。</p>
-    <div class="vctl vhead"><small>単位</small><small>分けかた</small><small>1週間の量</small></div><ul class="list vlist" id="vsList">${vegRows().map(n => row(n, vegOf(n))).join("")}</ul>
+  const row = (nm, v) => `<li class="vrow" data-n="${esc(nm)}"><b>${esc(nm)}</b><div class="vctl"><select class="vsU">${VEG_UNITS.map(u => `<option ${v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select><select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select><input class="vsP" value="${v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></div></li>`;
+  openSheet(`<h2>📏 食材の単位</h2><p class="note">在庫は「単位」を「分けかた」で数えます（例: 大根は 本 を 1/8ずつ）。単位が g・ml の食材は、分数にせず、レシピに書いた量のまま数えます。<br>「1週間の量」は、1週間で使い切りたい量です。使うときはこの量の倍数（1缶なら 1缶・2缶…）で使って買い、半端（1/2缶）にしません。使わない週があってもかまいません。空なら決まりなしです。野菜以外（ツナ缶など）も、下の「食材を足す」で入れられます。</p>
+    <div class="vctl vhead"><small>単位</small><small>分けかた</small><small>1週間の量</small></div><ul class="list vlist" id="vsList">${vegRows().map(n => row(n, unitOf(n))).join("")}</ul>
     <div class="row" style="gap:6px;margin:8px 0"><input id="vsNew" placeholder="食材を足す（例: かぶ、ツナ缶）" style="flex:1"><button class="chip" id="vsAdd">＋ 足す</button></div>
     <div class="grid2"><button class="btn" id="vsSave">保存</button><button class="btn ghost" id="vsClose">閉じる</button></div>`);
   $("vsClose").onclick = closeSheet;
-  $("vsAdd").onclick = () => { const n = $("vsNew").value.trim(); if (!n || document.querySelector(`#vsList [data-n="${CSS.escape(n)}"]`)) return; $("vsList").insertAdjacentHTML("beforeend", row(n, vegOf(n) || { u: "個", d: 4, pack: 0 })); $("vsNew").value = ""; };
+  $("vsAdd").onclick = () => { const n = $("vsNew").value.trim(); if (!n || document.querySelector(`#vsList [data-n="${CSS.escape(n)}"]`)) return; $("vsList").insertAdjacentHTML("beforeend", row(n, vegOf(n) || { u: "個", d: 1, pack: 0 })); $("vsNew").value = ""; };
   $("vsSave").onclick = async () => {
     const before = S.stock.map(x => [x, vegOf(x.name)]), m = { ...vegMap() };
     document.querySelectorAll("#vsList .vrow").forEach(li => {
-      const n = li.dataset.n, u = li.querySelector(".vsU").value, b = vegBase(n);
-      const nv = u === "off" ? { off: true } : { u, d: +li.querySelector(".vsD").value, pack: numOf(li.querySelector(".vsP").value.normalize("NFKC")) || 0 };
+      const n = li.dataset.n, b = vegBase(n), nv = unitSetVal(li);
       const same = b && b.name === n && !nv.off && nv.u === b.u && nv.d === b.d && nv.pack === b.pack;
       if (same) delete m[n]; else m[n] = nv;
     });
@@ -1948,11 +1967,11 @@ function fracText(x) {
 // ===== 野菜は「分母を固定した数」で数える（大きい野菜は1/8、小ぶりな野菜・葉物は1/4）。グラムは出さない =====
 // 設定「野菜の単位」: {"食材名": {"u":"本","d":8}}（{"off":true} はグラムなどで数える）。無い物は下の決まりで決める
 // 野菜の一覧: [名前, 見つけ方, 単位, 分母, 買う単位（0は足りない分だけ）]。設定「野菜の単位」（🥕 野菜の単位の画面）で名前ごとに変えられる
-const VEG_LIST = [["大根", /大根/, "本", 8, 1], ["かぼちゃ", /かぼちゃ/, "個", 8, 1 / 4], ["キャベツ", /キャベツ/, "個", 8, 1], ["白菜", /白菜/, "個", 8, 1 / 2],
-  ["長ねぎ", /長ねぎ|白ねぎ|長ネギ|白ネギ/, "本", 4, 0], ["にんじん", /にんじん|人参/, "本", 4, 2], ["玉ねぎ", /玉ねぎ|たまねぎ/, "個", 4, 3], ["じゃがいも", /じゃがいも|メークイン|男爵/, "個", 4, 5],
-  ["さつまいも", /さつまいも/, "本", 4, 1], ["なす", /なす/, "本", 4, 3], ["きゅうり", /きゅうり/, "本", 4, 3], ["ちんげんさい", /ちんげんさい|チンゲン菜|チンゲンサイ|青梗菜/, "袋", 4, 1],
-  ["小松菜", /小松菜/, "袋", 4, 1], ["ほうれん草", /ほうれん草/, "袋", 4, 1], ["水菜", /水菜/, "袋", 4, 1], ["ごぼう", /ごぼう/, "本", 4, 1], ["れんこん", /れんこん/, "節", 4, 1],
-  ["ブロッコリー", /ブロッコリー/, "株", 4, 1], ["トマト", /^トマト$/, "個", 4, 0], ["ミニトマト", /ミニトマト/, "個", 4, 0], ["ピーマン", /ピーマン/, "個", 4, 5]];
+const VEG_LIST = [["大根", /大根/, "個", 8, 1], ["かぼちゃ", /かぼちゃ/, "個", 8, 1 / 4], ["キャベツ", /キャベツ/, "個", 8, 1], ["白菜", /白菜/, "個", 8, 1 / 2],
+  ["長ねぎ", /長ねぎ|白ねぎ|長ネギ|白ネギ/, "個", 4, 0], ["にんじん", /にんじん|人参/, "個", 4, 2], ["玉ねぎ", /玉ねぎ|たまねぎ/, "個", 4, 3], ["じゃがいも", /じゃがいも|メークイン|男爵/, "個", 4, 5],
+  ["さつまいも", /さつまいも/, "個", 4, 1], ["なす", /なす/, "個", 4, 3], ["きゅうり", /きゅうり/, "個", 4, 3], ["ちんげんさい", /ちんげんさい|チンゲン菜|チンゲンサイ|青梗菜/, "袋", 4, 1],
+  ["小松菜", /小松菜/, "袋", 4, 1], ["ほうれん草", /ほうれん草/, "袋", 4, 1], ["水菜", /水菜/, "袋", 4, 1], ["ごぼう", /ごぼう/, "個", 4, 1], ["れんこん", /れんこん/, "個", 4, 1],
+  ["ブロッコリー", /ブロッコリー/, "個", 4, 1], ["トマト", /^トマト$/, "個", 4, 0], ["ミニトマト", /ミニトマト/, "個", 4, 0], ["ピーマン", /ピーマン/, "個", 4, 5]];
 const VEG_DEF = VEG_LIST.map(x => [x[1], x[2], x[3]]);
 const vegMap = () => { try { return JSON.parse(SET("野菜の単位") || "{}") || {}; } catch (e) { return {}; } };
 const vegBase = n => { const L = VEG_LIST.find(x => x[1].test(n)); return L ? { name: L[0], u: L[2], d: L[3], pack: L[4] || 0 } : null; };
@@ -1964,12 +1983,15 @@ function vegOf(name) {
 }
 // AIに伝える「買う単位」（例: 玉ねぎは3個、白菜は1/2個）
 const vegRows = () => { const m = vegMap(), names = VEG_LIST.map(x => x[0]); Object.keys(m).forEach(k => { if (!names.includes(k)) names.push(k); }); S.stock.forEach(x => { if (!vegBase(x.name) && vegOf(x.name) && !names.includes(x.name)) names.push(x.name); }); return names; };
-const buyPackText = () => vegRows().map(n => [n, vegOf(n)]).filter(([, v]) => v && v.pack > 0).map(([n, v]) => `${n}は${fracText(v.pack)}${v.u}`).join("、");
+const buyPackText = () => vegRows().map(n => [n, unitOf(n)]).filter(([, v]) => v && v.pack > 0).map(([n, v]) => `${n}は${fracText(v.pack)}${v.u}`).join("、");
+const COUNT_U = /^(本|個|玉|株|節|丁|房)$/;
 // 量の文字 → その野菜の単位でいくつ（g しか無いときは目安の重さで割る）。わからなければ null
 function vegN(name, q, v) {
   v = v || vegOf(name); if (!v) return null; const t = String(q || "").trim(); if (!t || t === OUT) return 0;
   const ps = pqAll(t), same = ps.find(p => p.u === v.u); if (same) return same.n;
-  const w = UNIT_G.find(([re]) => re.test(normName(name))), per = w && w[1][v.u];
+  // 本・株・節・玉なども「個」と同じに数える（1本 = 1個）
+  const cnt = v.u === "個" && ps.find(p => COUNT_U.test(p.u)); if (cnt) return cnt.n;
+  const w = UNIT_G.find(([re]) => re.test(normName(name))), per = w && (w[1][v.u] || (v.u === "個" ? ["本", "株", "節", "玉", "丁"].map(u => w[1][u]).find(Boolean) : 0));
   const g = ps.find(p => /^(g|kg)$/.test(p.u)); if (g && per) return g.n * (g.u === "kg" ? 1000 : 1) / per;
   const o = ps.find(p => w && w[1][p.u]); if (o && per) return o.n * w[1][o.u] / per;
   return null;
@@ -3123,7 +3145,7 @@ function drawDraft() {
   const ng2 = $("dfNg2"); if (ng2) ng2.onclick = () => {
     const ngN = ngs.map(i => i.name), okL = items.filter(got).map(i => `${i.name} ${typeof cart[i.name] === "string" ? cart[i.name] : buyText(i)}`);
     if (D.mode === "week") S.dealText = okL.join("、");
-    const re = unchecked.map(i => { const v = vegOf(i.name); return v && v.pack ? `${i.name}（${fracText(v.pack)}${v.u}ずつ）` : i.name; });
+    const re = unchecked.map(i => { const v = unitOf(i.name); return v && v.pack ? `${i.name}（${fracText(v.pack)}${v.u}ずつ）` : i.name; });
     redo([ngN.length ? `次の食材はお店で買わないので使わない: ${ngN.join("、")}` : "", re.length ? `次の食材は、1週間で使い切る量を見直したので、その量の倍数で買って使い切るように組み直す: ${re.join("、")}` : "", okL.length ? `カゴに入れた食材（${okL.join("、")}）は必ず使う` : "", wish()].filter(Boolean).join("。また、"), { ng: ngN });
   };
   $("app").querySelectorAll("[data-bq]").forEach(el => el.onchange = () => { const i = items[+el.dataset.bq], v = el.value.trim(); if (v) cart[i.name] = v; else if (cart[i.name]) cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
