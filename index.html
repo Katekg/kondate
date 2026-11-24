@@ -944,7 +944,7 @@ function shopItems(plans, stock) {
   map.forEach(o => { if (o.name !== "長ねぎ") return; const t = l => (pqAll(sumAmounts(l)).find(p => COUNT_U.test(p.u)) || { n: 0 }).n, w = t(o.parts.白), g = t(o.parts.青); o.buy = [(w >= g ? sumAmounts(o.parts.白) : sumAmounts(o.parts.青)) || sumAmounts(o.parts.白.concat(o.parts.青))]; });
   // 野菜: 決まった分母（大根は1/8本など）に切り上げ、売っている単位（玉ねぎ3個入りなど）でまとめて買う。買って余る分は rest に
   map.forEach(o => {
-    if (o.name === "長ねぎ") return; const v = vegOf(o.name);
+    const v = vegOf(o.name);
     if (!v) { const pk = packOf(o.name), p = pk && pqAll(sumAmounts(o.buy)).find(x => x.u === pk.u); if (p && p.n > 0) { const n = Math.ceil(p.n / pk.n - 1e-6) * pk.n; o.buy = [`${exactNum(n)}${pk.u}`]; o.rest = n - p.n > 1e-6 ? `${exactNum(Math.round((n - p.n) * 10) / 10)}${pk.u}` : ""; } return; }
     const need = vegN(o.name, sumAmounts(o.buy), v); if (!(need > 0)) return;
     const d = v.d || 1, up = Math.ceil(need * d - 1e-6) / d, n = v.pack > 0 ? Math.ceil(up / v.pack - 1e-6) * v.pack : up;
@@ -2872,6 +2872,7 @@ async function applyAi(res, meta, prompt, id) {
   const shop = (Array.isArray(res.shopping) ? res.shopping : []).filter(x => x && x.name).map(x => ({ name: String(x.name), amount: String(x.amount || ""), reason: String(x.reason || ""), mark: "" }));
   const { ctx, prompt: _p, ...m0 } = meta;
   S.draft = { ...m0, ctx0: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
+  absorbRest(S.draft); S.draft.absorbed = true;
   // 「在庫だけで」なのに買い物が出た／「使い切る」と選んだ食材がまだ残る → 問題を伝えて1回だけ考え直す
   if (!meta.retried) {
     const st = draftState(S.draft), bad = [];
@@ -3121,6 +3122,39 @@ function draftUse(D, st) {
   const keys = new Set(D.meals.map(m => m.date + "|" + m.meal));
   return weekUse(planGroups(st.plans).filter(x => keys.has(x.date + "|" + x.meal)));
 }
+// 買って余る分（売る単位・1週間の量で切り上げた残り）を、その食材を使う料理に少しずつ足して使い切る（AIに頼まずに、アプリで直す）
+// 栄養は、足した重さ × 100gあたりのkcal（目安）を、その料理の1人分に足す
+const KCAL100 = [[/白菜/, 14], [/キャベツ/, 21], [/玉ねぎ|たまねぎ/, 33], [/にんじん|人参/, 35], [/大根/, 15], [/長ねぎ|白ねぎ/, 35], [/じゃがいも/, 59], [/さつまいも/, 126], [/なす/, 18], [/きゅうり/, 13],
+  [/ピーマン/, 20], [/トマト/, 20], [/ちんげんさい|チンゲン菜|青梗菜|小松菜|ほうれん草|水菜/, 15], [/ごぼう/, 58], [/れんこん/, 66], [/ブロッコリー/, 37], [/かぼちゃ/, 78], [/もやし/, 15],
+  [/しめじ|えのき|まいたけ|しいたけ|エリンギ/, 22], [/牛乳/, 61], [/豆乳/, 44], [/ヨーグルト/, 56], [/豆腐/, 73], [/食パン/, 248]];
+function absorbRest(D) {
+  let done = false;
+  for (let pass = 0; pass < 2; pass++) {
+    const st = draftState(D), items = shopItems(st.plans).filter(i => i.rest); if (!items.length) break;
+    let changed = false;
+    items.forEach(it => {
+      const v = vegOf(it.name), pk = packOf(it.name), match = x => isNegi(it.name) ? isNegi(x.name) : normName(x.name) === normName(it.name);
+      // 既存のレシピ（recipe_id）を使う料理は、この週だけの写しにして量を足す
+      D.meals.forEach(m => { if (m.leftover || m.recipe || !m.recipe_id) return; const r = S.recipes.find(x => x.id === m.recipe_id); if (!r || !ingsOf(r).some(match)) return;
+        m.recipe = { servings: +r.servings || 2, cuisine: r.cuisine || "", keep_days: +r.keepDays || 1, ingredients: ingsOf(r).map(x => ({ name: x.name, amount: x.amount })), steps: stepsOf(r), kcal: +r.kcal || 0, p: +r.p || 0, f: +r.f || 0, c: +r.c || 0 }; delete m.recipe_id; });
+      const uses = []; D.meals.forEach(m => { if (m.leftover || !m.recipe) return; (m.recipe.ingredients || []).forEach(x => { if (match(x) && (v ? vegN(x.name, x.amount, v) != null : pk && pqAll(x.amount).some(p => p.u === pk.u))) uses.push({ m, x }); }); });
+      if (!uses.length) return;
+      const restN = v ? vegN(it.name, it.rest, v) : (pqAll(it.rest).find(p => p.u === (pk && pk.u)) || {}).n; if (!(restN > 0)) return;
+      // 野菜は分母（1/8など）ずつ順番に配る。g・ml は等分
+      const d = v ? (v.d || 1) : 0, adds = uses.map(() => 0);
+      if (v) { let k = Math.round(restN * d); for (let i = 0; k > 0; i = (i + 1) % uses.length, k--) adds[i] += 1 / d; } else uses.forEach((_, i) => { adds[i] = restN / uses.length; });
+      const w = UNIT_G.find(([re]) => re.test(normName(it.name))), gPer = v ? (w && (w[1][v.u] || ["個", "本", "株", "節", "玉", "丁"].map(u => w[1][u]).find(Boolean))) || 0 : 1, kc = KCAL100.find(([re]) => re.test(normName(it.name)));
+      uses.forEach(({ m, x }, i) => {
+        const a = adds[i]; if (!(a > 0)) return;
+        if (v) x.amount = vegFmt(vegN(x.name, x.amount, v) + a, v); else { const p = pqAll(x.amount).find(p => p.u === pk.u); x.amount = `${exactNum(Math.round((p.n + a) * 10) / 10)}${pk.u}`; }
+        if (gPer && kc && +m.recipe.kcal) m.recipe.kcal = Math.round(+m.recipe.kcal + a * gPer * kc[1] / 100 / (+m.recipe.servings || 2));
+        changed = true;
+      });
+    });
+    if (!changed) break; done = true;
+  }
+  if (done) D.note = (D.note || "") + "（買って余る分は、料理の量を少し増やして使い切るようにしました）";
+}
 // 1日ごとの栄養（1人分）を目標と比べて、大きく少ない日（今日の過ぎた食事は数えない）
 function nutShort(plans, days) {
   const tg = { kcal: (target(1).kcal + target(2).kcal) / 2, p: (target(1).p + target(2).p) / 2 };
@@ -3128,6 +3162,7 @@ function nutShort(plans, days) {
   return { tg, nutOf, short: days.filter(d => d > today()).map(nutOf).filter(x => x.pc < 85 || x.pp < 80) };
 }
 function drawDraft() {
+  if (S.draft && !S.draft.absorbed) { S.draft.absorbed = true; absorbRest(S.draft); keepDraft(); }   // 前に作った案も、余りを料理に足して使い切る
   const D = S.draft, st = draftState(D), items = shopItems(st.plans), days = [...new Set(D.meals.map(m => m.date))].sort();
   D.checked = true;   // 在庫の確認は、献立を頼む前に済ませている
   const pick = D.loPick || (D.loPick = new Set());   // 使い切りたい食材（残る見込みの中から選ぶ）
