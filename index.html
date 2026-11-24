@@ -927,8 +927,19 @@ function shopItems(plans, stock) {
   });
   // 長ねぎ: 白い部分と青い部分の、足りない方の本数だけ買う
   map.forEach(o => { if (o.name !== "長ねぎ") return; const t = l => (pqAll(sumAmounts(l)).find(p => p.u === "本") || { n: 0 }).n, w = t(o.parts.白), g = t(o.parts.青); o.buy = [(w >= g ? sumAmounts(o.parts.白) : sumAmounts(o.parts.青)) || sumAmounts(o.parts.白.concat(o.parts.青))]; });
+  // 野菜: 決まった分母（大根は1/8本など）に切り上げ、売っている単位（玉ねぎ3個入りなど）でまとめて買う。買って余る分は rest に
+  map.forEach(o => {
+    if (o.name === "長ねぎ") return; const v = vegOf(o.name); if (!v) return;
+    const need = vegN(o.name, sumAmounts(o.buy), v); if (!(need > 0)) return;
+    const pk = BUY_PACK.find(([re]) => re.test(o.name)), d = v.d || 1, up = Math.ceil(need * d - 1e-6) / d;
+    const n = pk && pk[2] === v.u ? Math.ceil(up / pk[1] - 1e-6) * pk[1] : up;
+    o.buy = [vegFmt(n, v)]; o.need = vegFmt(up, v); o.rest = n - up > 1e-6 ? vegFmt(n - up, v) : "";
+  });
   return [...map.values()];
 }
+// 野菜の売っている単位（お店で買うときは、この数の倍数で買う）
+const BUY_PACK = [[/玉ねぎ|たまねぎ/, 3, "個"], [/じゃがいも|メークイン|男爵/, 3, "個"], [/にんじん|人参/, 3, "本"], [/大根/, 1 / 2, "本"], [/白菜/, 1 / 4, "個"], [/キャベツ/, 1 / 2, "個"]];
+const BUY_PACK_TEXT = "玉ねぎ・じゃがいもは3個入り、にんじんは3本入り、大根は1/2本、白菜は1/4個、キャベツは1/2個";
 // 料理ごとの足りない材料（その料理より前の予定の分だけ差し引く）
 // noSeas: 調味料の不足は除く（調味料は買い足せばよいので、献立の作り直しには使わない）
 function lacksOf(x, plans, noSeas) {
@@ -2468,6 +2479,8 @@ const RULES = `【献立のルール】
 - 在庫は、消費期限が近いもの → 生の肉・魚 → 野菜 → 加工品の順に優先して使う。
 - 肉・魚・野菜など日持ちしない食材は、この期間の献立で使い切る（在庫にある分も、買い足す分も）。1つの料理で使い切れないときは、ほかの料理にも分けて使い、半端な量が残らないようにする。下の「使い切りたい食材」は必ず全部使う。
 - ねぎは材料名を「長ねぎ」と書く（白ねぎ・長ネギとは書かない）。青い部分・白い部分だけを使うときは「長ねぎ（青い部分）：1本」「長ねぎ（白い部分）：1/2本」のように、使う部分と本数を書く。部分を書かない「長ねぎ：1本」は、白い部分と青い部分の両方を使う意味。
+- 野菜を買い足すときは、お店で売っている単位で買う（${BUY_PACK_TEXT}）。買った分は、この期間の献立で全部使い切る（例: 玉ねぎを使うなら、3個を何品かに分けて使い切る）。
+- 野菜の量は、大根・キャベツ・白菜・かぼちゃは1/8単位（1/8本・3/8個など）、ほかの野菜は1/4単位で書く。1/3・2/3は使わない。
 - 卵は10個入り、納豆は3個入りで買う。卵が数個・納豆が1〜2個だけ足りない、という買い物は出さない。足りないときは、卵・納豆を使う量を在庫に収めるか、使わない料理に変える（買うなら1パックを使い切る計画にする）。
 - 夕食は「主食（ご飯など）＋主菜＋副菜か汁物」にする。ご飯は「白ごはん」という料理として meals に入れる。昼・夜は recipe_id=${RICE_LD}（米1.25合で2人分。1人 約210g・約335kcal。夜にまとめて炊き、翌日の昼に回す想定）、朝は recipe_id=${RICE_AM}（米1合で2人分）を使う。米は在庫から使い、買い物には入れない。カレー・丼など主食が入る料理は、それに副菜か汁物を1品足す。朝・昼も主食を入れる。朝は手軽なもの（トースト・卵かけご飯・納豆ご飯・冷奴など）にし、パンの枚数・塗る物は、決まりごとに従う（多く出さない）。朝のカロリーが足りない分は、調理のいらない牛乳・ヨーグルト・バナナ・きなこ・ゆで卵などで補う。鍋やフライパンを使う料理（雑炊・鍋で作る汁物など）は出さない。汁物を付けるなら、電気ケトルのお湯で作る即席スープにする。季節の旬の食材を使う。
 - 肉・魚の主菜には、なるべく付け合わせの野菜を添えて栄養のバランスをとる（例: ハンバーグにゆでブロッコリーとにんじんのグラッセ、生のミニトマト）。付け合わせは主菜のレシピの材料と手順に書き、別の料理にしなくてよい。
@@ -2749,6 +2762,7 @@ async function applyAi(res, meta, prompt, id) {
     { const odd = packShort(shopItems(st.plans)).filter(x => own.has(normName(x.i.name))); if (odd.length) bad.push(odd.map(x => `${x.label}が${x.n}${x.u}だけ足りない（${x.label}は${x.pack}${x.u}入りで買うので、数${x.u}だけの買い足しはしない）。${x.label}を使う量を在庫の分に収めるか、${x.label}を使わない料理に変える`).join("。")); }
     // 栄養が目標より大きく少ない日がある → 予算の中で、1回だけ組み直してもらう（それでも届かないときだけ、画面で知らせる）
     if (meta.mode === "week") { const sh = nutShort(st.plans, [...new Set(S.draft.meals.map(m => m.date))]); if (sh.short.length) bad.push(`次の日の栄養が目標より大きく少ない: ${sh.short.map(x => `${x.d}（1人 約${Math.round(x.n.kcal)}kcal・P${Math.round(x.n.p)}、目標 約${Math.round(sh.tg.kcal)}kcal・P${Math.round(sh.tg.p)}）`).join("、")}。予算は変えずに、ご飯の量・汁物・副菜・牛乳やバナナなどの安い物を足して、目標の9割に近づける`); }
+    { const rs = shopItems(st.plans).filter(i => i.rest && own.has(normName(i.name))); if (rs.length) bad.push(`売っている単位で買うと余る野菜がある: ${rs.map(i => `${i.name}（${buyText(i)}買って${i.rest}余る）`).join("、")}。余る分もほかの料理に使って、買った分を使い切る`); }
     const left = leftovers(st.plans).filter(x => (meta.mustUse || []).includes(x.s.id)); if (left.length) bad.push(`使い切るはずの食材がまだ残る: ${leftoverText(left)}。分量を増やすか、この食材を使う料理を足して使い切る`);
     if (bad.length) { S.prevDraft = S.draft; S.draft = null; await askAi(prompt + `\n【前の案の問題】${bad.join("。")}`, { ...m0, retried: true }); return; }
   }
@@ -2997,22 +3011,22 @@ function drawDraft() {
   const got = i => cart[i.name] && cart[i.name] !== "later", isLater = i => cart[i.name] === "later";
   const inCart = items.filter(got).length, nLater = items.filter(isLater).length, undecided = items.length - inCart - nLater, allIn = !undecided, later = items.length - inCart;
   const lo = leftovers(st.plans), pend = D.mode === "fix" && (D.shop || []).some(x => !x.mark), ngProp = D.mode === "fix" && (D.shop || []).some(x => x.mark === "ng");
-  const unchecked = items.filter(i => !got(i));
+  const unchecked = items.filter(i => !got(i)), extra = items.filter(i => i.rest);   // extra: 売っている単位で買って余る野菜
   $("app").innerHTML = `<h2>${D.kind === "boost" ? "💰 追加購入の案" : D.mode === "week" ? "🛒 1週間の献立の案" : "🔄 見直しの案"}</h2>
     ${D.note ? `<p class="note">${esc(D.note)}</p>` : ""}
     ${D.stockOnly && items.length ? `<div class="msg">在庫だけで考え直しましたが、まだ買い物が必要な材料があります（下の買い物リスト）。</div>` : ""}
     ${D.mode === "fix" && draftLacks(D).length ? `<div class="msg">この案でも足りない材料があります: ${esc(draftLacks(D).join("、"))}。買い足してください。</div>` : ""}
     <section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3>${items.length ? `<small>カゴ ${inCart}/${items.length}</small>` : ""}</div>
       ${items.length ? `<p class="note">カゴに入れたら ✓ を押してください。量がリストと違うときは「買った量」に入れてください（空ならリストの量）。</p>
-      <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i); return `<li class="${g ? "incart" : ""}"><button class="cartbtn" data-c="${n}"><span class="ck">${g ? "✓" : ""}</span><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
+      <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i); return `<li class="${g ? "incart" : ""}"><button class="cartbtn" data-c="${n}"><span class="ck">${g ? "✓" : ""}</span><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
       ${pend ? `<p class="note red">下の「栄養のための買い足しの提案」で、買える／買えないを選んでください</p>`
         : ngProp ? `<button class="btn alt wide" id="dfNg">買えない物を除いて、献立を考え直す</button>`
         : !items.length || allIn ? `<button class="btn wide" id="dfGo">${!items.length ? "この内容で献立を決める" : "🧾 献立を確定して、レジへ"}</button>`
         : `<button class="btn alt wide" id="dfNg2">✓していない${unchecked.length}品を除いて、献立を考え直す</button><p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。</p>`}
       ${D.kind === "boost" ? `<p class="note">予算の余り 約${(+D.yen || 0).toLocaleString()}円${D.buyCost ? `／この案の買い足し 約${D.buyCost.toLocaleString()}円` : ""}</p>` : D.cost ? `<p class="note">材料費の目安 約${D.cost.toLocaleString()}円（在庫から使う分も含む${D.buyCost ? `・うち買い足し 約${D.buyCost.toLocaleString()}円` : ""}）／予算の目安 ${days.length}日分 約${lim.toLocaleString()}円</p>` : ""}</section>
-    ${lo.length ? `<section class="card"><div class="secthead"><h3>🥕 週の終わりに残る見込み（${lo.length}品）</h3><button class="chip${pick.size ? " on" : ""}" id="loBtn">${pick.size ? `${pick.size}品を使い切って再検討` : D.loMode ? "選ぶのをやめる" : "使い切りたい食材がある"}</button></div>
+    ${lo.length || extra.length ? `<section class="card"><div class="secthead"><h3>🥕 週の終わりに残る見込み（${lo.length + extra.length}品）</h3><button class="chip${pick.size ? " on" : ""}" id="loBtn">${pick.size ? `${pick.size}品を使い切って再検討` : D.loMode ? "選ぶのをやめる" : "使い切りたい食材がある"}</button></div>
       ${D.loMode ? `<p class="note">使い切りたい物をタップして選び、上のボタンを押してください。</p>` : ""}
-      <ul class="list${D.loMode ? " cart" : ""}">${lo.map(x => { const on = pick.has(x.s.id), sub = `${x.s.exp ? `期限 ${esc(x.s.exp.slice(5).replace("-", "/"))}` : ""}${x.used ? "" : "・使う予定なし"}`; return D.loMode ? `<li class="${on ? "incart" : ""}"><button class="cartbtn" data-lp="${esc(x.s.id)}"><span class="ck">${on ? "✓" : ""}</span><span class="nm">${esc(x.s.name)}<small>${sub}</small></span><b>${esc(x.left)}</b></button></li>` : `<li><span class="nm">${esc(x.s.name)}<small>${sub}</small></span><b>${esc(x.left)}</b></li>`; }).join("")}</ul>
+      <ul class="list${D.loMode ? " cart" : ""}">${lo.map(x => { const on = pick.has(x.s.id), sub = `${x.s.exp ? `期限 ${esc(x.s.exp.slice(5).replace("-", "/"))}` : ""}${x.used ? "" : "・使う予定なし"}`; return D.loMode ? `<li class="${on ? "incart" : ""}"><button class="cartbtn" data-lp="${esc(x.s.id)}"><span class="ck">${on ? "✓" : ""}</span><span class="nm">${esc(x.s.name)}<small>${sub}</small></span><b>${esc(x.left)}</b></button></li>` : `<li><span class="nm">${esc(x.s.name)}<small>${sub}</small></span><b>${esc(x.left)}</b></li>`; }).join("")}${extra.map(i => `<li><span class="nm">${esc(i.name)}<small>買う分（${esc(buyText(i))}）の残り</small></span><b>${esc(i.rest)}</b></li>`).join("")}</ul>
       <p class="note" style="font-size:.78rem">瞬冷凍の物は、期限が7日以内になると出ます。冷凍庫の物は出ません。</p></section>` : `<p class="note okmark">✅ 週の終わりに残る肉・魚・野菜はありません</p>`}
     ${short.length ? `<div class="msg">${D.retried ? `予算（約${lim.toLocaleString()}円）の中で組み直しましたが、まだ目標に届かない日があります` : "目標より少ない日があります"}: ${short.map(x => `${fmtDay(x.d)} 約${Math.round(x.n.kcal)}kcal（${x.pc}%）`).join("、")}</div>` : ""}
     ${(() => { const l = D.mode === "week" ? staleSeasonings(S.plans.filter(p => !st.removeIds.includes(p.id))) : []; if (!l.length) return ""; const used = new Set(st.newPlans.flatMap(p => ingsOf(recipeOf(p.recipeId)).map(i => (matchStock(i.name) || {}).id))); return `<p class="note">🧂 久しぶりの調味料: ${l.map(x => `${esc(x.name)}${used.has(x.id) ? " ✓" : ""}`).join("、")}（✓はこの案で使用）</p>`; })()}
