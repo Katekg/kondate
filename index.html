@@ -600,7 +600,7 @@ async function load() {
   WQ.forEach(op => wqApply(d, op.fn, op.a));
   (d.stock || []).forEach(s => { s.qty = toFrac(s.qty); });
   Object.assign(S, d); S.stale = false; showStale(false); saveCache(d);
-  vegMigrate(); unitMigrate();
+  vegMigrate(); unitMigrate(); unitMigrate2();
   if (await takeJob(S.job)) return;
   draw();
   setTimeout(precookSoon, 3000);
@@ -1772,9 +1772,18 @@ function unitMigrate() {
   if (SET("単位を4つに統一") || WQ.length) return;
   const m = vegMap(); let ch = false; Object.keys(m).forEach(k => { const e = m[k]; if (!e.off && e.u && !VEG_UNITS.includes(e.u)) { m[k] = { ...e, u: "個" }; ch = true; } });
   if (ch) { const v = JSON.stringify(m); S.settings["野菜の単位"] = v; run("saveSetting", "野菜の単位", v); }
-  const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || v.u !== "個" || /^(あり|わずか)$/.test(x.qty) || !/(本|株|節|玉|丁|房)/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
+  const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || v.u !== "個" || /^(あり|わずか)$/.test(x.qty) || !/(株|節|玉|丁|房)/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
   if (ups.length) run("saveStock", ups);
   S.settings["単位を4つに統一"] = today(); run("saveSetting", "単位を4つに統一", today());
+}
+// 2026-11-24: 「本」を戻す（大根・にんじん・長ねぎ など、もともと本で数えていた野菜は本に）。1回だけ
+function unitMigrate2() {
+  if (SET("本を戻す") || WQ.length) return;
+  const m = vegMap(); let ch = false; Object.keys(m).forEach(k => { const b = vegBase(k); if (b && b.u === "本" && m[k].u === "個") { m[k] = { ...m[k], u: "本" }; ch = true; } });
+  if (ch) { const v = JSON.stringify(m); S.settings["野菜の単位"] = v; run("saveSetting", "野菜の単位", v); }
+  const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || v.u !== "本" || /^(あり|わずか)$/.test(x.qty) || !/個/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
+  if (ups.length) run("saveStock", ups);
+  S.settings["本を戻す"] = today(); run("saveSetting", "本を戻す", today());
 }
 function vegMigrate() {
   if (SET("野菜単位の移行") || WQ.length) return;
@@ -1783,8 +1792,8 @@ function vegMigrate() {
   run("saveSetting", "野菜単位の移行", today());
 }
 // 単位の設定: 野菜の単位と分母（1/4・1/8 など）を決める。「グラムなどで数える」で分数をやめる
-// 単位は4つだけ。g・ml は分数にしない（レシピに書いた量のまま数える）。個・袋は「分けかた」で数える
-const VEG_UNITS = ["g", "ml", "個", "袋"], GM = u => u === "g" || u === "ml";
+// 単位は g・ml・個・本・袋・切れ だけ。g・ml は分数にしない（レシピに書いた量のまま数える）。個・袋は「分けかた」で数える
+const VEG_UNITS = ["g", "ml", "個", "本", "袋", "切れ"], GM = u => u === "g" || u === "ml";
 // その食材の今の設定（g・ml の物も含む）: {u, d, pack}
 function unitOf(name) {
   const v = vegOf(name); if (v) return v;
@@ -1967,10 +1976,10 @@ function fracText(x) {
 // ===== 野菜は「分母を固定した数」で数える（大きい野菜は1/8、小ぶりな野菜・葉物は1/4）。グラムは出さない =====
 // 設定「野菜の単位」: {"食材名": {"u":"本","d":8}}（{"off":true} はグラムなどで数える）。無い物は下の決まりで決める
 // 野菜の一覧: [名前, 見つけ方, 単位, 分母, 買う単位（0は足りない分だけ）]。設定「野菜の単位」（🥕 野菜の単位の画面）で名前ごとに変えられる
-const VEG_LIST = [["大根", /大根/, "個", 8, 1], ["かぼちゃ", /かぼちゃ/, "個", 8, 1 / 4], ["キャベツ", /キャベツ/, "個", 8, 1], ["白菜", /白菜/, "個", 8, 1 / 2],
-  ["長ねぎ", /長ねぎ|白ねぎ|長ネギ|白ネギ/, "個", 4, 0], ["にんじん", /にんじん|人参/, "個", 4, 2], ["玉ねぎ", /玉ねぎ|たまねぎ/, "個", 4, 3], ["じゃがいも", /じゃがいも|メークイン|男爵/, "個", 4, 5],
-  ["さつまいも", /さつまいも/, "個", 4, 1], ["なす", /なす/, "個", 4, 3], ["きゅうり", /きゅうり/, "個", 4, 3], ["ちんげんさい", /ちんげんさい|チンゲン菜|チンゲンサイ|青梗菜/, "袋", 4, 1],
-  ["小松菜", /小松菜/, "袋", 4, 1], ["ほうれん草", /ほうれん草/, "袋", 4, 1], ["水菜", /水菜/, "袋", 4, 1], ["ごぼう", /ごぼう/, "個", 4, 1], ["れんこん", /れんこん/, "個", 4, 1],
+const VEG_LIST = [["大根", /大根/, "本", 8, 1], ["かぼちゃ", /かぼちゃ/, "個", 8, 1 / 4], ["キャベツ", /キャベツ/, "個", 8, 1], ["白菜", /白菜/, "個", 8, 1 / 2],
+  ["長ねぎ", /長ねぎ|白ねぎ|長ネギ|白ネギ/, "本", 4, 0], ["にんじん", /にんじん|人参/, "本", 4, 2], ["玉ねぎ", /玉ねぎ|たまねぎ/, "個", 4, 3], ["じゃがいも", /じゃがいも|メークイン|男爵/, "個", 4, 5],
+  ["さつまいも", /さつまいも/, "本", 4, 1], ["なす", /なす/, "本", 4, 3], ["きゅうり", /きゅうり/, "本", 4, 3], ["ちんげんさい", /ちんげんさい|チンゲン菜|チンゲンサイ|青梗菜/, "袋", 4, 1],
+  ["小松菜", /小松菜/, "袋", 4, 1], ["ほうれん草", /ほうれん草/, "袋", 4, 1], ["水菜", /水菜/, "袋", 4, 1], ["ごぼう", /ごぼう/, "本", 4, 1], ["れんこん", /れんこん/, "個", 4, 1],
   ["ブロッコリー", /ブロッコリー/, "個", 4, 1], ["トマト", /^トマト$/, "個", 4, 0], ["ミニトマト", /ミニトマト/, "個", 4, 0], ["ピーマン", /ピーマン/, "個", 4, 5]];
 const VEG_DEF = VEG_LIST.map(x => [x[1], x[2], x[3]]);
 const vegMap = () => { try { return JSON.parse(SET("野菜の単位") || "{}") || {}; } catch (e) { return {}; } };
@@ -1990,8 +1999,8 @@ function vegN(name, q, v) {
   v = v || vegOf(name); if (!v) return null; const t = String(q || "").trim(); if (!t || t === OUT) return 0;
   const ps = pqAll(t), same = ps.find(p => p.u === v.u); if (same) return same.n;
   // 本・株・節・玉なども「個」と同じに数える（1本 = 1個）
-  const cnt = v.u === "個" && ps.find(p => COUNT_U.test(p.u)); if (cnt) return cnt.n;
-  const w = UNIT_G.find(([re]) => re.test(normName(name))), per = w && (w[1][v.u] || (v.u === "個" ? ["本", "株", "節", "玉", "丁"].map(u => w[1][u]).find(Boolean) : 0));
+  const cnt = COUNT_U.test(v.u) && ps.find(p => COUNT_U.test(p.u)); if (cnt) return cnt.n;
+  const w = UNIT_G.find(([re]) => re.test(normName(name))), per = w && (w[1][v.u] || (COUNT_U.test(v.u) ? ["個", "本", "株", "節", "玉", "丁"].map(u => w[1][u]).find(Boolean) : 0));
   const g = ps.find(p => /^(g|kg)$/.test(p.u)); if (g && per) return g.n * (g.u === "kg" ? 1000 : 1) / per;
   const o = ps.find(p => w && w[1][p.u]); if (o && per) return o.n * w[1][o.u] / per;
   return null;
