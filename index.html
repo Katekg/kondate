@@ -2765,7 +2765,8 @@ ${FORMAT}
   await askAi(ask, { mode: "fix", removeIds, slotKeys: [...slots], picked, ngShop: ngShop || [] });
 }
 async function askAi(prompt, meta) {
-  if (S.jobWait && !S.jobWait.auto && Date.now() - S.jobWait.startedAt < 3 * 60e3 && !(meta && meta.retried)) { alert("AIが考えている途中です。終わってから、もう一度お願いします。"); return; }
+  // 二重に頼まない: 作成中なら知らせて止める（終わるのを待つか、上の帯の「中止」を押してから）
+  if (S.jobWait && !S.jobWait.auto && !(meta && meta.retried)) { alert("いま、AIが献立を作成中です。\nできあがるまで待つか、上の「中止」を押してから、もう一度お願いします。"); window.scrollTo(0, 0); return; }
   const id = "j" + Date.now();
   if (S.jobFail) { S.jobFail = null; try { localStorage.removeItem("jobFail"); } catch (e) {} }
   meta = { ...meta, ctx: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" } };
@@ -2776,7 +2777,7 @@ async function askAi(prompt, meta) {
   let res;
   try { res = await run0("aiJob", id, prompt, JSON.stringify({ ...meta, prompt })); }
   catch (e) {
-    if (S.applied === id) return;
+    if (S.applied === id || (S.cancelled && S.cancelled.has(id))) return;
     // 通信が切れただけ（Load failed など）のときは、AIはサーバーで考え続けている → 待ち続けて、できたらシートから受け取る
     const net = /Load failed|Failed to fetch|NetworkError|network connection|timed out/i.test(String((e && e.message) || e));
     const j = await run("aiJobGet").catch(() => null);
@@ -2784,6 +2785,7 @@ async function askAi(prompt, meta) {
     if (net && (!j || (j.id === id && j.status === "running"))) { draw(); return; }
     if (j && j.id === id && j.status === "error") { await takeJob(j); draw(); return; }
     failJob(String(e.message).replace(/^Error:\s*/, ""), id, prompt, meta); return; }
+  if (S.cancelled && S.cancelled.has(id)) return;   // 中止した依頼の答えは使わない
   // 混んでいて、サーバーが続きを予約した → 作業中のまま待つ（できたらシートとカレンダーで届く）
   if (res && res._pending) { draw(); return; }
   S.jobWait = null;
@@ -2826,7 +2828,7 @@ async function applyAi(res, meta, prompt, id) {
 // シートに残っているAIの作業: できていれば案を出す／作業中なら知らせを出す
 async function takeJob(j) {
   if (!j || j.status === "used") { S.jobWait = null; return false; }
-  if (j.status === "done") { if (S.draft || S.applied === j.id || (S.autoDraft && S.autoDraft.jobId === j.id)) return false; let m, r; try { m = JSON.parse(j.meta); r = JSON.parse(j.result); } catch (e) { return false; } await applyAi(r, m, m.prompt, j.id); return true; }
+  if (j.status === "done") { if ((S.cancelled && S.cancelled.has(j.id)) || S.draft || S.applied === j.id || (S.autoDraft && S.autoDraft.jobId === j.id)) return false; let m, r; try { m = JSON.parse(j.meta); r = JSON.parse(j.result); } catch (e) { return false; } await applyAi(r, m, m.prompt, j.id); return true; }
   const jm = () => { try { return JSON.parse(j.meta); } catch (e) { return {}; } };
   if (j.status === "error") { const m = jm(); if (!m.auto) failJob(j.result, j.id, m.prompt, m); else S.jobWait = null; return false; }
   // サーバーは数分ごとに「更新」を書く（混んでいるときは自動でやり直す・15分まで）。9分以上「更新」が無いなら、サーバー側で止まっている
@@ -2856,8 +2858,21 @@ function jobBanner() {
   }
   const j = S.jobWait; if (!j || $("jobBn")) return;
   const min = Math.max(0, Math.round((Date.now() - j.startedAt) / 60e3));
-  $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn" id="jobBn"><span class="spin sm"></span><span><b>✨ AIが${esc(j.label || "考えています")}</b><small>${min ? `${min}分前から・` : ""}ふだん1〜3分。混んでいるときは自動でやり直します（15分まで）。アプリを閉じてもOK、できたらカレンダーで知らせます</small></span><button class="chip" id="jobChk">確かめる</button></section>`);
-  $("jobChk").onclick = () => load();
+  $("app").insertAdjacentHTML("afterbegin", `<section class="card jobbn" id="jobBn"><span class="spin sm"></span><span><b>✨ AIが${esc(j.label || "考えています")}</b><small>${min ? `${min}分前から・` : ""}ふだん1〜3分。混んでいるときは自動でやり直します（15分まで）。アプリを閉じてもOK、できたらカレンダーで知らせます</small></span><span class="row" style="gap:6px"><button class="chip" id="jobChk">確かめる</button><button class="chip" id="jobStop">中止する</button></span></section>`);
+  // 確かめる: サーバーに今の様子を聞く。できていれば案を出し、まだなら「まだ考え中（最後の動き 〇分前）」と出す
+  $("jobChk").onclick = async () => {
+    const sm = $("jobBn").querySelector("small"); sm.textContent = "確かめています…";
+    const g = await run0("aiJobGet").catch(() => null);
+    if (g && g.id === (S.jobWait || {}).id && g.status === "running") { const m = Math.round((Date.now() - (g.beat || g.startedAt)) / 60e3); sm.textContent = `まだ考えています（サーバーの最後の動き ${m ? m + "分前" : "1分以内"}）。できたら自動で出ます。`; return; }
+    S.jobWait = null; if (g && g.id === S.jobId) await takeJob(g); else await load(); draw();
+  };
+  // 中止する: この依頼の答えは使わない（サーバーの作業にも「使わない」印を付けて、やり直しも止める）。見ていた案があれば戻す
+  $("jobStop").onclick = () => {
+    if (!confirm("AIの献立づくりを中止しますか？")) return;
+    const id = S.jobWait.id || S.jobId; (S.cancelled || (S.cancelled = new Set())).add(id); run("aiJobClear", id).catch(() => {});
+    S.jobWait = null; const hold = S.holdDraft || lsGet("draftHold"); S.holdDraft = null; try { localStorage.removeItem("draftHold"); } catch (e) {}
+    if (hold && !S.draft) { S.draft = hold; keepDraft(); } draw(); window.scrollTo(0, 0);
+  };
 }
 setInterval(async () => { if (!S.jobWait || document.visibilityState !== "visible") return; const j = await run("aiJobGet").catch(() => null); if (!j || j.status !== "running") load(); }, 15000);
 document.addEventListener("visibilitychange", async () => {
