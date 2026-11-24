@@ -460,6 +460,13 @@ main.fill .daycard .mcard { flex: 1 1 auto; }
 .cart li.incart .nm, .cart li.incart b { color: var(--muted); }
 .cart li.incart .nm { text-decoration: line-through; }
 .cart.buy li { align-items: center; }
+.cart.buy .ckb { flex: none; border: 0; background: none; padding: 0; cursor: pointer; }
+.cart.buy .ckb .ck { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 700; color: #fff; }
+.cart.buy li.incart .ckb .ck { background: var(--accent); border-color: var(--accent); }
+.cart.buy .ngb { flex: none; font: inherit; font-size: .7rem; font-weight: 700; padding: 4px 6px; border-radius: 8px; border: 1.5px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+.cart.buy .ngb.on { background: #8a8a8a; border-color: #8a8a8a; color: #fff; }
+.cart.buy li.ngrow .cartbtn, .cart.buy li.ngrow .bq { opacity: .4; }
+.cart.buy li.ngrow .nm { text-decoration: line-through; }
 .vlist .vrow { display: block; }
 .vctl { display: grid; grid-template-columns: 1fr 1fr 64px; gap: 6px; margin-top: 4px; }
 .vctl select, .vctl input { font-size: 16px; padding: 6px; min-width: 0; }
@@ -1768,16 +1775,16 @@ function vegMigrate() {
 // 単位の設定: 野菜の単位と分母（1/4・1/8 など）を決める。「グラムなどで数える」で分数をやめる
 const VEG_UNITS = ["本", "個", "袋", "玉", "株", "節", "パック", "枚"];
 function unitSetHtml(v) {
-  return `<div class="grid2 vset"><label>単位<select class="vsU"><option value="off" ${v ? "" : "selected"}>グラムなどで数える</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>分けかた<select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>`;
+  return `<div class="grid2 vset"><label>単位<select class="vsU"><option value="off" ${v ? "" : "selected"}>グラムなどで数える</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>分けかた<select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select></label></div><label>買う単位（お店で何ずつ買うか。例: 3 → 3個ずつ、1/2 → 1/2個ずつ。空なら足りない分だけ）<input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></label>`;
 }
-const unitSetVal = el => { const u = el.querySelector(".vsU").value; return u === "off" ? { off: true } : { u, d: +el.querySelector(".vsD").value }; };
+const unitSetVal = el => { const u = el.querySelector(".vsU").value, p = el.querySelector(".vsP"); return u === "off" ? { off: true } : { u, d: +el.querySelector(".vsD").value, pack: p ? numOf(p.value.normalize("NFKC")) || 0 : 0 }; };
 async function saveVegUnits(add) { const m = { ...vegMap(), ...add }, v = JSON.stringify(m); S.settings["野菜の単位"] = v; await run("saveSetting", "野菜の単位", v); }
 function openUnitSet(name, back) {
   const v = vegOf(name), list = S.stock.filter(x => normName(x.name) === normName(name) || x.name === name);
   openSheet(`<h2>⚙ ${esc(name)} の単位</h2><p class="note">野菜は、決めた単位と分けかた（1/4ずつ・1/8ずつ）で数えます。グラムは出しません。</p>${unitSetHtml(v)}<div class="grid2"><button class="btn" id="vsOk">保存</button><button class="btn ghost" id="vsNo">戻る</button></div>`);
   $("vsNo").onclick = back || closeSheet;
   $("vsOk").onclick = async () => {
-    const nv = unitSetVal($("sheetBody")); if (!nv.off && v && v.u === nv.u && v.pack) nv.pack = v.pack; await saveVegUnits({ [name]: nv });
+    const nv = unitSetVal($("sheetBody")); await saveVegUnits({ [name]: nv });
     // 今の量も新しい単位に合わせる（単位が同じなら数はそのまま、分母だけ合わせる）
     const ups = []; if (!nv.off) list.forEach(x => { const n = vegN(x.name, x.qty, v && v.u === nv.u ? v : nv); if (n != null) { const q = vegFmt(n, nv) || ""; if (q && q !== x.qty) ups.push({ ...x, qty: q }); } });
     if (ups.length) await run("saveStock", ups);
@@ -3049,21 +3056,21 @@ function drawDraft() {
     });
     lsSet(cartKey, cart); lsSet("cartInit:" + (D.jobId || ""), 1);
   }
-  const got = i => cart[i.name] && cart[i.name] !== "later", isLater = i => cart[i.name] === "later";
+  const got = i => cart[i.name] && cart[i.name] !== "later" && cart[i.name] !== "ng", isLater = i => cart[i.name] === "later", isNg = i => cart[i.name] === "ng";
   const inCart = items.filter(got).length, nLater = items.filter(isLater).length, undecided = items.length - inCart - nLater, allIn = !undecided, later = items.length - inCart;
   const lo = leftovers(st.plans), pend = D.mode === "fix" && (D.shop || []).some(x => !x.mark), ngProp = D.mode === "fix" && (D.shop || []).some(x => x.mark === "ng");
-  const unchecked = items.filter(i => !got(i)), extra = items.filter(i => i.rest);   // extra: 売っている単位で買って余る野菜
+  const unchecked = items.filter(i => !got(i) && !isNg(i)), ngs = items.filter(isNg), extra = items.filter(i => i.rest);   // extra: 売っている単位で買って余る野菜
   $("app").innerHTML = `<h2>${D.kind === "boost" ? "💰 追加購入の案" : D.mode === "week" ? "🛒 1週間の献立の案" : "🔄 見直しの案"}</h2>
     ${D.note ? `<p class="note">${esc(D.note)}</p>` : ""}
     ${D.stockOnly && items.length ? `<div class="msg">在庫だけで考え直しましたが、まだ買い物が必要な材料があります（下の買い物リスト）。</div>` : ""}
     ${D.mode === "fix" && draftLacks(D).length ? `<div class="msg">この案でも足りない材料があります: ${esc(draftLacks(D).join("、"))}。買い足してください。</div>` : ""}
     <section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3>${items.length ? `<small>カゴ ${inCart}/${items.length}</small>` : ""}</div>
-      ${items.length ? `<p class="note">カゴに入れたら ✓ を押してください。量がリストと違うときは「買った量」に入れてください（空ならリストの量）。</p>
-      <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i); return `<li class="${g ? "incart" : ""}"><button class="cartbtn" data-c="${n}"><span class="ck">${g ? "✓" : ""}</span><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
+      ${items.length ? `<p class="note">カゴに入れたら ✓。買わない物は NG。名前をタップすると、その食材の買う単位を直せます（直したら ✓ を付けずに下のボタンで考え直し）。量がリストと違うときは「買った量」へ。</p>
+      <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i); return `<li class="${g ? "incart" : isNg(i) ? "ngrow" : ""}"><button class="ckb" data-c="${n}" aria-label="カゴに入れた"><span class="ck">${g ? "✓" : ""}</span></button><button class="ngb${isNg(i) ? " on" : ""}" data-ng="${n}">NG</button><button class="cartbtn" data-un="${n}"><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" && c !== "ng" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
       ${pend ? `<p class="note red">下の「栄養のための買い足しの提案」で、買える／買えないを選んでください</p>`
         : ngProp ? `<button class="btn alt wide" id="dfNg">買えない物を除いて、献立を考え直す</button>`
         : !items.length || allIn ? `<button class="btn wide" id="dfGo">${!items.length ? "この内容で献立を決める" : "🧾 献立を確定して、レジへ"}</button>`
-        : `<button class="btn alt wide" id="dfNg2">✓していない${unchecked.length}品を除いて、献立を考え直す</button><p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。</p>`}
+        : `<button class="btn alt wide" id="dfNg2">${ngs.length ? `NGの${ngs.length}品を除いて` : "今の買う単位で"}、献立を考え直す</button><p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。${unchecked.length ? `✓もNGも無い${unchecked.length}品は、今の買う単位で買う前提で組み直します。` : ""}</p>`}
       ${D.kind === "boost" ? `<p class="note">予算の余り 約${(+D.yen || 0).toLocaleString()}円${D.buyCost ? `／この案の買い足し 約${D.buyCost.toLocaleString()}円` : ""}</p>` : D.cost ? `<p class="note">材料費の目安 約${D.cost.toLocaleString()}円（在庫から使う分も含む${D.buyCost ? `・うち買い足し 約${D.buyCost.toLocaleString()}円` : ""}）／予算の目安 ${days.length}日分 約${lim.toLocaleString()}円</p>` : ""}</section>
     ${lo.length || extra.length ? `<section class="card"><div class="secthead"><h3>🥕 週の終わりに残る見込み（${lo.length + extra.length}品）</h3><button class="chip${pick.size ? " on" : ""}" id="loBtn">${pick.size ? `${pick.size}品を使い切って再検討` : D.loMode ? "選ぶのをやめる" : "使い切りたい食材がある"}</button></div>
       ${D.loMode ? `<p class="note">使い切りたい物をタップして選び、上のボタンを押してください。</p>` : ""}
@@ -3099,11 +3106,14 @@ function drawDraft() {
   $("dfFix").onclick = () => { const w = wish(); if (w) redo(w + (pick.size ? `。また、次の食材は必ず使い切る: ${loLeft()}` : "")); };
   // ✓していない物は買えなかったとして、それを使わずに考え直す（✓した物は「カゴに入れた物」として必ず使う）
   const ng2 = $("dfNg2"); if (ng2) ng2.onclick = () => {
-    const ngN = unchecked.map(i => i.name), okL = items.filter(got).map(i => `${i.name} ${typeof cart[i.name] === "string" ? cart[i.name] : buyText(i)}`);
+    const ngN = ngs.map(i => i.name), okL = items.filter(got).map(i => `${i.name} ${typeof cart[i.name] === "string" ? cart[i.name] : buyText(i)}`);
     if (D.mode === "week") S.dealText = okL.join("、");
-    redo([`次の食材はお店で買えなかったので使わない: ${ngN.join("、")}。在庫と、買えた食材（${okL.join("、") || "なし"}）で作る`, wish()].filter(Boolean).join("。また、"), { ng: ngN });
+    const re = unchecked.map(i => { const v = vegOf(i.name); return v && v.pack ? `${i.name}（${fracText(v.pack)}${v.u}ずつ）` : i.name; });
+    redo([ngN.length ? `次の食材はお店で買わないので使わない: ${ngN.join("、")}` : "", re.length ? `次の食材は、買う単位を見直したので、その単位で買って使い切るように組み直す: ${re.join("、")}` : "", okL.length ? `カゴに入れた食材（${okL.join("、")}）は必ず使う` : "", wish()].filter(Boolean).join("。また、"), { ng: ngN });
   };
   $("app").querySelectorAll("[data-bq]").forEach(el => el.onchange = () => { const i = items[+el.dataset.bq], v = el.value.trim(); if (v) cart[i.name] = v; else if (cart[i.name]) cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
+  $("app").querySelectorAll("[data-ng]").forEach(b => b.onclick = () => { const i = items[+b.dataset.ng]; if (isNg(i)) delete cart[i.name]; else cart[i.name] = "ng"; lsSet(cartKey, cart); drawDraft(); });
+  $("app").querySelectorAll("[data-un]").forEach(b => b.onclick = () => openUnitSet(items[+b.dataset.un].name, () => { closeSheet(); drawDraft(); }));
   $("app").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { const i = items[+b.dataset.c]; if (got(i)) delete cart[i.name]; else cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-cl]").forEach(b => b.onclick = () => { const i = items[+b.dataset.cl]; if (isLater(i)) delete cart[i.name]; else cart[i.name] = "later"; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-cq]").forEach(b => b.onclick = () => { const i = items[+b.dataset.cq], v = prompt(`${i.name} の買った量`, cart[i.name] === true ? buyText(i) : cart[i.name]); if (v == null) return; cart[i.name] = v.trim() || true; lsSet(cartKey, cart); drawDraft(); });
