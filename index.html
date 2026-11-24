@@ -1566,7 +1566,7 @@ function drawStock() {
       ${missing.length ? `<p class="note red">在庫に無い材料: ${esc(missing.join("、"))}</p>` : ""}
       <p class="note">タイルをタップすると、使う量の確認と、量の修正ができます。</p>
       ${gs.length ? (lackSet.size ? `<div class="fixbox ng"><b>このままだと献立に足りない材料があります: ${esc([...lackSet].join("、"))}</b><button class="btn wide" id="goFix">栄養を考えながら、在庫に合わせて献立を見直す</button></div>` : `<div class="fixbox okk"><b>今の在庫で、予定の献立は全部作れます</b></div>`) : ""}</section>
-    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3><span class="row" style="gap:6px;flex:none"><button class="chip" id="vegSet">🥕 野菜の単位</button><button class="chip" id="catEdit">✎ カテゴリ</button></span></div><p class="note">量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへ移せます。</p>${byCat(restList) || `<p class="note">ありません</p>`}</section>`;
+    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3><span class="row" style="gap:6px;flex:none"><button class="chip" id="vegSet">📏 食材の単位</button><button class="chip" id="catEdit">✎ カテゴリ</button></span></div><p class="note">量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへ移せます。</p>${byCat(restList) || `<p class="note">ありません</p>`}</section>`;
   $("app").querySelectorAll(".tilebtn").forEach(b => b.onclick = () => { if (S.stockSort || S.lpFired) { S.lpFired = false; return; } openStockItem(b.dataset.id); });
   stockSortSetup(cats);
   // 買い物リスト: チェックと量の直しは、画面を描き直しても残す（在庫に入れたら消す）
@@ -1773,9 +1773,9 @@ function vegMigrate() {
   run("saveSetting", "野菜単位の移行", today());
 }
 // 単位の設定: 野菜の単位と分母（1/4・1/8 など）を決める。「グラムなどで数える」で分数をやめる
-const VEG_UNITS = ["本", "個", "袋", "玉", "株", "節", "パック", "枚"];
+const VEG_UNITS = ["本", "個", "袋", "玉", "株", "節", "パック", "枚", "缶", "丁", "切れ", "房"];
 function unitSetHtml(v) {
-  return `<div class="grid2 vset"><label>単位<select class="vsU"><option value="off" ${v ? "" : "selected"}>グラムなどで数える</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>分けかた<select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select></label></div><label>買う単位（お店で何ずつ買うか。例: 3 → 3個ずつ、1/2 → 1/2個ずつ。空なら足りない分だけ）<input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></label>`;
+  return `<div class="grid2 vset"><label>単位<select class="vsU"><option value="off" ${v ? "" : "selected"}>g・mlで数える（分数にしない）</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>分けかた<select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select></label></div><label>1週間で使い切りたい量（使うならこの量の倍数で。例: 1 → 1缶・2缶…で、1/2缶にはしない。空なら決まりなし）<input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></label>`;
 }
 const unitSetVal = el => { const u = el.querySelector(".vsU").value, p = el.querySelector(".vsP"); return u === "off" ? { off: true } : { u, d: +el.querySelector(".vsD").value, pack: p ? numOf(p.value.normalize("NFKC")) || 0 : 0 }; };
 async function saveVegUnits(add) { const m = { ...vegMap(), ...add }, v = JSON.stringify(m); S.settings["野菜の単位"] = v; await run("saveSetting", "野菜の単位", v); }
@@ -1793,10 +1793,10 @@ function openUnitSet(name, back) {
 }
 // 🥕 野菜の単位: 全部の野菜の「単位・分けかた（分母）・買う単位」を1つの画面で決める（在庫に無い野菜も）
 function openVegSet() {
-  const row = (nm, v) => `<li class="vrow" data-n="${esc(nm)}"><b>${esc(nm)}</b><div class="vctl"><select class="vsU"><option value="off" ${v ? "" : "selected"}>gなど</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select><select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select><input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></div></li>`;
-  openSheet(`<h2>🥕 野菜の単位</h2><p class="note">在庫は「単位」を「分けかた」で数えます（例: 大根は 本 を 1/8ずつ）。「買う単位」は、お店で買うときの数です（例: 玉ねぎ 3 → 3個ずつ、白菜 1/2 → 1/2個ずつ）。空なら足りない分だけ買います。AIにもこの単位で買って使い切るように伝えます。</p>
-    <div class="vctl vhead"><small>単位</small><small>分けかた</small><small>買う単位</small></div><ul class="list vlist" id="vsList">${vegRows().map(n => row(n, vegOf(n))).join("")}</ul>
-    <div class="row" style="gap:6px;margin:8px 0"><input id="vsNew" placeholder="野菜を足す（例: かぶ）" style="flex:1"><button class="chip" id="vsAdd">＋ 足す</button></div>
+  const row = (nm, v) => `<li class="vrow" data-n="${esc(nm)}"><b>${esc(nm)}</b><div class="vctl"><select class="vsU"><option value="off" ${v ? "" : "selected"}>g・ml</option>${VEG_UNITS.map(u => `<option ${v && v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select><select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v && v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select><input class="vsP" value="${v && v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></div></li>`;
+  openSheet(`<h2>📏 食材の単位</h2><p class="note">在庫は「単位」を「分けかた」で数えます（例: 大根は 本 を 1/8ずつ）。「g・mlで数える」は、分数にせず、レシピに書いた g・ml のまま数える食材です。<br>「1週間の量」は、1週間で使い切りたい量です。使うときはこの量の倍数（1缶なら 1缶・2缶…）で使って買い、半端（1/2缶）にしません。使わない週があってもかまいません。空なら決まりなしです。野菜以外（ツナ缶など）も、下の「食材を足す」で入れられます。</p>
+    <div class="vctl vhead"><small>単位</small><small>分けかた</small><small>1週間の量</small></div><ul class="list vlist" id="vsList">${vegRows().map(n => row(n, vegOf(n))).join("")}</ul>
+    <div class="row" style="gap:6px;margin:8px 0"><input id="vsNew" placeholder="食材を足す（例: かぶ、ツナ缶）" style="flex:1"><button class="chip" id="vsAdd">＋ 足す</button></div>
     <div class="grid2"><button class="btn" id="vsSave">保存</button><button class="btn ghost" id="vsClose">閉じる</button></div>`);
   $("vsClose").onclick = closeSheet;
   $("vsAdd").onclick = () => { const n = $("vsNew").value.trim(); if (!n || document.querySelector(`#vsList [data-n="${CSS.escape(n)}"]`)) return; $("vsList").insertAdjacentHTML("beforeend", row(n, vegOf(n) || { u: "個", d: 4, pack: 0 })); $("vsNew").value = ""; };
@@ -2527,7 +2527,7 @@ const RULES = `【献立のルール】
 - 在庫は、消費期限が近いもの → 生の肉・魚 → 野菜 → 加工品の順に優先して使う。
 - 肉・魚・野菜など日持ちしない食材は、この期間の献立で使い切る（在庫にある分も、買い足す分も）。1つの料理で使い切れないときは、ほかの料理にも分けて使い、半端な量が残らないようにする。下の「使い切りたい食材」は必ず全部使う。
 - ねぎは材料名を「長ねぎ」と書く（白ねぎ・長ネギとは書かない）。青い部分・白い部分だけを使うときは「長ねぎ（青い部分）：1本」「長ねぎ（白い部分）：1/2本」のように、使う部分と本数を書く。部分を書かない「長ねぎ：1本」は、白い部分と青い部分の両方を使う意味。
-- 野菜を買い足すときは、お店で売っている単位で買う（{{BUY_PACK}}）。買った分は、この期間の献立で全部使い切る（例: 玉ねぎを使うなら、3個を何品かに分けて使い切る）。少し余りそうなときは、ほかの料理（炒め物・汁物・煮物・付け合わせなど）の分量を増やして入れてしまってよい。そのときは、その料理の栄養（kcal・P・F・C）も増やした分だけ足す。味の調味料が濃くなりすぎたり、同じ調味料に偏ったりしないように、調味料のバランスは保つ。
+- 次の食材は、決めた量（1週間で使い切る量）の倍数で使い、買う（{{BUY_PACK}}）。1週間の合計がこの量の倍数になるようにし、半端（1/2缶・1と1/2個など）にしない。使わない週があってもよい。使う週は、買った分を何品かに分けて全部使い切る（例: 玉ねぎ3個なら、3個を何品かに分けて使い切る）。少し余りそうなときは、ほかの料理（炒め物・汁物・煮物・付け合わせなど）の分量を増やして入れてしまってよい。そのときは、その料理の栄養（kcal・P・F・C）も増やした分だけ足す。味の調味料が濃くなりすぎたり、同じ調味料に偏ったりしないように、調味料のバランスは保つ。
 - 野菜の量は、大根・キャベツ・白菜・かぼちゃは1/8単位（1/8本・3/8個など）、ほかの野菜は1/4単位で書く。1/3・2/3は使わない。
 - 卵は10個入り、納豆は3個入りで買う。卵が数個・納豆が1〜2個だけ足りない、という買い物は出さない。足りないときは、卵・納豆を使う量を在庫に収めるか、使わない料理に変える（買うなら1パックを使い切る計画にする）。
 - 夕食は「主食（ご飯など）＋主菜＋副菜か汁物」にする。ご飯は「白ごはん」という料理として meals に入れる。昼・夜は recipe_id=${RICE_LD}（米1.25合で2人分。1人 約210g・約335kcal。夜にまとめて炊き、翌日の昼に回す想定）、朝は recipe_id=${RICE_AM}（米1合で2人分）を使う。米は在庫から使い、買い物には入れない。カレー・丼など主食が入る料理は、それに副菜か汁物を1品足す。朝・昼も主食を入れる。朝は手軽なもの（トースト・卵かけご飯・納豆ご飯・冷奴など）にし、パンの枚数・塗る物は、決まりごとに従う（多く出さない）。朝のカロリーが足りない分は、調理のいらない牛乳・ヨーグルト・バナナ・きなこ・ゆで卵などで補う。鍋やフライパンを使う料理（雑炊・鍋で作る汁物など）は出さない。汁物を付けるなら、電気ケトルのお湯で作る即席スープにする。季節の旬の食材を使う。
@@ -3080,12 +3080,12 @@ function drawDraft() {
     ${D.stockOnly && items.length ? `<div class="msg">在庫だけで考え直しましたが、まだ買い物が必要な材料があります（下の買い物リスト）。</div>` : ""}
     ${D.mode === "fix" && draftLacks(D).length ? `<div class="msg">この案でも足りない材料があります: ${esc(draftLacks(D).join("、"))}。買い足してください。</div>` : ""}
     <section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3>${items.length ? `<small>カゴ ${inCart}/${items.length}</small>` : ""}</div>
-      ${items.length ? `<p class="note">カゴに入れたら ✓。買わない物は NG。名前をタップすると、その食材の買う単位を直せます（直したら ✓ を付けずに下のボタンで考え直し）。量がリストと違うときは「買った量」へ。</p>
+      ${items.length ? `<p class="note">カゴに入れたら ✓。買わない物は NG。名前をタップすると、その食材の単位と1週間の量を直せます（直したら ✓ を付けずに下のボタンで考え直し）。量がリストと違うときは「買った量」へ。</p>
       <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i); return `<li class="${g ? "incart" : isNg(i) ? "ngrow" : ""}"><button class="ckb" data-c="${n}" aria-label="カゴに入れた"><span class="ck">${g ? "✓" : ""}</span></button><button class="ngb${isNg(i) ? " on" : ""}" data-ng="${n}">NG</button><button class="cartbtn" data-un="${n}"><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" && c !== "ng" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
       ${pend ? `<p class="note red">下の「栄養のための買い足しの提案」で、買える／買えないを選んでください</p>`
         : ngProp ? `<button class="btn alt wide" id="dfNg">買えない物を除いて、献立を考え直す</button>`
         : !items.length || allIn ? `<button class="btn wide" id="dfGo">${!items.length ? "この内容で献立を決める" : "🧾 献立を確定して、レジへ"}</button>`
-        : `<button class="btn alt wide" id="dfNg2">${ngs.length ? `NGの${ngs.length}品を除いて` : "今の買う単位で"}、献立を考え直す</button><p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。${unchecked.length ? `✓もNGも無い${unchecked.length}品は、今の買う単位で買う前提で組み直します。` : ""}</p>`}
+        : `<button class="btn alt wide" id="dfNg2">${ngs.length ? `NGの${ngs.length}品を除いて` : "今の単位で"}、献立を考え直す</button><p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。${unchecked.length ? `✓もNGも無い${unchecked.length}品は、今の「1週間の量」で組み直します。` : ""}</p>`}
       ${D.kind === "boost" ? `<p class="note">予算の余り 約${(+D.yen || 0).toLocaleString()}円${D.buyCost ? `／この案の買い足し 約${D.buyCost.toLocaleString()}円` : ""}</p>` : D.cost ? `<p class="note">材料費の目安 約${D.cost.toLocaleString()}円（在庫から使う分も含む${D.buyCost ? `・うち買い足し 約${D.buyCost.toLocaleString()}円` : ""}）／予算の目安 ${days.length}日分 約${lim.toLocaleString()}円</p>` : ""}</section>
     ${lo.length || extra.length ? `<section class="card"><div class="secthead"><h3>🥕 週の終わりに残る見込み（${lo.length + extra.length}品）</h3><button class="chip${pick.size ? " on" : ""}" id="loBtn">${pick.size ? `${pick.size}品を使い切って再検討` : D.loMode ? "選ぶのをやめる" : "使い切りたい食材がある"}</button></div>
       ${D.loMode ? `<p class="note">使い切りたい物をタップして選び、上のボタンを押してください。</p>` : ""}
@@ -3124,7 +3124,7 @@ function drawDraft() {
     const ngN = ngs.map(i => i.name), okL = items.filter(got).map(i => `${i.name} ${typeof cart[i.name] === "string" ? cart[i.name] : buyText(i)}`);
     if (D.mode === "week") S.dealText = okL.join("、");
     const re = unchecked.map(i => { const v = vegOf(i.name); return v && v.pack ? `${i.name}（${fracText(v.pack)}${v.u}ずつ）` : i.name; });
-    redo([ngN.length ? `次の食材はお店で買わないので使わない: ${ngN.join("、")}` : "", re.length ? `次の食材は、買う単位を見直したので、その単位で買って使い切るように組み直す: ${re.join("、")}` : "", okL.length ? `カゴに入れた食材（${okL.join("、")}）は必ず使う` : "", wish()].filter(Boolean).join("。また、"), { ng: ngN });
+    redo([ngN.length ? `次の食材はお店で買わないので使わない: ${ngN.join("、")}` : "", re.length ? `次の食材は、1週間で使い切る量を見直したので、その量の倍数で買って使い切るように組み直す: ${re.join("、")}` : "", okL.length ? `カゴに入れた食材（${okL.join("、")}）は必ず使う` : "", wish()].filter(Boolean).join("。また、"), { ng: ngN });
   };
   $("app").querySelectorAll("[data-bq]").forEach(el => el.onchange = () => { const i = items[+el.dataset.bq], v = el.value.trim(); if (v) cart[i.name] = v; else if (cart[i.name]) cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-ng]").forEach(b => b.onclick = () => { const i = items[+b.dataset.ng]; if (isNg(i)) delete cart[i.name]; else cart[i.name] = "ng"; lsSet(cartKey, cart); drawDraft(); });
