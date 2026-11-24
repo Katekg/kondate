@@ -1049,8 +1049,17 @@ const swipeEnd = e => {
 };
 document.addEventListener("touchend", swipeEnd);
 document.addEventListener("touchcancel", swipeEnd);
-function openSheet(html) { $("sheetBody").innerHTML = html; $("sheet").hidden = false; document.documentElement.classList.add("sheetOpen"); fitSheet(); }
-function closeSheet() { $("sheet").hidden = true; document.documentElement.classList.remove("sheetOpen"); }
+// 下から出る画面を閉じたら、開く前に見ていた位置に戻す（キーボードで画面が上にずれても、元の材料を見失わない）
+// ただし閉じたあとにプログラムが自分で位置を変えたとき（「一番上へ」など）は、そちらを優先する
+const _scrollTo = window.scrollTo.bind(window); let _lastScroll = 0;
+window.scrollTo = (...a) => { _lastScroll = Date.now(); return _scrollTo(...a); };
+function openSheet(html) { if ($("sheet").hidden) S.sheetY = { y: window.scrollY, tab: S.tab, draft: !!S.draft }; $("sheetBody").innerHTML = html; $("sheet").hidden = false; document.documentElement.classList.add("sheetOpen"); fitSheet(); }
+function closeSheet() {
+  $("sheet").hidden = true; document.documentElement.classList.remove("sheetOpen");
+  const o = S.sheetY, t0 = Date.now(); if (!o) return; S.sheetY = null;
+  const back = () => { if (_lastScroll <= t0 && S.tab === o.tab && !!S.draft === o.draft && $("sheet").hidden) _scrollTo(0, o.y); };
+  requestAnimationFrame(back); setTimeout(back, 150); setTimeout(back, 450);   // キーボードが閉じて画面が戻るのを待ってもう一度
+}
 // キーボードが出たら、下から出る画面をキーボードの上に収める（入力欄がキーボードに隠れないように）。後ろの画面は動かさない
 function fitSheet() {
   const vv = window.visualViewport, el = $("sheet"); if (!el) return;
