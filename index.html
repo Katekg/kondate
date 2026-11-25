@@ -1271,7 +1271,9 @@ function slotInfo(d, m) {
   const list = S.plans.filter(p => p.date === d && p.meal === m), uniq = uniqPlans(list), gs = planGroups();
   const cooks = uniq.filter(p => !isLo(p) && !isOut(p) && recipeOf(p.recipeId)).map(p => {
     const r = recipeOf(p.recipeId), g = gs.find(x => x.ids.includes(p.id));
-    const chain = g ? gs.filter(x => x.recipe && x.recipe.id === r.id && x.date >= p.date && (x.key === g.key || x.lo)) : [];
+    // 作り置きは、次に同じ料理を作るまでの分だけ（その先の作り置きは、次に作ったときの分）
+    const go = x => x.date + MEALS_ALL.indexOf(x.meal), same = x => x.recipe && x.recipe.id === r.id;
+    const chain = g ? gs.filter(x => same(x) && (x.key === g.key || (x.lo && go(x) > go(g) && !gs.some(z => same(z) && !z.lo && go(z) > go(g) && go(z) < go(x))))) : [];
     const people = list.filter(x => x.title === p.title).reduce((t, x) => t + (+x.people || 1), 0);
     const total = chain.reduce((t, x) => t + x.n, 0) || people;
     return { p, r, total, k: total / (+r.servings || 2), chain };
