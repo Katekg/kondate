@@ -218,8 +218,9 @@ details.add summary { font-weight: 700; cursor: pointer; }
 .bkpv { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; height: 100%; }
 .bkpt { display: flex; gap: 6px; overflow-x: auto; flex: none; }
 .bkpt .chip { white-space: nowrap; }
-.bkpimg { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
-.bkpimg img { width: 100%; max-width: none; max-height: none; border-radius: 6px; }
+.bkpimg { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+.bkpz { color: #cfc9dc; font-size: .78em; text-align: center; margin: 0; }
+.phv .bkpimg img { width: 100%; max-width: none; max-height: none; border-radius: 6px; }
 .bkpx { flex: none; background: #fff; }
 .phv img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
 .srchbtn { position: absolute; top: 8px; right: 10px; border: 0; background: none; font: inherit; font-size: .8rem; color: var(--muted); cursor: pointer; padding: 4px; }
@@ -1040,12 +1041,33 @@ function pickPhoto(d, m) {
 // "ファイルid:何枚目"（本のページは1枚の画像に5ページを縦に並べてあるので、その何枚目かを切り出す）
 const BOOK_SLOTS = 5, bookPgCache = {};
 const bookPageOf = rid => { try { const m = JSON.parse(S.settings["レシピ元の画像"] || S.settings["本のページ"] || "{}")[rid]; if (!m) return null; const [file, sl] = String(m).split(":"); return { file, slot: sl === undefined ? -1 : +sl || 0 }; } catch (e) { return null; } };
+// 画像の拡大・縮小（2本指でピンチ、ダブルタップで拡大／元に戻す）。拡大中は指1本でスクロール
+function zoomable(box, img) {
+  let s = 1, pin = null, lastTap = 0;
+  const pts = t => [...t].slice(0, 2).map(x => [x.clientX, x.clientY]);
+  const dist = p => Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]);
+  const setS = (ns, cx, cy) => {
+    ns = Math.min(5, Math.max(1, ns)); const r = box.getBoundingClientRect(), ox = cx - r.left, oy = cy - r.top;
+    const px = box.scrollLeft + ox, py = box.scrollTop + oy, k = ns / s; s = ns; img.style.width = (s * 100) + "%";
+    box.scrollLeft = px * k - ox; box.scrollTop = py * k - oy;
+  };
+  box.addEventListener("touchstart", e => { if (e.touches.length === 2) { const p = pts(e.touches); pin = { d: dist(p), s }; e.preventDefault(); } }, { passive: false });
+  box.addEventListener("touchmove", e => { if (pin && e.touches.length === 2) { e.preventDefault(); const p = pts(e.touches); setS(pin.s * dist(p) / pin.d, (p[0][0] + p[1][0]) / 2, (p[0][1] + p[1][1]) / 2); } }, { passive: false });
+  box.addEventListener("touchend", e => {
+    if (pin) { if (e.touches.length < 2) pin = null; lastTap = 0; return; }
+    if (e.touches.length || e.changedTouches.length !== 1) return;
+    const now = Date.now(), t = e.changedTouches[0];
+    if (now - lastTap < 300) { e.preventDefault(); setS(s > 1.05 ? 1 : 2.5, t.clientX, t.clientY); lastTap = 0; } else lastTap = now;
+  }, { passive: false });
+  ["gesturestart", "gesturechange"].forEach(ev => box.addEventListener(ev, e => e.preventDefault()));
+  box.addEventListener("wheel", e => { if (e.ctrlKey) { e.preventDefault(); setS(s * Math.exp(-e.deltaY / 200), e.clientX, e.clientY); } }, { passive: false });
+}
 async function showBookPage(rids) {
   rids = rids.filter(bookPageOf); if (!rids.length) return;
-  const v = $("phv"); let cur = 0;
+  const v = $("phv"); let cur = 0; v.onclick = null;
   const paint = async () => {
     const r = recipeOf(rids[cur]), pg = bookPageOf(rids[cur]);
-    v.innerHTML = `<div class="bkpv">${rids.length > 1 ? `<div class="bkpt">${rids.map((id, k) => `<button class="chip${k === cur ? " on" : ""}" data-bk="${k}">${esc((recipeOf(id) || {}).title || "")}</button>`).join("")}</div>` : ""}<div class="bkpimg"><p class="note" style="color:#fff">レシピ元の画像を読み込んでいます…</p></div><button class="btn ghost bkpx">閉じる</button></div>`;
+    v.innerHTML = `<div class="bkpv">${rids.length > 1 ? `<div class="bkpt">${rids.map((id, k) => `<button class="chip${k === cur ? " on" : ""}" data-bk="${k}">${esc((recipeOf(id) || {}).title || "")}</button>`).join("")}</div>` : ""}<div class="bkpimg"><p class="note" style="color:#fff">レシピ元の画像を読み込んでいます…</p></div><p class="bkpz">2本指で広げると拡大・ダブルタップでも拡大／元に戻す</p><button class="btn ghost bkpx">閉じる</button></div>`;
     v.hidden = false;
     v.querySelectorAll("[data-bk]").forEach(b => b.onclick = e => { e.stopPropagation(); cur = +b.dataset.bk; paint(); });
     v.querySelector(".bkpx").onclick = e => { e.stopPropagation(); v.hidden = true; v.innerHTML = ""; };
@@ -1059,7 +1081,7 @@ async function showBookPage(rids) {
         cv.getContext("2d").drawImage(img, 0, pg.slot * h, img.naturalWidth, h, 0, 0, img.naturalWidth, h);
         bookPgCache[key] = cv.toDataURL("image/jpeg", .85); }
       }
-      const box = v.querySelector(".bkpimg"); if (box && rids[cur] === (r && r.id)) box.innerHTML = `<img src="${bookPgCache[key]}" alt="${esc(r.title)}のレシピ元の画像">`;
+      const box = v.querySelector(".bkpimg"); if (box && rids[cur] === (r && r.id)) { box.innerHTML = `<img src="${bookPgCache[key]}" alt="${esc(r.title)}のレシピ元の画像">`; zoomable(box, box.querySelector("img")); }
     } catch (e) { const box = v.querySelector(".bkpimg"); if (box) box.innerHTML = `<p class="note" style="color:#fff">レシピ元の画像を読み込めませんでした。${esc(e.message || String(e) || "")}</p>`; }
   };
   paint();
