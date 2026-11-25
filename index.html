@@ -267,10 +267,14 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .dpcell span { position: absolute; top: 6px; left: 8px; background: rgba(0,0,0,.55); border-radius: 999px; padding: 0 10px; font-size: .74rem; }
 .dpcell.none { color: #77737f; }
 .phv:has(.dp3) { place-items: stretch; }
-.cook { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: grid; grid-template-rows: auto auto minmax(0, .8fr) minmax(0, 1.2fr) auto auto; gap: 6px; transition: background-color .25s; padding: calc(8px + env(safe-area-inset-top)) 14px calc(10px + env(safe-area-inset-bottom)); }
+.cook { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: grid; grid-template-rows: auto auto minmax(0, .95fr) minmax(0, 1.3fr) auto auto; gap: 4px; transition: background-color .25s; padding: calc(8px + env(safe-area-inset-top)) 14px calc(4px + env(safe-area-inset-bottom)); }
 .cook[hidden] { display: none; }
 .chead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .chead .btn { white-space: nowrap; flex: none; padding: 6px 14px; }
+.chead { align-items: flex-start; }
+.chead .chbtns { display: flex; flex-direction: column; gap: 3px; flex: none; }
+.chead .chbtns .btn { padding: 3px 10px; font-size: .78rem; }
+.chead b { font-size: .86rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .cings { overflow: auto; background: var(--surface); border-radius: 18px; padding: 8px 10px; display: grid; gap: 6px; align-content: start; font-size: .86rem; }
 .cook.multi .cings { background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .cgrp { border-radius: 14px; padding: 4px 6px; border: 2px solid transparent; }
@@ -391,7 +395,7 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .cdish { justify-self: start; background: var(--lav); border-radius: 999px; padding: 1px 10px; font-weight: 700; font-size: .8rem; }
 .cno { color: var(--accent); font-weight: 700; }
 .cnote { background: var(--butter); color: var(--butter-ink); border-radius: 12px; padding: 6px 10px; font-weight: 700; font-size: .88rem; }
-.cwhy { display: block; margin-top: 6px; font-size: .5em; line-height: 1.45; color: var(--muted); }
+.cwhy { display: block; margin-top: 6px; font-size: .56em; line-height: 1.45; color: var(--muted); }
 .cwhy.warn { color: var(--alert); }
 .ccut { font-size: clamp(1rem, 4.6vw, 1.3rem); font-weight: 700; line-height: 1.5; color: var(--ink); }
 .corig.open { font-size: .9rem; color: var(--ink); }
@@ -409,7 +413,7 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .ctext { font-size: clamp(1.3rem, 6vw, 2rem); font-weight: 700; line-height: 1.55; }
 .ctext mark { background: var(--butter); color: var(--butter-ink); border-radius: 6px; padding: 0 3px; }
 .ctext mark.add { font-size: .85em; }
-.chint { text-align: center; }
+.chint { text-align: center; font-size: .6rem; margin: 0; line-height: 1.2; }
 .tabs { grid-template-columns: repeat(4, 1fr); }
 #app { overflow-x: clip; }
 .daycard { will-change: transform; }
@@ -1032,15 +1036,16 @@ function pickPhoto(d, m) {
   inp.click();
 }
 // 大きく見る: まず縮小版、本体が届いたら差し替える。画面をタップで閉じる
-// 本のレシピの元のページ（設定「本のページ」: レシピid → "ドライブのファイルid:何ページ目"。1枚の画像に5ページを縦に並べてある）
+// レシピ元の画像（本のページ・サイトやインスタのスクショなど）。設定「レシピ元の画像」: レシピid → "ドライブのファイルid" または
+// "ファイルid:何枚目"（本のページは1枚の画像に5ページを縦に並べてあるので、その何枚目かを切り出す）
 const BOOK_SLOTS = 5, bookPgCache = {};
-const bookPageOf = rid => { try { const m = JSON.parse(S.settings["本のページ"] || "{}")[rid]; return m ? { file: m.split(":")[0], slot: +m.split(":")[1] || 0 } : null; } catch (e) { return null; } };
+const bookPageOf = rid => { try { const m = JSON.parse(S.settings["レシピ元の画像"] || S.settings["本のページ"] || "{}")[rid]; if (!m) return null; const [file, sl] = String(m).split(":"); return { file, slot: sl === undefined ? -1 : +sl || 0 }; } catch (e) { return null; } };
 async function showBookPage(rids) {
   rids = rids.filter(bookPageOf); if (!rids.length) return;
   const v = $("phv"); let cur = 0;
   const paint = async () => {
     const r = recipeOf(rids[cur]), pg = bookPageOf(rids[cur]);
-    v.innerHTML = `<div class="bkpv">${rids.length > 1 ? `<div class="bkpt">${rids.map((id, k) => `<button class="chip${k === cur ? " on" : ""}" data-bk="${k}">${esc((recipeOf(id) || {}).title || "")}</button>`).join("")}</div>` : ""}<div class="bkpimg"><p class="note" style="color:#fff">本のページを読み込んでいます…</p></div><button class="btn ghost bkpx">閉じる</button></div>`;
+    v.innerHTML = `<div class="bkpv">${rids.length > 1 ? `<div class="bkpt">${rids.map((id, k) => `<button class="chip${k === cur ? " on" : ""}" data-bk="${k}">${esc((recipeOf(id) || {}).title || "")}</button>`).join("")}</div>` : ""}<div class="bkpimg"><p class="note" style="color:#fff">レシピ元の画像を読み込んでいます…</p></div><button class="btn ghost bkpx">閉じる</button></div>`;
     v.hidden = false;
     v.querySelectorAll("[data-bk]").forEach(b => b.onclick = e => { e.stopPropagation(); cur = +b.dataset.bk; paint(); });
     v.querySelector(".bkpx").onclick = e => { e.stopPropagation(); v.hidden = true; v.innerHTML = ""; };
@@ -1049,12 +1054,13 @@ async function showBookPage(rids) {
       if (!bookPgCache[key]) {
         const b64 = bookPgCache[pg.file] || (bookPgCache[pg.file] = await run("getPhoto", pg.file));
         const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = "data:image/jpeg;base64," + b64; });
+        if (pg.slot < 0) bookPgCache[key] = img.src; else {
         const h = img.naturalHeight / BOOK_SLOTS, cv = document.createElement("canvas"); cv.width = img.naturalWidth; cv.height = h;
         cv.getContext("2d").drawImage(img, 0, pg.slot * h, img.naturalWidth, h, 0, 0, img.naturalWidth, h);
-        bookPgCache[key] = cv.toDataURL("image/jpeg", .85);
+        bookPgCache[key] = cv.toDataURL("image/jpeg", .85); }
       }
-      const box = v.querySelector(".bkpimg"); if (box && rids[cur] === (r && r.id)) box.innerHTML = `<img src="${bookPgCache[key]}" alt="${esc(r.title)}の本のページ">`;
-    } catch (e) { const box = v.querySelector(".bkpimg"); if (box) box.innerHTML = `<p class="note" style="color:#fff">本のページを読み込めませんでした。${esc(e.message || "")}</p>`; }
+      const box = v.querySelector(".bkpimg"); if (box && rids[cur] === (r && r.id)) box.innerHTML = `<img src="${bookPgCache[key]}" alt="${esc(r.title)}のレシピ元の画像">`;
+    } catch (e) { const box = v.querySelector(".bkpimg"); if (box) box.innerHTML = `<p class="note" style="color:#fff">レシピ元の画像を読み込めませんでした。${esc(e.message || String(e) || "")}</p>`; }
   };
   paint();
 }
@@ -2047,7 +2053,7 @@ function openRecipe(id) {
   openSheet(`<div class="rdetail"><h2>${esc(r.title)}</h2>
     <p class="meta">${esc(kindOf(r))}${b ? `・📖 ${esc(b.book)}${b.page ? " p." + esc(b.page) : ""}` : "・AIのレシピ"}${r.servings ? `・${esc(r.servings)}人分` : ""}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal${r.p !== "" && r.p != null ? `（P${esc(r.p)}・F${esc(r.f)}・C${esc(r.c)}g）` : ""}` : ""}${r.keepDays ? `・日持ち${esc(r.keepDays)}日` : ""}</p>
     ${memo ? `<p class="note">${esc(memo)}</p>` : ""}
-    ${bookPageOf(r.id) ? `<button class="btn alt" id="rBook" style="margin:4px 0">📖 本のページを見る</button>` : ""}
+    ${bookPageOf(r.id) ? `<button class="btn alt" id="rBook" style="margin:4px 0">🖼 レシピ元の画像を見る</button>` : ""}
     <h3>材料</h3><ul class="list">${ings.map(i => { const sb = !matchStock(i.name, null, true) && subOf(i.name); return `<li><span class="nm">${esc(i.name)}${sb ? `<small>🔄 在庫の${esc(sb.use)}で代用${sb.amount ? `（${esc(sb.amount)}）` : ""}${sb.note ? `。${esc(sb.note)}` : ""}</small>` : ""}</span><span>${esc(i.amount)}</span></li>`; }).join("") || "<li>（なし）</li>"}</ul>
     ${steps.length ? `<h3>作り方</h3><ol>${steps.map(s => `<li>${esc(stepNo(s))}</li>`).join("")}</ol>` : ""}
     <div class="grid2" style="margin-top:10px"><button class="btn" id="rEdit">直す</button><button class="btn ghost" id="rClose">閉じる</button></div></div>`);
@@ -2445,7 +2451,7 @@ function bookPlan(cooks) {
   // 1つの手順に「鶏肉は…切り、玉ねぎは…切る」と両方あるときは、文を分けて野菜を先にする
   const rawNames = c => ingsOf(c.r).filter(g => ingState(g.name, g.amount, c.k).st !== "skip").map(g => ingBase(c.r, g.name)).filter(b => { const n = normName(b); return RAW_RE.test(n) && !NOT_RAW.test(n); });
   const hasRaw = (c, t) => rawNames(c).some(b => ingHit(b, t)) || /(^|[、。])(肉|魚|鶏肉|豚肉|牛肉)は/.test(t);
-  const endForm = t => { t = t.replace(/[、。\s]+$/, ""); return (/り$/.test(t) ? t.replace(/り$/, "る") : /し$/.test(t) ? t.replace(/し$/, "す") : /き$/.test(t) ? t.replace(/き$/, "く") : /み$/.test(t) ? t.replace(/み$/, "む") : /[けせてねべめれえげぜでへ]$/.test(t) ? t + "る" : t) + "。"; };
+  const endForm = t => { t = t.replace(/[、。\s]+$/, ""); return (/煮$/.test(t) ? t + "る" : /り$/.test(t) ? t.replace(/り$/, "る") : /し$/.test(t) ? t.replace(/し$/, "す") : /き$/.test(t) ? t.replace(/き$/, "く") : /み$/.test(t) ? t.replace(/み$/, "む") : /[けせてねべめれえげぜでへ]$/.test(t) ? t + "る" : t) + "。"; };
   const vegParts = [], rawParts = [];
   list.forEach(x => {
     while (x.i < x.n) { const t = splitTool(stepsOf(x.c.r)[x.i]).text; if (PAN_STEP_RE.test(t) || /盛|電子レンジ|レンジ|オーブン|トースター/.test(t)) break;
@@ -2459,15 +2465,23 @@ function bookPlan(cooks) {
   });
   vegParts.forEach(p => pushAt(p.c, p.i, p.part, ""));
   rawParts.forEach((p, j) => pushAt(p.c, p.i, p.part, j === 0 && vegParts.length ? "生の肉・魚は、野菜の下ごしらえが終わってからまな板に出す" : ""));
+  // 火を使う手順は、長く待つところ（8分以上「15分煮る」など）で分ける。待つあいだにほかの料理の手順を進め、
+  // 時間がたったら続き（「バターを加えてさらに5分煮る」）を出す
+  const splitWait = t => { const cl = t.match(/[^、。]+[、。]?/g) || [t], out = []; let cur = [];
+    cl.forEach((x, j) => { cur.push(x); if (j < cl.length - 1 && timerSec(x) >= 480 && cl.slice(j + 1).join("").replace(/[、。\s]/g, "")) { out.push({ text: endForm(cur.join("")), wait: timerSec(x) }); cur = []; } });
+    if (cur.length) out.push({ text: cur.join(""), wait: 0 }); return out; };
+  list.forEach(x => { x.units = []; for (let i = x.i; i < x.n; i++) { if (skipStep(x.c, i)) continue; const t = splitTool(stepsOf(x.c.r)[i]).text, ps = splitWait(t);
+    if (ps.length < 2) x.units.push({ i, part: "", wait: timerSec(t) }); else ps.forEach((q, j) => x.units.push({ i, part: q.text, wait: q.wait, after: j ? ps[j - 1].wait : 0 })); } x.u = 0; });
+  const fmtMin = v => v % 60 ? `${Math.floor(v / 60)}分${v % 60}秒` : `${v / 60}分`;
   let k = 0;
-  while (list.some(x => x.i < x.n)) {
-    list.forEach(y => { while (y.i < y.n && skipStep(y.c, y.i)) y.i++; });
-    const x = list[k % list.length]; if (x.i >= x.n) { k++; continue; }
-    const t = splitTool(stepsOf(x.c.r)[x.i]).text, others = list.filter(y => y !== x && y.i < y.n);
+  while (list.some(x => x.u < x.units.length)) {
+    const x = list[k % list.length]; if (x.u >= x.units.length) { k++; continue; }
+    const un = x.units[x.u++], t = splitTool(un.part || stepsOf(x.c.r)[un.i]).text;
     // 待ち時間（8分以上）があれば、ほかの料理を進める（盛り付けだけが残っている料理には移らない）
-    const go = others.filter(y => y.i < y.n && !/盛/.test(splitTool(stepsOf(y.c.r)[y.i]).text));
-    if (timerSec(t) >= 480 && go.length) { push(x, `待つあいだに「${go[0].c.r.title}」を進める`); k = list.indexOf(go[0]); continue; }
-    push(x, "");
+    const go = list.filter(y => y !== x && y.u < y.units.length && !/盛/.test(splitTool(y.units[y.u].part || stepsOf(y.c.r)[y.units[y.u].i]).text));
+    const pre = un.after ? `${fmtMin(un.after)}たったら` : "";
+    if (timerSec(t) >= 480 && go.length) { pushAt(x.c, un.i, un.part, [pre, `待つあいだに「${go[0].c.r.title}」を進める`].filter(Boolean).join("。")); k = list.indexOf(go[0]); continue; }
+    pushAt(x.c, un.i, un.part, pre);
   }
   // バットの番号: バットを使う料理だけに、①から順に（2枚まで）
   { const ts = [...new Set(place.filter(x => /^T\d+$/.test(x.to)).map(x => x.to))].sort(); place.forEach(x => { if (/^T\d+$/.test(x.to)) x.to = String(Math.min(ts.indexOf(x.to) + 1, 2)); }); }
@@ -2485,7 +2499,7 @@ async function startCook(cooks, d, m) {
   run("setCooking", true).catch(() => {});   // 調理中は、段取りの先作りでAIをふさがない
   CK = { cooks, d, m, steps: [], idx: 0, sw: { acc: 0, start: 0, goal: 0, from: -1, rung: false }, tick: null, colors: dishColors(cooks, null), peek: false, phase: "prep" };
   ov.className = "cook prep" + (cooks.length > 1 ? " multi" : "");
-  ov.innerHTML = `<div class="chead"><b>${esc(cooks.map(c => c.r.title).join("・"))}</b>${cooks.some(c => bookPageOf(c.r.id)) ? `<button class="btn alt" id="cBookB">📖 本</button>` : ""}<button class="btn ghost" id="cEnd">終了</button></div>
+  ov.innerHTML = `<div class="chead"><b>${esc(cooks.map(c => c.r.title).join("・"))}</b><span class="chbtns">${cooks.some(c => bookPageOf(c.r.id)) ? `<button class="btn alt" id="cBookB">🖼 元の画像</button>` : ""}<button class="btn ghost" id="cEnd">終了</button></span></div>
     <div class="cprog"><i id="cProg"></i></div>
     <div class="cings" id="cIngs"></div><div class="cstep" id="cStep"></div>
     <div class="ctbar" id="cTbar"><span class="tbox"><span class="tv" id="tV">0:00</span><span class="tl" id="tL"></span></span><button class="chip" id="tGo">▶ スタート</button><button class="chip" id="tRe">リセット</button><button class="chip" id="tAlm" aria-label="タイマー">⏰</button><div class="calms" id="cAlms"></div></div>
@@ -2496,7 +2510,7 @@ async function startCook(cooks, d, m) {
   $("tAlm").onclick = e => { e.stopPropagation(); openAlarm(); };
   $("cAlm").onclick = e => e.stopPropagation();
   $("cEnd").onclick = e => { e.stopPropagation(); endCook(); };
-  // 本のページ: 今の手順の料理を先に出す
+  // レシピ元の画像: 今の手順の料理を先に出す
   if ($("cBookB")) $("cBookB").onclick = e => { e.stopPropagation(); const s = CK.phase === "cook" && CK.steps[Math.min(CK.idx, CK.steps.length - 1)], ids = CK.cooks.map(c => c.r.id); if (s) ids.sort((a, b) => (b === s.c.r.id) - (a === s.c.r.id)); showBookPage(ids); };
   $("cAsk").onclick = e => e.stopPropagation();
   ov.onclick = e => {
