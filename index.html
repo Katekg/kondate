@@ -732,9 +732,9 @@ const NEGI_BASE = /^(長ねぎ|長ネギ|白ねぎ|白ネギ|長葱|ねぎ|ネ�
 const negiPart = t => /(青い|青|緑の?)部分/.test(String(t || "")) ? "青" : /(白い|白)部分/.test(String(t || "")) ? "白" : "";
 // 材料の名前の読み替え: 本などで名前が違うだけの同じ物（しょうゆ→醤油など）を、在庫の名前にそろえる
 const ING_SAME = {"しょうゆ": "醤油", "うす口しょうゆ": "醤油", "みそ": "味噌", "赤みそ": "味噌", "西京みそ": "味噌", "油": "キャノーラ油", "サラダ油": "キャノーラ油", "揚げ油": "キャノーラ油", "顆粒鶏がらだし": "鶏ガラ顆粒", "鶏がら顆粒ブイヨン": "鶏ガラ顆粒", "顆粒中国風だし": "鶏ガラ顆粒", "顆粒和風だし": "和風だし顆粒", "顆粒ブイヨン": "コンソメ顆粒", "固形ブイヨン": "コンソメ顆粒", "固形チキンブイヨン": "コンソメ顆粒", "固形ビーフブイヨン": "コンソメ顆粒", "ロリエ": "ローリエ", "ベイリーフ": "ローリエ", "こしょう": "ブラックペッパー", "黒こしょう": "ブラックペッパー", "あらびき黒こしょう": "ブラックペッパー", "あらびきこしょう": "ブラックペッパー", "粒こしょう": "ブラックペッパー", "トマトケチャップ": "ケチャップ", "練りがらし": "からし", "ゆるめのときがらし": "からし", "練りわさび": "わさび", "ゆずこしょう": "ゆず胡椒", "辣油": "ラー油", "酢": "米酢", "削りガツオ": "鰹節", "トマト水煮缶詰め": "カットトマト缶", "カットトマト缶詰め": "カットトマト缶", "トマトの水煮": "カットトマト缶", "ツナ油漬け缶詰め": "ツナ缶", "ツナ水煮缶詰め": "ツナ缶", "じゃが芋": "じゃがいも", "新じゃが芋": "じゃがいも", "鶏胸肉": "鶏むね肉", "豚こま切れ肉": "豚こま肉", "生ザケ": "秋鮭切り身"};
-const normName = t => { const b0 = String(t || "").replace(/[（(].*?[）)]/g, "").replace(/\s/g, ""), b = ING_SAME[b0] || b0; return NEGI_BASE.test(b) ? "長ねぎ" + negiPart(t) : b; };
+const normName = t => { const b0 = String(t || "").replace(/[（(].*?[）)]/g, "").replace(/[\s※*＊]/g, ""), b = ING_SAME[b0] || b0; return NEGI_BASE.test(b) ? "長ねぎ" + negiPart(t) : b; };
 // 代わりに使える材料: 在庫に無いとき、ここに書いた在庫で代用する（献立・買い物・在庫の押さえで使う）。amount は量の目安、note は使い方
-const ING_SUB = {"だし": [{"use": "和風だし顆粒", "amount": "だし1カップ＝水1カップ＋顆粒小さじ1/2", "note": ""}], "めんつゆ": [{"use": "醤油・みりん・和風だし顆粒", "amount": "めんつゆ(2倍)大さじ2＝醤油大さじ1＋みりん大さじ1＋顆粒少量＋水大さじ1", "note": ""}], "豆板醤": [{"use": "コチュジャン", "amount": "同量", "note": "甘みが出るので砂糖を少し減らす"}, {"use": "ラー油", "amount": "小さじ1/2程度", "note": "辛みだけ足す"}], "甜麺醤": [{"use": "味噌", "amount": "同量＋砂糖小さじ1", "note": ""}], "豆豉": [{"use": "味噌", "amount": "半量", "note": ""}], "豆豉醤": [{"use": "味噌", "amount": "半量", "note": ""}], "コチュジャン": [{"use": "味噌", "amount": "同量＋砂糖少量＋ラー油数滴", "note": ""}], "粉とうがらし": [{"use": "ラー油", "amount": "少量", "note": ""}, {"use": "パプリカ粉末", "amount": "同量", "note": "辛みは出ない。色づけ"}], "一味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "七味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "赤とうがらし": [{"use": "ラー油", "amount": "数滴", "note": "仕上げに"}], "チリパウダー": [{"use": "パプリカ粉末", "amount": "同量", "note": "辛みが欲しければラー油を足す"}], "チリペッパー": [{"use": "ラー油", "amount": "少量", "note": ""}], "ナツメグ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "クローブ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "シナモンスティック": [{"use": "オールスパイス", "amount": "少量", "note": ""}], "ガラムマサラ": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミン": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミンシード": [{"use": "カレー粉", "amount": "同量", "note": ""}], "コリアンダー": [{"use": "カレー粉", "amount": "同量", "note": ""}], "タイム": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "オレガノ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ローズマリー": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ハーブ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "粉ざんしょう": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "花椒": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "白こしょう": [{"use": "ブラックペッパー", "amount": "同量", "note": ""}], "粒入りマスタード": [{"use": "からし", "amount": "1/3量＋マヨネーズ少量", "note": ""}], "マスタード": [{"use": "からし", "amount": "1/3量", "note": ""}], "オイスターソース": [{"use": "醤油・砂糖", "amount": "オイスター大さじ1＝醤油大さじ1/2＋砂糖小さじ1/2", "note": ""}, {"use": "ウスターソース", "amount": "同量", "note": "洋風寄りになる"}], "中濃ソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "とんかつソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "ソース": [{"use": "ウスターソース", "amount": "同量", "note": ""}], "焼き肉のたれ": [{"use": "醤油・砂糖・みりん", "amount": "醤油2：砂糖1：みりん1＋にんにく", "note": ""}], "ポン酢しょうゆ": [{"use": "醤油・米酢", "amount": "醤油1：酢1", "note": ""}], "レモン果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}, {"use": "リンゴ酢", "amount": "同量", "note": ""}], "レモン汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ゆず果汁": [{"use": "リンゴ酢", "amount": "同量", "note": ""}, {"use": "ゆず胡椒", "amount": "少量", "note": ""}], "レモンの搾り汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ライム果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "黒酢": [{"use": "米酢", "amount": "同量", "note": ""}], "白ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "赤ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "バルサミコ酢": [{"use": "リンゴ酢", "amount": "同量＋砂糖少量", "note": ""}], "白ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "赤ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "紹興酒": [{"use": "酒", "amount": "同量", "note": ""}], "ビール": [{"use": "酒", "amount": "半量＋水", "note": ""}], "黒砂糖": [{"use": "砂糖", "amount": "同量", "note": ""}], "生クリーム": [{"use": "牛乳", "amount": "同量＋バター少量", "note": ""}], "プレーンヨーグルト": [{"use": "牛乳", "amount": "", "note": "風味は変わる"}], "スライスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "プロセスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "パルメザンチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "粉チーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "カテージチーズ": [{"use": "とろけるチーズ", "amount": "少なめ", "note": ""}], "パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "生パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "かたくり粉": [{"use": "米粉", "amount": "同量", "note": "とろみ・衣"}, {"use": "強力小麦粉", "amount": "同量", "note": "衣"}], "小ねぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "わけぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "小ねぎの小口切り": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "鶏もも肉": [{"use": "鶏むね肉", "amount": "同量", "note": "焼きすぎない"}], "鶏ささ身": [{"use": "鶏むね肉", "amount": "同量", "note": ""}], "豚薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肩ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚バラ薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛こま切れ肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "甘塩ザケ": [{"use": "秋鮭切り身", "amount": "同量", "note": "塩を少し足す"}], "カジキ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "生ダラ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "ブリ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "白菜の軸": [{"use": "白菜", "amount": "同量", "note": ""}], "大豆もやし": [{"use": "もやし", "amount": "同量", "note": ""}], "紫玉ねぎ": [{"use": "玉ねぎ", "amount": "同量", "note": "水にさらす"}], "小玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "おろし玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "ごま油": [{"use": "キャノーラ油", "amount": "同量", "note": "ごまの香りは出ない"}], "うま味調味料": [{"use": "味の素", "amount": "同量", "note": ""}], "小麦粉": [{"use": "強力小麦粉", "amount": "同量", "note": "衣・とろみなら問題なし。生地物は食感が変わる"}, {"use": "米粉", "amount": "同量", "note": "衣・とろみ"}]};
+const ING_SUB = {"だし": [{"use": "和風だし顆粒", "amount": "だし1カップ＝水1カップ＋顆粒小さじ1/2", "note": ""}], "めんつゆ": [{"use": "醤油・みりん・和風だし顆粒", "amount": "めんつゆ(2倍)大さじ2＝醤油大さじ1＋みりん大さじ1＋顆粒少量＋水大さじ1", "note": ""}], "豆板醤": [{"use": "コチュジャン", "amount": "同量", "note": "甘みが出るので砂糖を少し減らす"}, {"use": "ラー油", "amount": "小さじ1/2程度", "note": "辛みだけ足す"}], "甜麺醤": [{"use": "味噌", "amount": "同量＋砂糖小さじ1", "note": ""}], "豆豉": [{"use": "味噌", "amount": "半量", "note": ""}], "豆豉醤": [{"use": "味噌", "amount": "半量", "note": ""}], "コチュジャン": [{"use": "味噌", "amount": "同量＋砂糖少量＋ラー油数滴", "note": ""}], "粉とうがらし": [{"use": "ラー油", "amount": "少量", "note": ""}, {"use": "パプリカ粉末", "amount": "同量", "note": "辛みは出ない。色づけ"}], "一味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "七味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "赤とうがらし": [{"use": "ラー油", "amount": "数滴", "note": "仕上げに"}], "チリパウダー": [{"use": "パプリカ粉末", "amount": "同量", "note": "辛みが欲しければラー油を足す"}], "チリペッパー": [{"use": "ラー油", "amount": "少量", "note": ""}], "ナツメグ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "クローブ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "シナモンスティック": [{"use": "オールスパイス", "amount": "少量", "note": ""}], "ガラムマサラ": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミン": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミンシード": [{"use": "カレー粉", "amount": "同量", "note": ""}], "コリアンダー": [{"use": "カレー粉", "amount": "同量", "note": ""}], "タイム": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "オレガノ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ローズマリー": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ハーブ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "粉ざんしょう": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "花椒": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "白こしょう": [{"use": "ブラックペッパー", "amount": "同量", "note": ""}], "粒入りマスタード": [{"use": "からし", "amount": "1/3量＋マヨネーズ少量", "note": ""}], "マスタード": [{"use": "からし", "amount": "1/3量", "note": ""}], "オイスターソース": [{"use": "醤油・砂糖", "amount": "オイスター大さじ1＝醤油大さじ1/2＋砂糖小さじ1/2", "note": ""}, {"use": "ウスターソース", "amount": "同量", "note": "洋風寄りになる"}], "中濃ソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "とんかつソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "ソース": [{"use": "ウスターソース", "amount": "同量", "note": ""}], "焼き肉のたれ": [{"use": "醤油・砂糖・みりん", "amount": "醤油2：砂糖1：みりん1＋にんにく", "note": ""}], "ポン酢しょうゆ": [{"use": "醤油・米酢", "amount": "醤油1：酢1", "note": ""}], "レモン果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}, {"use": "リンゴ酢", "amount": "同量", "note": ""}], "レモン汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ゆず果汁": [{"use": "リンゴ酢", "amount": "同量", "note": ""}, {"use": "ゆず胡椒", "amount": "少量", "note": ""}], "レモンの搾り汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ライム果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "黒酢": [{"use": "米酢", "amount": "同量", "note": ""}], "白ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "赤ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "バルサミコ酢": [{"use": "リンゴ酢", "amount": "同量＋砂糖少量", "note": ""}], "白ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "赤ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "紹興酒": [{"use": "酒", "amount": "同量", "note": ""}], "ビール": [{"use": "酒", "amount": "半量＋水", "note": ""}], "黒砂糖": [{"use": "砂糖", "amount": "同量", "note": ""}], "生クリーム": [{"use": "牛乳", "amount": "同量＋バター少量", "note": ""}], "プレーンヨーグルト": [{"use": "牛乳", "amount": "", "note": "風味は変わる"}], "スライスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "プロセスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "パルメザンチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "粉チーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "カテージチーズ": [{"use": "とろけるチーズ", "amount": "少なめ", "note": ""}], "パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "生パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "かたくり粉": [{"use": "米粉", "amount": "同量", "note": "とろみ・衣"}, {"use": "強力小麦粉", "amount": "同量", "note": "衣"}], "小ねぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "わけぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "小ねぎの小口切り": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "鶏もも肉": [{"use": "鶏むね肉", "amount": "同量", "note": "焼きすぎない"}], "鶏ささ身": [{"use": "鶏むね肉", "amount": "同量", "note": ""}], "豚薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肩ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚バラ薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛こま切れ肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "甘塩ザケ": [{"use": "秋鮭切り身", "amount": "同量", "note": "塩を少し足す"}], "カジキ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "生ダラ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "ブリ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "白菜の軸": [{"use": "白菜", "amount": "同量", "note": ""}], "大豆もやし": [{"use": "もやし", "amount": "同量", "note": ""}], "紫玉ねぎ": [{"use": "玉ねぎ", "amount": "同量", "note": "水にさらす"}], "小玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "おろし玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "ごま油": [{"use": "キャノーラ油", "amount": "同量", "note": "ごまの香りは出ない"}], "オリーブ油": [{"use": "キャノーラ油", "amount": "同量", "note": "オリーブの香りは出ない"}], "エキストラバージンオリーブ油": [{"use": "キャノーラ油", "amount": "同量", "note": "オリーブの香りは出ない"}], "梅酢": [{"use": "米酢・塩", "amount": "梅酢大さじ1＝米酢大さじ1＋塩少量", "note": ""}], "ペッパーソース": [{"use": "ラー油", "amount": "数滴", "note": ""}], "タバスコ": [{"use": "ラー油", "amount": "数滴", "note": ""}], "うま味調味料": [{"use": "味の素", "amount": "同量", "note": ""}], "小麦粉": [{"use": "強力小麦粉", "amount": "同量", "note": "衣・とろみなら問題なし。生地物は食感が変わる"}, {"use": "米粉", "amount": "同量", "note": "衣・とろみ"}]};
 const isNegi = t => /^長ねぎ/.test(normName(t));
 const fmtN = (n, u) => n <= 1e-6 ? "0" : fmtUnitNum(n, u);
 const fmtQ = q => pqAll(q).map((p, i) => i ? `(${fmtN(p.n, p.u)}${p.u})` : fmtN(p.n, p.u) + p.u).join("") || q;
@@ -859,7 +859,9 @@ function subOf(name, stock) {
   return null;
 }
 // レシピの材料（「名前：量」の行）
-const ingsOf = r => String(r && r.ingredients || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => { const i = l.lastIndexOf("："); return i < 0 ? { name: l, amount: "" } : { name: l.slice(0, i), amount: toFrac(l.slice(i + 1)) }; })
+// 「※…（注）」の行は材料ではなく注意書き（ingNotesOf で別に出す）
+const ingNotesOf = r => String(r && r.ingredients || "").split("\n").map(l => l.trim()).filter(l => /^※/.test(l)).map(l => l.replace(/：[^：]*$/, "").replace(/（注）$/, ""));
+const ingsOf = r => String(r && r.ingredients || "").split("\n").map(l => l.trim()).filter(l => l && !/^※/.test(l)).map(l => { const i = l.lastIndexOf("："); return i < 0 ? { name: l, amount: "" } : { name: l.slice(0, i), amount: toFrac(l.slice(i + 1)) }; })
   .flatMap(g => { const n = normName(g.name); if (!/^長ねぎ/.test(n)) return [g]; const a = String(g.amount).replace(/本分/g, "本"); return n === "長ねぎ白" ? [{ name: NEGI_W, amount: a }] : n === "長ねぎ青" ? [{ name: NEGI_G, amount: a }] : [{ name: NEGI_W, amount: a }, { name: NEGI_G, amount: a }]; });
 const stepsOf = r => String(r && r.steps || "").split("\n").map(l => l.trim()).filter(Boolean);
 const recipeOf = id => S.recipes.find(r => r.id === id) || (S.tmpRecipes || []).find(r => r.id === id) || null;
@@ -2077,6 +2079,7 @@ function openRecipe(id) {
     ${memo ? `<p class="note">${esc(memo)}</p>` : ""}
     ${bookPageOf(r.id) ? `<button class="btn alt" id="rBook" style="margin:4px 0">🖼 レシピ元の画像を見る</button>` : ""}
     <h3>材料</h3><ul class="list">${ings.map(i => { const sb = !matchStock(i.name, null, true) && subOf(i.name); return `<li><span class="nm">${esc(i.name)}${sb ? `<small>🔄 在庫の${esc(sb.use)}で代用${sb.amount ? `（${esc(sb.amount)}）` : ""}${sb.note ? `。${esc(sb.note)}` : ""}</small>` : ""}</span><span>${esc(i.amount)}</span></li>`; }).join("") || "<li>（なし）</li>"}</ul>
+    ${ingNotesOf(r).map(n => `<p class="note">※${esc(n.replace(/^※/, ""))}</p>`).join("")}
     ${steps.length ? `<h3>作り方</h3><ol>${steps.map(s => `<li>${esc(stepNo(s))}</li>`).join("")}</ol>` : ""}
     <div class="grid2" style="margin-top:10px"><button class="btn" id="rEdit">直す</button><button class="btn ghost" id="rClose">閉じる</button></div></div>`);
   $("rClose").onclick = closeSheet; $("rEdit").onclick = () => editRecipe(id);
@@ -2300,6 +2303,7 @@ const eqText = () => (S.equipment || []).map(e => `- ${e.name}（${e.kind || "�
 const splitTool = t => { const m = String(t || "").match(/^([\s\S]*?)\s*[［\[]([^［\[\]］]+)[］\]]\s*$/); return m ? { text: m[1], tool: m[2] } : { text: String(t || ""), tool: "" }; };
 // 待ち時間（「10分」「1〜2分」「30秒」）→ 秒
 function timerSec(t) {
+  const h = String(t).match(/(\d+(?:\.\d+)?)(?:\s*[〜~～\-]\s*(\d+(?:\.\d+)?))?\s*時間(半)?(?:\s*(\d+)\s*分)?/); if (h) return Math.round((+(h[2] || h[1])) * 3600 + (h[3] ? 1800 : 0) + (+h[4] || 0) * 60);
   const m = String(t).match(/(\d+)(?:\s*[〜~～\-]\s*(\d+))?\s*分(?:\s*(\d+)\s*秒)?/); if (m) return (+(m[2] || m[1])) * 60 + (+m[3] || 0);
   const s = String(t).match(/(\d+)(?:\s*[〜~～\-]\s*(\d+))?\s*秒/); return s ? +(s[2] || s[1]) : 0;
 }
@@ -2411,13 +2415,27 @@ async function precookSoon() {
 }
 // ===== 段取り（AIを使わない）: レシピの材料の分け方（本の「下味」「a」「煮汁」など）から、容器と手順の順番を決める =====
 // 本の材料名の最後の（…）は、本の分け方（下味・a・煮汁・たれ…）。ほかのレシピは分け方なし
-const ingTag = (r, name) => { if (!bookOf(r)) return ""; const m = String(name).match(/[（(]([^（）()]*)[）)]\s*$/); return m && !/^※|^注$/.test(m[1]) ? m[1].replace(/[\/／\s]+/g, "・") : ""; };
-const ingBase = (r, name) => { const t = ingTag(r, name); return t ? String(name).replace(/\s*[（(][^（）()]*[）)]\s*$/, "") : String(name); };
+// 材料名の最後のかっこ: 分け方（a・b・煮汁・下味など）なら「グループ」。品種や部位（男爵・白い部分・しゃぶしゃぶ用など）は名前の一部
+// 「煮汁a」は「煮汁・a」、入れ子の「（カニあん（卵液））」は「カニあん・卵液」として読む
+const TAG_END = /\s*[（(]((?:[^（）()]|[（(][^（）()]*[）)])*)[）)]\s*$/;
+const GROUP_RE = /^[a-fA-F]$|下味|下煮|下ゆで|下処理|下ごしらえ|下準備|煮汁|合わせ|たれ|タレ|ソース|衣|ころも|スープ|塩もみ|塩水|ドレッシング|マリネ|漬け|つけ|浸し|あん|生地|甘酢|調味|クリーム|ペースト|卵液|みそ|酢|汁|ルウ|ルー|だれ|ゆで用|仕上げ|トッピング/;
+const tagRaw = name => { const m = String(name).match(TAG_END); if (!m || /。/.test(m[1])) return ""; return m[1].replace(/[（(]/g, "・").replace(/[）)]/g, "").replace(/^[※\s]+/, "").replace(/[\/／\s]+/g, "・").replace(/([^・a-zA-Z])([a-fA-F])$/, "$1・$2").replace(/・+/g, "・").replace(/^・|・$/g, ""); };
+const ingTag = (r, name) => { if (!bookOf(r)) return ""; const t = tagRaw(name); if (!t || /^注$/.test(t)) return ""; if (t.split("・").some(x => GROUP_RE.test(x))) return t;
+  // 2つ以上の材料が同じかっこ（「たね」など）か、手順にその名前が出てくれば分け方
+  const same = String(r.ingredients || "").split("\n").filter(l => tagRaw(l.replace(/：[^：]*$/, "")) === t).length;
+  return same >= 2 || t.split("・").some(x => stepsOf(r).some(st => mentions(st, x))) ? t : ""; };
+// 分け方の名前の、手順での呼び方（「下味1」→下味、「マスタードソース」→ソース）
+const tagWords = tg => [...new Set(String(tg).split("・").flatMap(x => { const m = x.match(/(ソース|たれ|だれ|ドレッシング|衣|汁|あん|みそ|酢)$/); return [x, x.replace(/\d+$/, ""), m && m[1] !== x ? m[1] : ""]; }))].filter(w => w && !/^\d$/.test(w));
+const ingBase = (r, name) => { const t = ingTag(r, name); return t ? String(name).replace(TAG_END, "") : String(name); };
 // 分け方の名前（手順の文に出てくる書き方）: 「下味1・a」→ 手順では「a」
 const tagWord = t => { const l = t.split("・").filter(x => /^[a-fA-F]$/.test(x)); return l.length ? l[l.length - 1] : t.split("・")[0]; };
 // 在庫に無く、代わりも無い材料のうち、飾り・添え物（野菜などで少しだけ）は省く
 function ingState(name, amount, k) {
-  if (/^(水|湯|お湯|熱湯)$/.test(normName(name)) || isRice(name)) return { st: "ok" };
+  // 「白ワインまたは水」はどれか1つあればよい。「かたくり粉＋水」は全部そろえば在庫あり
+  { const b = String(name).replace(/[（(].*$/, ""); const alt = b.split("または"), all = b.split(/[＋・]/).map(a => a.replace(/\d.*$/, ""));
+    if (alt.length > 1) { const xs = alt.map(a => ingState(a, amount, k)); return xs.find(x => x.st === "ok") || xs.find(x => x.st === "sub") || xs[0]; }
+    if (all.length > 1 && all.every(a => a && ingState(a, amount, k).st !== "none")) return { st: "ok" }; }
+  if (/^(水|湯|お湯|熱湯|冷水|酢水|ぬるま湯|氷水)$/.test(normName(name)) || isRice(name)) return { st: "ok" };
   const own = matchStock(name, null, true), n0 = normName(name);
   // 名前の一部だけ合う在庫（だし → 和風だし顆粒）は、代用の書き方があればそちらで出す
   if (own && (normName(own.name) === n0 || !ING_SUB[n0])) return { st: "ok", s: own };
@@ -2453,8 +2471,10 @@ function bookPlan(cooks) {
       // 容器: 生の肉・魚の下味はポリ袋、煮汁・スープは計量カップで鍋へ。野菜など・多い液体はボウル、液体は小鉢、粉・顆粒だけなら小皿
       const raw = x.ings.some(g => { const n = normName(g.name); return RAW_RE.test(n) && !NOT_RAW.test(n); }), prod = x.ings.some(g => vegOf(g.name) || /野菜室/.test((matchStock(g.name, null, true) || {}).cat || ""));
       const ml = x.ings.reduce((t, g) => { const sp = spoonQ(g.name, g.amount), q = pqAll(sp || g.amount).find(p => conv(p, "ml") != null); return t + (q ? conv(q, "ml") : 0); }, 0), liq = x.ings.some(g => LIQ_RE.test(normName(g.name)) && !/顆粒|粉/.test(normName(g.name)));
+      // 生の肉・魚だけのグループ（「牛肉（下煮）」）は容器に入れない
+      if (raw && x.ings.length === 1) { place.forEach(pl => { if (pl.to === x.id) pl.to = ""; }); return; }
       const kind = raw && /下味|下ごしらえ/.test(x.label) ? "ポリ袋" : /^(煮汁|スープ|汁|つゆ|浸し汁|漬け汁)/.test(x.label) && ml > 60 ? "計量カップで鍋へ" : raw || prod || ml > 60 ? "ボウル" : liq ? "小鉢" : "小皿";
-      mixes.push({ id: x.id, label: (mark ? `${ci + 1}品目の` : "") + x.label, words: [...x.words].filter(w => !/^\d$/.test(w)), word: tagWord(x.label), kind, items: x.items.join("・"), use: "", rid: c.r.id });
+      mixes.push({ id: x.id, label: (mark ? `${ci + 1}品目の` : "") + x.label, words: tagWords([...x.words].join("・")), word: tagWord(x.label), kind, items: x.items.join("・"), names: x.ings.map(g => g.name), use: "", rid: c.r.id });
     });
   });
   // 手順: 料理ごとにレシピの順。2品以上は、待ち時間の長い料理から始め、煮込み・おく時間（8分以上）のあいだにほかの料理を進める
@@ -2465,7 +2485,7 @@ function bookPlan(cooks) {
   const noteOf = (c, i, part) => { const t = splitTool(part || stepsOf(c.r)[i]).text, out = [];
     const hs = hitNames(c, t, i); ingsOf(c.r).forEach(g => { const b = ingBase(c.r, g.name); if (!hs.has(g.name)) return; const x = ingState(g.name, g.amount, c.k); if (x.st === "skip") out.push(`${b}は無いので省く`); else if (x.st === "sub") out.push(`${b}の代わりに${x.sub.use.split("・")[0]}${x.sub.amount ? `（${x.sub.amount}）` : ""}`); });
     return [...new Set(out)].join("。"); };
-  const pushAt = (c, i, part, extra) => { const txt = part || stepsOf(c.r)[i], mixHere = mixes.filter(m => m.rid === c.r.id && (m.words || [m.word]).some(w => mentions(txt, w))).map(m => m.id);
+  const pushAt = (c, i, part, extra) => { const txt = part || stepsOf(c.r)[i], hs = hitNames(c, splitTool(txt).text, i), mixHere = mixes.filter(m => m.rid === c.r.id && ((m.words || [m.word]).some(w => mentions(txt, w)) || (m.names || []).some(n => hs.has(n)))).map(m => m.id);
     order.push({ recipe_id: c.r.id, step: i + 1, part: part || "", note: [noteOf(c, i, part), extra].filter(Boolean).join("。"), scene: null, mix: mixHere }); };
   const push = (x, extra) => { const i = x.i++; if (skipStep(x.c, i)) return; pushAt(x.c, i, "", extra); };
   // まな板の決まり: 生の肉・魚は、野菜・サラダの下ごしらえが全部終わってからまな板に出す（菌がうつらないように）
@@ -2513,7 +2533,7 @@ function bookPlan(cooks) {
   return { prep: { mixes, place, book: true }, steps: order };
 }
 // 手順の文に、分け方の名前（a・b・煮汁など）が出てくるか
-const mentions = (text, w) => !w ? false : /^[a-fA-F]$/.test(w) ? new RegExp(`(^|[^A-Za-z])${w}([^A-Za-z]|$)`).test(text) : String(text).includes(w);
+const mentions = (text, w) => !w ? false : /^[a-fA-F]$/.test(w) ? new RegExp(`(^|[^A-Za-z])[a-fA-F]*${w}[a-fA-F]*([^A-Za-z]|$)`).test(text) : String(text).includes(w);
 let CK = null;   // 調理中の状態
 async function startCook(cooks, d, m) {
   closeSheet();
@@ -2673,8 +2693,8 @@ function hitNames(c, text, si) {
   const base = g => ingBase(c.r, g.name), tag = g => ingTag(c.r, g.name), key = g => normName(base(g));
   const cnt = {}; ings.forEach(g => { cnt[key(g)] = (cnt[key(g)] || 0) + 1; });
   // 「ごま油」の中の「油」のように、ほかの材料名の一部だけに当たるときは数えない
-  const hit = (g, t) => { const b = base(g); let x = t; ings.forEach(h => { const hb = base(h); if (hb !== b && hb.includes(b)) x = x.split(hb).join("　"); }); return ingHit(b, x); };
-  const act = t => { const w = new Set(), m = new Set(); ings.forEach(g => { const tg = tag(g); if (!tg) return; if (tg.split("・").some(x => mentions(t, x))) w.add(tg); else if (cnt[key(g)] === 1 && hit(g, t)) m.add(tg); }); return { w, m }; };
+  const hit = (g, t) => { const b = base(g); let x = t; ings.forEach(h => { const hb = base(h); if (hb !== b && (hb.includes(b) || (!b.includes(hb) && ingHit(b, hb)))) x = x.split(hb).join("　"); }); return ingHit(b, x); };
+  const act = t => { const w = new Set(), m = new Set(); ings.forEach(g => { const tg = tag(g); if (!tg) return; if (tagWords(tg).some(x => mentions(t, x))) w.add(tg); else if (cnt[key(g)] === 1 && hit(g, t)) m.add(tg); }); return { w, m }; };
   // 分け方を最初に使う手順（下ごしらえの手順）だけは、名前が出てくる仲間の材料も光らせる（「白菜は…塩をふってもみ」の塩）
   const first = {}; stepsOf(c.r).forEach((t0, i) => { const t = splitTool(t0).text, x = act(t); [...x.w, ...x.m].forEach(tg => { if (!(tg in first)) first[tg] = i; }); });
   const { w, m } = act(text);
@@ -2684,11 +2704,24 @@ function hitNames(c, text, si) {
   });
   return out;
 }
-function ingHit(name, stepTxt) {
-  if (!stepTxt) return false; const raw = String(name).replace(/[（(][^（）()]*[）)]/g, "").trim(), n = normName(name);
+// 手順の文での呼び方: 「温かいごはん」→ごはん、「いり白ごま」→ごま、「玉ねぎのみじん切り」→玉ねぎ、「グリーンアスパラガス」→アスパラ、カタカナ・ひらがなの違いも同じに
+const ING_PRE = /^(温かい|あたたかい|熱い|おろし|とき|ヤリ|スルメ|スモーク|甘塩|ゆで|生|いり|すり|練り|もめん|絹ごし|あらびき|粗びき|顆粒|固形|無頭|有頭|むき|冷凍|乾燥|新|市販の|とろける|スライス|プロセス|グリーン|ジャンボ|ミニ|小|豚|牛|鶏|合い)(?=..)/;
+const ING_COLOR = /^(赤|黄|青|白|黒|緑)(?=..)/, ING_POST = /(のみじん切り|の小口切り|のくし形切り|の半月切り|の輪切り|のせん切り|の薄切り|のすりおろし|の搾り汁|の葉|の軸|の茎|の果肉|のむき身|の胴|の身|貝柱|油漬け缶詰め|類|水煮缶詰め|缶詰め|水煮|※)$/;
+const ING_ALIAS = { "サケ": ["鮭", "さけ"], "ザケ": ["サケ", "鮭"], "竹の子": ["たけのこ"], "たけのこ": ["竹の子"], "とうがらし": ["唐辛子"], "長ねぎ": ["ねぎ"], "揚げ油": ["油"], "えのきたけ": ["えのき"], "さやいんげん": ["いんげん"], "焼きのり": ["のり"], "青じそ": ["しそ"], "じそ": ["しそ"], "ホタテ": ["帆立"], "一味とうがらし": ["一味"] };
+const hira = s => String(s).replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+function ingNames(name) {
+  const raw = String(name).replace(/[（(][^（）()]*[）)]/g, "").replace(/[※*＊]/g, "").trim(), out = new Set([normName(name).replace(/(白|青)$/, "")]);
   // 本の書き方（鶏もも肉 → 手順では「鶏肉」、豚こま切れ肉 →「豚肉」）も拾う
-  const short = raw.replace(/(もも|むね|胸|こま切れ|こま|切り落とし|薄切り|ロース|バラ|肩)/g, "");
-  return [raw, n, short].some(x => x && (stepTxt.includes(x) || (x.length > 3 && stepTxt.includes(x.slice(0, 4)))));
+  out.add(raw.replace(/(もも|むね|胸|こま切れ|こま|切り落とし|薄切り|厚切り|角切り|かたまり|赤身|ロース|バラ|肩|ヒレ|しゃぶしゃぶ用|焼き肉用)/g, ""));
+  if (raw.length >= 5) { out.add(raw.slice(-4)); out.add(raw.slice(-3)); }
+  let x = raw; for (let k = 0; k < 4; k++) { const y = x.replace(ING_POST, "").replace(ING_PRE, "").replace(ING_COLOR, ""); if (y === x) break; x = y; out.add(x); }
+  [...out].forEach(v => (ING_ALIAS[v] || []).forEach(a => out.add(a)));
+  return [raw, ...[...out].filter(v => v && v.length >= 2 && v !== raw)];
+}
+function ingHit(name, stepTxt) {
+  if (!stepTxt) return false; const t = hira(stepTxt);
+  if (/揚げ油/.test(name) && /揚/.test(stepTxt) && /油/.test(stepTxt)) return true;
+  return ingNames(name).filter((x, j) => j === 0 || x !== "油").some(x => { const h = hira(x); return t.includes(h) || (h.length > 3 && t.includes(h.slice(0, 4))); });
 }
 function drawCook() {
   const ov = $("cook"), n = CK.steps.length, multi = CK.cooks.length > 1;
