@@ -63,6 +63,12 @@ label { font-size: .8rem; font-weight: 700; color: var(--muted); display: grid; 
 .list .q { width: 7.5em; flex: none; }
 #staleBn { position: fixed; bottom: calc(62px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 30; background: var(--ink); color: var(--surface); font-size: .72rem; border-radius: 999px; padding: 3px 12px; opacity: .85; white-space: nowrap; pointer-events: none; }
 #staleBn[hidden] { display: none; }
+/* テスト版の帯（?test） */
+#testBn { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 25; display: flex; align-items: center; gap: 6px; padding: 5px 8px; white-space: nowrap; overflow: hidden; background: #f59e0b; color: #1f1300; font-size: .74rem; }
+#testBn span { opacity: .8; margin-right: auto; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#testBn button, #testBn a { flex: none; font: inherit; font-weight: 600; color: inherit; background: rgba(255,255,255,.55); border: 0; border-radius: 999px; padding: 3px 8px; text-decoration: none; }
+body.test main { padding-top: calc(env(safe-area-inset-top, 0px) + 44px); }
+body.test #topband { background: #f59e0b; }
 #wqPill { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 10px; z-index: 35; background: var(--ink); color: var(--surface); font-size: .72rem; border-radius: 999px; padding: 3px 10px; opacity: .88; pointer-events: none; }
 #wqPill[hidden] { display: none; }
 .qf { display: flex; align-items: flex-end; gap: 4px; font-size: .85rem; color: var(--muted); }
@@ -548,6 +554,18 @@ li.gone .ckout { background: var(--fill); color: var(--fill-ink); border-color: 
 <div class="busy" id="busy" hidden><div class="spin"></div><div id="busyText">AIが考えています…</div><small>30秒〜1分ほどかかります</small></div>
 <script>/* 画面のプログラムが止まったとき、白い画面のままにせず原因を表示する */window.onerror=function(m,src,l,c){var p=document.createElement("pre");p.style.cssText="position:fixed;z-index:99;top:40px;left:0;right:0;background:#fee;color:#b00;white-space:pre-wrap;font-size:12px;padding:8px";p.textContent="エラーが出ました（この画面を撮ってClaudeに送ってください）\n"+m+" @"+l+":"+c;document.documentElement.appendChild(p);};</script>
 <script>
+// ===== テスト版（URLに ?test を付けて開く・2026-11-25）=====
+// 本番のシートは読むだけ。在庫・献立・設定などの変更は「テスト用データ」（設定シートの1行と、この端末）にだけ保存する
+const TEST = (() => { try { return /(^|[?&])test(=1|=on)?($|&)/.test(location.search.slice(1)); } catch (e) { return false; } })();
+if (TEST) {
+  // この端末に残すもの（読み込んだデータ・送っていない保存など）は、本番と分ける（鍵だけは共通）
+  const sp = Storage.prototype, g = sp.getItem, st = sp.setItem, rm = sp.removeItem, k = function (x) { return this === window.localStorage && x !== "kdKey" ? "test:" + x : x; };
+  sp.getItem = function (x) { return g.call(this, k.call(this, x)); };
+  sp.setItem = function (x, v) { return st.call(this, k.call(this, x), v); };
+  sp.removeItem = function (x) { return rm.call(this, k.call(this, x)); };
+}
+const TKEY = "テスト用データ";
+const isTestJob = j => !!(j && /"test":true/.test(String(j.meta || "")));
 // ===== データと呼び出し =====
 const S = { stock: [], recipes: [], plans: [], settings: {}, tab: "menu", draft: null };
 const run = (fn, ...a) => { if (fn === "saveStock" && Array.isArray(a[0])) a[0] = negiSave(a[0]); return QW.has(fn) ? wq(fn, a) : run0(fn, ...a); };
@@ -621,11 +639,77 @@ function keyGate(msg) {
   d.querySelector("form").addEventListener("submit", e => { e.preventDefault(); const v = d.querySelector("input").value.trim(); if (!v) return; try { localStorage.setItem("kdKey", v); } catch (x) {} location.reload(); });
 }
 const keyErr = e => { const m = String((e && e.message) || e); if (/^(Error:\s*)?KEY/.test(m)) { try { localStorage.removeItem("kdKey"); } catch (x) {} keyGate("鍵がちがいます。もう一度入れてください。"); } return e; };
-const run0 = (fn, ...a) => (inGAS
+const runSrv = (fn, ...a) => (inGAS
   ? new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => ng(e && e.message ? e : new Error(String(e)))).api(fn, KEY(), a))
   : (!KEY() ? (keyGate(), Promise.reject(new Error("KEY: 鍵がありません")))
     : fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ fn, key: KEY(), args: a }) }).then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.error); return j.r; }))
 ).catch(e => { throw keyErr(e); });
+// 本番の画面では、テスト版のAIの作業を拾わない（テスト版では、本番の作業を拾わない）
+const run0 = (fn, ...a) => TEST ? testRun(fn, ...a)
+  : fn === "aiJobGet" ? runSrv(fn, ...a).then(j => isTestJob(j) ? null : j)
+  : fn === "getData" ? runSrv(fn, ...a).then(d => { if (d && isTestJob(d.job)) d.job = null; return d; })
+  : runSrv(fn, ...a);
+// --- テスト版の置き場: { ts, stock, plans, equipment, recipes（足した・直したレシピ）, settings（直した設定）, dealText } ---
+let TDB = null, tdbTimer = null;
+const tdbParse = v => { try { const o = typeof v === "string" ? JSON.parse(v) : v; return o && Array.isArray(o.stock) ? o : null; } catch (e) { return null; } };
+const tdbLocal = () => tdbParse(localStorage.getItem("testDB"));
+function tdbSeed(d) { return { v: 1, ts: Date.now(), from: new Date().toISOString(), stock: JSON.parse(JSON.stringify(d.stock || [])).map(clean), plans: [], equipment: null, recipes: [], settings: {}, dealText: "" }; }
+// 保存: この端末にはすぐ、シート（設定の「テスト用データ」）には少しまとめてから送る（ほかの端末でも同じテストを続けられる）
+function tdbSave() {
+  TDB.ts = Date.now(); const old = shiftDay(today(), -60); TDB.plans = (TDB.plans || []).filter(p => !p.date || p.date >= old);
+  try { localStorage.setItem("testDB", JSON.stringify(TDB)); } catch (e) {}
+  clearTimeout(tdbTimer); tdbTimer = setTimeout(() => runSrv("saveSetting", TKEY, JSON.stringify(TDB)).catch(() => {}), 1500);
+}
+function tdbView(d) {
+  const T = TDB, r = (d.recipes || []).slice(); upIn(r, T.recipes || []);
+  const set = { ...(d.settings || {}), ...(T.settings || {}) }; delete set[TKEY];
+  return { ...d, stock: JSON.parse(JSON.stringify(T.stock || [])), plans: JSON.parse(JSON.stringify(T.plans || [])), equipment: Array.isArray(T.equipment) ? JSON.parse(JSON.stringify(T.equipment)) : d.equipment, recipes: r, settings: set, cookPlans: {}, job: isTestJob(d.job) ? d.job : null };
+}
+async function testRun(fn, ...a) {
+  if (fn === "getData") {
+    const d = await runSrv("getData"), sv = tdbParse((d.settings || {})[TKEY]), lc = tdbLocal();
+    TDB = sv && (!lc || +sv.ts >= +lc.ts) ? sv : lc || tdbSeed(d);
+    if (!sv || +sv.ts < +TDB.ts) tdbSave();
+    try { localStorage.setItem("testDB", JSON.stringify(TDB)); } catch (e) {}
+    S.prodStock = d.stock || [];
+    return tdbView(d);
+  }
+  if (!TDB) { TDB = tdbLocal(); if (!TDB) await testRun("getData"); }
+  // 器具は、テスト版で直すまでは本番のものを使う
+  if (/Equipment$/.test(fn) && !Array.isArray(TDB.equipment)) TDB.equipment = JSON.parse(JSON.stringify(S.equipment || [])).map(clean);
+  if (QW.has(fn)) { wqApply(TDB, fn, a); tdbSave(); return QIDS.includes(fn) ? (a[0] || []).map(o => o.id) : null; }
+  if (fn === "commitPlan") {
+    const x = a[0] || {}, map = {};
+    (x.recipes || []).forEach(r => { const id = /^tmp/.test(r.id || "") || !r.id ? newId() : r.id; map[r.id] = id; upIn(TDB.recipes = TDB.recipes || [], [{ ...clean(r), id }]); });
+    TDB.plans = (TDB.plans || []).filter(p => !(x.removeIds || []).includes(p.id));
+    upIn(TDB.plans, (x.plans || []).map(p => ({ ...clean(p), id: p.id || newId(), recipeId: map[p.recipeId] || p.recipeId })));
+    tdbSave(); return { ok: true };
+  }
+  if (fn === "saveDeals") { TDB.dealText = String(a[0] || ""); tdbSave(); return null; }
+  if (fn === "savePhoto" || fn === "deletePhoto") throw new Error("テスト版では写真は保存・削除しません");
+  if (fn === "setCooking" || fn === "aiNotify" || fn === "precook") return null;
+  if (fn === "aiJob") { let m = {}; try { m = JSON.parse(a[2] || "{}"); } catch (e) {} return runSrv("aiJob", a[0], a[1], JSON.stringify({ ...m, test: true })); }
+  if (fn === "aiJobGet") { const j = await runSrv("aiJobGet"); return isTestJob(j) ? j : null; }
+  return runSrv(fn, ...a);   // 読むだけのもの（写真・履歴・AIへの質問など）は本番から
+}
+// テスト版の帯: 本番の在庫をコピーし直す・献立を空にする・本番に戻る
+function testBar() {
+  if (!TEST || $("testBn")) return;
+  document.body.classList.add("test");
+  const b = document.createElement("div"); b.id = "testBn";
+  b.innerHTML = `<b>🧪 テスト版</b><span>本番は変わりません</span><button id="tbStock">在庫を本番から</button><button id="tbPlans">献立を空に</button><a href="./">本番へ</a>`;
+  document.body.insertBefore(b, document.body.firstChild);
+  $("tbStock").onclick = async () => {
+    if (!confirm("テスト版の在庫を、いまの本番の在庫に置き換えますか？")) return;
+    busy(true, "本番の在庫を読んでいます…", " ");
+    try { const d = await runSrv("getData"); TDB.stock = JSON.parse(JSON.stringify(d.stock || [])).map(clean); tdbSave(); WQ = WQ.filter(op => !/Stock$/.test(op.fn)); wqSave(); await load(); } catch (e) { alert(e.message); }
+    busy(false);
+  };
+  $("tbPlans").onclick = async () => {
+    if (!confirm("テスト版の献立を全部消しますか？（本番の献立はそのままです）")) return;
+    TDB.plans = []; tdbSave(); WQ = WQ.filter(op => !/Plans$/.test(op.fn)); wqSave(); await load();
+  };
+}
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = id => document.getElementById(id);
 // 前回読んだデータをスマホに残しておき、開いたらまずそれを出す（裏で最新を読んで入れ替える）
@@ -1997,7 +2081,8 @@ function drawTools() {
     <h2>器具</h2><p class="note">AIがレシピを考えるときと、調理モードの段取りで使います。</p>
     ${eq.map(e => `<button class="card toolcard" data-id="${esc(e.id)}"><span class="tkind">${esc(e.kind || "その他")}</span><b>${esc(e.name)}</b>${e.model ? `<small>${esc(e.model)}</small>` : ""}${String(e.unverified).toUpperCase() === "TRUE" ? `<small class="red">仕様未確認</small>` : ""}${e.rule ? `<small>決まりごと: ${esc(e.rule)}</small>` : ""}</button>`).join("") || `<section class="card"><p class="note">まだ登録がありません</p></section>`}
     <button class="btn wide" id="tAdd">＋ 器具を追加</button>
-    ${S.sheetUrl ? `<a class="btn ghost wide" href="${esc(S.sheetUrl)}" target="_blank" rel="noopener" style="margin-top:14px;text-align:center;text-decoration:none">📄 データのスプレッドシートを開く</a>` : ""}`;
+    ${S.sheetUrl ? `<a class="btn ghost wide" href="${esc(S.sheetUrl)}" target="_blank" rel="noopener" style="margin-top:14px;text-align:center;text-decoration:none">📄 データのスプレッドシートを開く</a>` : ""}
+    <a class="btn ghost wide" href="${TEST ? "./" : "./?test"}" style="margin-top:8px;text-align:center;text-decoration:none">${TEST ? "↩︎ 本番に戻る" : "🧪 テスト版を開く（本番のデータは変わりません）"}</a>`;
   $("app").querySelectorAll(".toolcard").forEach(b => b.onclick = () => openTool(b.dataset.id));
   $("tAdd").onclick = () => openTool("");
   $("pref").onclick = openPref;
@@ -3962,6 +4047,7 @@ async function checkDraftStock(D, used) {
   const why = `在庫を確かめたら、次の材料が足りなかった: ${bad.join("、")}。この材料を使う料理は、今の在庫で作れる料理に作り直す（栄養も考える）`;
   D.mode === "week" ? startWeek(S.rbWish || "", why) : startFix(bad.join("、"), D.picked, false, D.ngShop);
 }
+testBar(); if (TEST) document.title = "🧪 " + document.title;
 try { const c = JSON.parse(localStorage.getItem(DATA_KEY) || "null"); if (c) { WQ.forEach(op => wqApply(c, op.fn, op.a)); Object.assign(S, c); S.stale = true; draw(); showStale(true); } } catch (e) { S.stale = false; }
 { const k = lsGet("draftKeep"); if (k && k.draft && !S.draft) { S.draft = k.draft; S.applied = k.draft.jobId; const c = k.ctx || {}; S.slotSel = S.slotSel || c.slotSel; S.rbWish = S.rbWish || c.rbWish || ""; S.dealText = S.dealText || c.dealText || ""; S.tab = "menu"; } }
 { const f = lsGet("jobFail"); if (f) S.jobFail = f; }
