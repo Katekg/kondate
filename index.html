@@ -232,6 +232,15 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .nrow small { color: var(--muted); font-variant-numeric: tabular-nums; }
 .toolcard { width: 100%; display: grid; gap: 2px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .toolcard small { color: var(--muted); font-size: .76rem; }
+/* レシピ帳 */
+.rfilter { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.rlist { display: grid; gap: 6px; }
+.rcard { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.rcard b { font-size: .92rem; }
+.rcard small { grid-column: 1 / -1; color: var(--muted); font-size: .74rem; }
+.rcard .rk { align-self: start; font-size: .7rem; font-weight: 700; border-radius: 999px; padding: 0 8px; background: var(--lav); color: var(--accent); white-space: nowrap; }
+.rdetail ol { padding-left: 1.4em; margin: 4px 0; display: grid; gap: 4px; }
+.rdetail .meta { color: var(--muted); font-size: .8rem; margin: 0; }
 .tkind { justify-self: start; font-size: .68rem; font-weight: 700; background: var(--lav); border-radius: 999px; padding: 0 8px; }
 .ovl { position: fixed; inset: 0; z-index: 30; background: var(--bg); padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); overflow: auto; }
 .ovl[hidden] { display: none; }
@@ -378,7 +387,7 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .ctext mark { background: var(--butter); color: var(--butter-ink); border-radius: 6px; padding: 0 3px; }
 .ctext mark.add { font-size: .85em; }
 .chint { text-align: center; }
-.tabs { grid-template-columns: repeat(3, 1fr); }
+.tabs { grid-template-columns: repeat(4, 1fr); }
 #app { overflow-x: clip; }
 .daycard { will-change: transform; }
 html.lock, html.lock body { overflow: hidden; overscroll-behavior: none; height: 100%; }
@@ -1007,7 +1016,7 @@ const expSoon = s => s.exp && s.exp <= shiftDay(today(), 2);
 // 色の順（赤→橙→黄→緑→青→紫）。色の薄い物（灰色っぽい物）は後ろ。カテゴリの中はこの順に並べる
 const hueKey = name => { const m = tileStyle(name).match(/--h:(\d+);--s:(\d+)%/); if (!m) return 999; let h = +m[1]; if (h >= 345) h -= 360; return (+m[2] < 30 ? 400 : 0) + h; };
 // ===== 画面 =====
-const TABS = [["menu", "献立"], ["stock", "在庫"], ["tools", "器具"]];
+const TABS = [["menu", "献立"], ["stock", "在庫"], ["recipes", "レシピ"], ["tools", "器具"]];
 const OUT_EST = { 朝: { kcal: 500, p: 18, f: 15, c: 70 }, 昼: { kcal: 800, p: 28, f: 28, c: 105 }, おやつ: { kcal: 200, p: 3, f: 8, c: 28 }, 夜: { kcal: 900, p: 35, f: 35, c: 105 } };
 const isOut = p => p.recipeId === "OUT";
 function draw() {
@@ -1016,7 +1025,7 @@ function draw() {
   $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.t; S.stockSort = false; draw(); window.scrollTo(0, 0); });
   $("app").classList.remove("fill"); document.documentElement.classList.remove("lock");
   if (S.tab === "menu" && S.draft && S.draft.meals) { drawDraft(); return; }
-  ({ menu: drawMenu, stock: drawStock, tools: drawTools })[S.tab]();
+  ({ menu: drawMenu, stock: drawStock, recipes: drawRecipes, tools: drawTools })[S.tab]();
   jobBanner(); askFab();
 }
 // 横向きから縦に戻したとき、ずれた表示（はみ出し・拡大のまま）を直す
@@ -1909,6 +1918,88 @@ function drawTools() {
   $("app").querySelectorAll(".toolcard").forEach(b => b.onclick = () => openTool(b.dataset.id));
   $("tAdd").onclick = () => openTool("");
   $("pref").onclick = openPref;
+}
+// ===== レシピ帳: 本・AI・自分で入れたレシピを見る・探す・直す =====
+// 本から入れたレシピは、メモの先頭に「【本】本の名前 p.ページ｜種類｜食材｜説明」と書いておく（シートの列を増やさずに持つため）
+const BOOK_RE = /^【本】(.+?) p\.(\d*)｜([^｜]*)｜([^｜]*)｜?/;
+const bookOf = r => { const m = String((r && r.memo) || "").match(BOOK_RE); return m ? { book: m[1], page: m[2], kind: m[3], food: m[4], note: String(r.memo).slice(m[0].length) } : null; };
+const R_KINDS = ["主菜", "副菜", "主食", "汁物", "その他"];
+const kindOf = r => {
+  const b = bookOf(r); if (b && b.kind) { const k = R_KINDS.find(x => b.kind.startsWith(x)); return k || "その他"; }
+  const t = String(r.title || "");
+  if (/汁|スープ|ポタージュ|チャウダー/.test(t)) return "汁物";
+  if (/ごはん|ご飯|丼|チャーハン|パスタ|雑炊|カレー|ピラフ|トースト|サンド|うどん|そば|そうめん|焼きそば/.test(t)) return "主食";
+  if (/クッキー|ゼリー|グミ|ムース|マドレーヌ|ビスケット|ヨーグルト|バナナ|牛乳|プロテイン|茶巾|生チョコ/.test(t)) return "その他";
+  if (/肉|鶏|豚|牛|鮭|さば|ぶり|アジ|魚|エビ|イカ|卵|豆腐|麻婆|つくね|ハンバーグ/.test(t)) return "主菜";
+  return "副菜";
+};
+// AIのレシピは同じ料理名の写しが多いので、料理名ごとに一番新しい1つだけ出す
+function recipeBook() {
+  const seen = new Map();
+  (S.recipes || []).forEach(r => { if (!r || !r.title) return; const k = r.title; if (!bookOf(r) && seen.has(k) && !bookOf(seen.get(k))) seen.delete(k); if (!seen.has(k) || !bookOf(seen.get(k))) seen.set(k, r); });
+  return [...seen.values()];
+}
+function drawRecipes() {
+  const F = S.rf || (S.rf = { q: "", kind: "", src: "" });
+  const all = recipeBook(), books = [...new Set(all.map(r => (bookOf(r) || {}).book).filter(Boolean))];
+  const Rt = rates();
+  const hit = r => {
+    if (F.kind && kindOf(r) !== F.kind) return false;
+    const b = bookOf(r);
+    if (F.src === "ai" && b) return false; if (F.src && F.src !== "ai" && (!b || b.book !== F.src)) return false;
+    if (F.q) { const q = F.q.replace(/\s+/g, ""); const txt = (r.title + "\n" + (r.ingredients || "") + "\n" + (b ? b.food : "")).replace(/\s+/g, ""); if (!q.split(/[、,]/).every(w => !w || txt.includes(w))) return false; }
+    return true;
+  };
+  const list = all.filter(hit).sort((a, b) => { const x = bookOf(a), y = bookOf(b); if (!!x !== !!y) return x ? -1 : 1; if (x && y) return x.book === y.book ? (+x.page || 0) - (+y.page || 0) : x.book.localeCompare(y.book); return String(a.title).localeCompare(String(b.title), "ja"); });
+  const chip = (k, v, l) => `<button class="chip${F[k] === v ? " on" : ""}" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`;
+  const shown = list.slice(0, S.rMore || 60);
+  $("app").innerHTML = `<div class="card"><h2>レシピ帳</h2><p class="note">本から入れたレシピと、AIが考えたレシピ（同じ料理名は新しい1つだけ）です。料理名・材料で探せます。「、」で区切ると両方を含むレシピだけ出ます。</p>
+    <input id="rQ" type="search" placeholder="例: 鶏肉、キャベツ" value="${esc(F.q)}">
+    <div class="rfilter">${chip("kind", "", "すべて")}${R_KINDS.map(k => chip("kind", k, k)).join("")}</div>
+    <div class="rfilter">${chip("src", "", "本もAIも")}${books.map(b => chip("src", b, "📖 " + b)).join("")}${chip("src", "ai", "AIのレシピ")}</div>
+    <p class="note">${list.length}品</p></div>
+    <div class="rlist">${shown.map(r => { const b = bookOf(r), rt = Rt[r.id]; return `<button class="card rcard" data-id="${esc(r.id)}"><b>${esc(r.title)}${rt === "good" ? " 👍" : rt === "bad" ? " 👎" : ""}</b><span class="rk">${esc(kindOf(r))}</span><small>${b ? `📖 ${esc(b.book)} ${b.page ? "p." + esc(b.page) : ""}${b.food ? "・" + esc(b.food) : ""}` : "AIのレシピ"}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal` : ""}${r.servings ? `・${esc(r.servings)}人分` : ""}</small></button>`; }).join("")}</div>
+    ${list.length > shown.length ? `<button class="btn ghost wide" id="rMore" style="margin-top:8px">もっと見る（あと${list.length - shown.length}品）</button>` : ""}
+    <button class="btn wide" id="rAdd" style="margin-top:10px">＋ レシピを手で入れる</button>`;
+  let tm; $("rQ").oninput = e => { clearTimeout(tm); tm = setTimeout(() => { F.q = e.target.value.trim(); S.rMore = 0; const pos = e.target.selectionStart; drawRecipes(); const q = $("rQ"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} }, 250); };
+  $("app").querySelectorAll(".rfilter .chip").forEach(b => b.onclick = () => { F[b.dataset.k] = b.dataset.v; S.rMore = 0; drawRecipes(); });
+  $("app").querySelectorAll(".rcard").forEach(b => b.onclick = () => openRecipe(b.dataset.id));
+  if ($("rMore")) $("rMore").onclick = () => { S.rMore = (S.rMore || 60) + 60; drawRecipes(); };
+  $("rAdd").onclick = () => editRecipe(null);
+}
+function openRecipe(id) {
+  const r = recipeOf(id); if (!r) return;
+  const b = bookOf(r), ings = ingsOf(r), steps = stepsOf(r);
+  const memo = b ? b.note : String(r.memo || "");
+  openSheet(`<div class="rdetail"><h2>${esc(r.title)}</h2>
+    <p class="meta">${esc(kindOf(r))}${b ? `・📖 ${esc(b.book)}${b.page ? " p." + esc(b.page) : ""}` : "・AIのレシピ"}${r.servings ? `・${esc(r.servings)}人分` : ""}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `・日持ち${esc(r.keepDays)}日` : ""}</p>
+    ${memo ? `<p class="note">${esc(memo)}</p>` : ""}
+    <h3>材料</h3><ul class="list">${ings.map(i => `<li><span class="nm">${esc(i.name)}</span><span>${esc(i.amount)}</span></li>`).join("") || "<li>（なし）</li>"}</ul>
+    ${steps.length ? `<h3>作り方</h3><ol>${steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+    <div class="grid2" style="margin-top:10px"><button class="btn" id="rEdit">直す</button><button class="btn ghost" id="rClose">閉じる</button></div></div>`);
+  $("rClose").onclick = closeSheet; $("rEdit").onclick = () => editRecipe(id);
+}
+function editRecipe(id) {
+  const r = id ? recipeOf(id) : { id: "", title: "", servings: "2", cuisine: "", keepDays: "", ingredients: "", steps: "", kcal: "", p: "", f: "", c: "", memo: "" };
+  if (!r) return;
+  const f = (k, l, v, t) => `<label>${l}<input id="re_${k}" ${t ? `type="${t}" inputmode="decimal"` : ""} value="${esc(v == null ? "" : v)}"></label>`;
+  openSheet(`<h2>${id ? "レシピを直す" : "レシピを入れる"}</h2>
+    ${f("title", "料理名", r.title)}
+    <div class="grid3">${f("servings", "何人分", r.servings, "number")}${f("kcal", "1人分kcal", r.kcal, "number")}${f("keepDays", "日持ち（日）", r.keepDays, "number")}</div>
+    <label>材料（1行に「名前：量」）<textarea id="re_ings" rows="8" placeholder="鶏もも肉：1枚（250g）">${esc(r.ingredients || "")}</textarea></label>
+    <label>作り方（1行に1つ）<textarea id="re_steps" rows="8">${esc(r.steps || "")}</textarea></label>
+    <label>メモ<textarea id="re_memo" rows="2">${esc(r.memo || "")}</textarea></label>
+    <p class="note">本から入れたレシピは、メモの先頭の「【本】…｜」を消すと本のレシピとして出なくなります。</p>
+    <div class="grid2"><button class="btn" id="reSave">保存</button><button class="btn ghost" id="reNo">やめる</button></div>`);
+  $("reNo").onclick = () => id ? openRecipe(id) : closeSheet();
+  $("reSave").onclick = async () => {
+    const v = k => $("re_" + k).value.trim();
+    const title = v("title"); if (!title) { alert("料理名を入れてください"); return; }
+    const ings = v("ings").split("\n").map(l => l.trim()).filter(Boolean).map(l => /：/.test(l) ? l : l.replace(/:/, "：")).join("\n");
+    const o = { ...clean(r), title, servings: v("servings"), kcal: v("kcal"), keepDays: v("keepDays"), ingredients: ings, steps: v("steps"), memo: v("memo") };
+    if (id && o.kcal !== String(r.kcal || "")) { o.p = ""; o.f = ""; o.c = ""; }
+    try { const nid = (await run("saveRecipes", [o]))[0]; closeSheet(); draw(); if (nid) openRecipe(nid); } catch (e) { alert(e.message); }
+  };
 }
 // 好み・予算: 設定タブに書き、AIに頼むたびに読み込む
 const PREF = [["世帯", "暮らし方・献立の決まり", "例: 平日は節約メニュー。魚は週1回くらい"], ["好き", "好きな味・料理", ""], ["苦手", "苦手・アレルギー", ""], ["決まりごと", "調理の決まりごと（器具など）", ""], ["調味料メモ", "手元の調味料の説明", ""], ["記念日", "記念日・家のイベント（1行に1つ。その日はちなんだ料理にします）", "例: 03-15 結婚記念日"]];
