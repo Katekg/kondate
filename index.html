@@ -232,6 +232,15 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .nrow small { color: var(--muted); font-variant-numeric: tabular-nums; }
 .toolcard { width: 100%; display: grid; gap: 2px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .toolcard small { color: var(--muted); font-size: .76rem; }
+/* レシピ帳 */
+.rfilter { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.rlist { display: grid; gap: 6px; }
+.rcard { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.rcard b { font-size: .92rem; }
+.rcard small { grid-column: 1 / -1; color: var(--muted); font-size: .74rem; }
+.rcard .rk { align-self: start; font-size: .7rem; font-weight: 700; border-radius: 999px; padding: 0 8px; background: var(--lav); color: var(--accent); white-space: nowrap; }
+.rdetail ol { padding-left: 1.4em; margin: 4px 0; display: grid; gap: 4px; }
+.rdetail .meta { color: var(--muted); font-size: .8rem; margin: 0; }
 .tkind { justify-self: start; font-size: .68rem; font-weight: 700; background: var(--lav); border-radius: 999px; padding: 0 8px; }
 .ovl { position: fixed; inset: 0; z-index: 30; background: var(--bg); padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); overflow: auto; }
 .ovl[hidden] { display: none; }
@@ -378,7 +387,7 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .ctext mark { background: var(--butter); color: var(--butter-ink); border-radius: 6px; padding: 0 3px; }
 .ctext mark.add { font-size: .85em; }
 .chint { text-align: center; }
-.tabs { grid-template-columns: repeat(3, 1fr); }
+.tabs { grid-template-columns: repeat(4, 1fr); }
 #app { overflow-x: clip; }
 .daycard { will-change: transform; }
 html.lock, html.lock body { overflow: hidden; overscroll-behavior: none; height: 100%; }
@@ -605,7 +614,7 @@ async function load() {
   WQ.forEach(op => wqApply(d, op.fn, op.a));
   (d.stock || []).forEach(s => { s.qty = toFrac(s.qty); });
   Object.assign(S, d); S.stale = false; showStale(false); saveCache(d);
-  vegMigrate(); unitMigrate(); unitMigrate2();
+  vegMigrate(); unitMigrate(); unitMigrate2(); bookUnitMigrate();
   if (await takeJob(S.job)) return;
   draw();
   setTimeout(precookSoon, 3000);
@@ -693,7 +702,11 @@ const partK = () => 1;   // 長ねぎの青い部分・白い部分は、在庫�
 // 長ねぎは「白い部分」と「青い部分」を別の数で持つ（在庫は2行。画面では1つの材料として見せる）
 const NEGI_BASE = /^(長ねぎ|長ネギ|白ねぎ|白ネギ|長葱|ねぎ|ネギ)$/, NEGI_W = "長ねぎ（白い部分）", NEGI_G = "長ねぎ（青い部分）";
 const negiPart = t => /(青い|青|緑の?)部分/.test(String(t || "")) ? "青" : /(白い|白)部分/.test(String(t || "")) ? "白" : "";
-const normName = t => { const b = String(t || "").replace(/[（(].*?[）)]/g, "").replace(/\s/g, ""); return NEGI_BASE.test(b) ? "長ねぎ" + negiPart(t) : b; };
+// 材料の名前の読み替え: 本などで名前が違うだけの同じ物（しょうゆ→醤油など）を、在庫の名前にそろえる
+const ING_SAME = {"しょうゆ": "醤油", "うす口しょうゆ": "醤油", "みそ": "味噌", "赤みそ": "味噌", "西京みそ": "味噌", "油": "キャノーラ油", "サラダ油": "キャノーラ油", "揚げ油": "キャノーラ油", "顆粒鶏がらだし": "鶏ガラ顆粒", "鶏がら顆粒ブイヨン": "鶏ガラ顆粒", "顆粒中国風だし": "鶏ガラ顆粒", "顆粒和風だし": "和風だし顆粒", "顆粒ブイヨン": "コンソメ顆粒", "固形ブイヨン": "コンソメ顆粒", "固形チキンブイヨン": "コンソメ顆粒", "固形ビーフブイヨン": "コンソメ顆粒", "ロリエ": "ローリエ", "ベイリーフ": "ローリエ", "こしょう": "ブラックペッパー", "黒こしょう": "ブラックペッパー", "あらびき黒こしょう": "ブラックペッパー", "あらびきこしょう": "ブラックペッパー", "粒こしょう": "ブラックペッパー", "トマトケチャップ": "ケチャップ", "練りがらし": "からし", "ゆるめのときがらし": "からし", "練りわさび": "わさび", "ゆずこしょう": "ゆず胡椒", "辣油": "ラー油", "酢": "米酢", "削りガツオ": "鰹節", "トマト水煮缶詰め": "カットトマト缶", "カットトマト缶詰め": "カットトマト缶", "トマトの水煮": "カットトマト缶", "ツナ油漬け缶詰め": "ツナ缶", "ツナ水煮缶詰め": "ツナ缶", "じゃが芋": "じゃがいも", "新じゃが芋": "じゃがいも", "鶏胸肉": "鶏むね肉", "豚こま切れ肉": "豚こま肉", "生ザケ": "秋鮭切り身"};
+const normName = t => { const b0 = String(t || "").replace(/[（(].*?[）)]/g, "").replace(/\s/g, ""), b = ING_SAME[b0] || b0; return NEGI_BASE.test(b) ? "長ねぎ" + negiPart(t) : b; };
+// 代わりに使える材料: 在庫に無いとき、ここに書いた在庫で代用する（献立・買い物・在庫の押さえで使う）。amount は量の目安、note は使い方
+const ING_SUB = {"だし": [{"use": "和風だし顆粒", "amount": "だし1カップ＝水1カップ＋顆粒小さじ1/2", "note": ""}], "めんつゆ": [{"use": "醤油・みりん・和風だし顆粒", "amount": "めんつゆ(2倍)大さじ2＝醤油大さじ1＋みりん大さじ1＋顆粒少量＋水大さじ1", "note": ""}], "豆板醤": [{"use": "コチュジャン", "amount": "同量", "note": "甘みが出るので砂糖を少し減らす"}, {"use": "ラー油", "amount": "小さじ1/2程度", "note": "辛みだけ足す"}], "甜麺醤": [{"use": "味噌", "amount": "同量＋砂糖小さじ1", "note": ""}], "豆豉": [{"use": "味噌", "amount": "半量", "note": ""}], "豆豉醤": [{"use": "味噌", "amount": "半量", "note": ""}], "コチュジャン": [{"use": "味噌", "amount": "同量＋砂糖少量＋ラー油数滴", "note": ""}], "粉とうがらし": [{"use": "ラー油", "amount": "少量", "note": ""}, {"use": "パプリカ粉末", "amount": "同量", "note": "辛みは出ない。色づけ"}], "一味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "七味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "赤とうがらし": [{"use": "ラー油", "amount": "数滴", "note": "仕上げに"}], "チリパウダー": [{"use": "パプリカ粉末", "amount": "同量", "note": "辛みが欲しければラー油を足す"}], "チリペッパー": [{"use": "ラー油", "amount": "少量", "note": ""}], "ナツメグ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "クローブ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "シナモンスティック": [{"use": "オールスパイス", "amount": "少量", "note": ""}], "ガラムマサラ": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミン": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミンシード": [{"use": "カレー粉", "amount": "同量", "note": ""}], "コリアンダー": [{"use": "カレー粉", "amount": "同量", "note": ""}], "タイム": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "オレガノ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ローズマリー": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ハーブ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "粉ざんしょう": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "花椒": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "白こしょう": [{"use": "ブラックペッパー", "amount": "同量", "note": ""}], "粒入りマスタード": [{"use": "からし", "amount": "1/3量＋マヨネーズ少量", "note": ""}], "マスタード": [{"use": "からし", "amount": "1/3量", "note": ""}], "オイスターソース": [{"use": "醤油・砂糖", "amount": "オイスター大さじ1＝醤油大さじ1/2＋砂糖小さじ1/2", "note": ""}, {"use": "ウスターソース", "amount": "同量", "note": "洋風寄りになる"}], "中濃ソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "とんかつソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "ソース": [{"use": "ウスターソース", "amount": "同量", "note": ""}], "焼き肉のたれ": [{"use": "醤油・砂糖・みりん", "amount": "醤油2：砂糖1：みりん1＋にんにく", "note": ""}], "ポン酢しょうゆ": [{"use": "醤油・米酢", "amount": "醤油1：酢1", "note": ""}], "レモン果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}, {"use": "リンゴ酢", "amount": "同量", "note": ""}], "レモン汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ゆず果汁": [{"use": "リンゴ酢", "amount": "同量", "note": ""}, {"use": "ゆず胡椒", "amount": "少量", "note": ""}], "レモンの搾り汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ライム果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "黒酢": [{"use": "米酢", "amount": "同量", "note": ""}], "白ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "赤ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "バルサミコ酢": [{"use": "リンゴ酢", "amount": "同量＋砂糖少量", "note": ""}], "白ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "赤ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "紹興酒": [{"use": "酒", "amount": "同量", "note": ""}], "ビール": [{"use": "酒", "amount": "半量＋水", "note": ""}], "黒砂糖": [{"use": "砂糖", "amount": "同量", "note": ""}], "生クリーム": [{"use": "牛乳", "amount": "同量＋バター少量", "note": ""}], "プレーンヨーグルト": [{"use": "牛乳", "amount": "", "note": "風味は変わる"}], "スライスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "プロセスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "パルメザンチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "粉チーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "カテージチーズ": [{"use": "とろけるチーズ", "amount": "少なめ", "note": ""}], "パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "生パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "かたくり粉": [{"use": "米粉", "amount": "同量", "note": "とろみ・衣"}, {"use": "強力小麦粉", "amount": "同量", "note": "衣"}], "小ねぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "わけぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "小ねぎの小口切り": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "鶏もも肉": [{"use": "鶏むね肉", "amount": "同量", "note": "焼きすぎない"}], "鶏ささ身": [{"use": "鶏むね肉", "amount": "同量", "note": ""}], "豚薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肩ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚バラ薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛こま切れ肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "甘塩ザケ": [{"use": "秋鮭切り身", "amount": "同量", "note": "塩を少し足す"}], "カジキ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "生ダラ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "ブリ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "白菜の軸": [{"use": "白菜", "amount": "同量", "note": ""}], "大豆もやし": [{"use": "もやし", "amount": "同量", "note": ""}], "紫玉ねぎ": [{"use": "玉ねぎ", "amount": "同量", "note": "水にさらす"}], "小玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "おろし玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "うま味調味料": [{"use": "味の素", "amount": "同量", "note": ""}], "小麦粉": [{"use": "強力小麦粉", "amount": "同量", "note": "衣・とろみなら問題なし。生地物は食感が変わる"}, {"use": "米粉", "amount": "同量", "note": "衣・とろみ"}]};
 const isNegi = t => /^長ねぎ/.test(normName(t));
 const fmtN = (n, u) => n <= 1e-6 ? "0" : fmtUnitNum(n, u);
 const fmtQ = q => pqAll(q).map((p, i) => i ? `(${fmtN(p.n, p.u)}${p.u})` : fmtN(p.n, p.u) + p.u).join("") || q;
@@ -807,9 +820,15 @@ function sumAmounts(list) {
   for (const a of list) { const q = pqAll(a)[0]; if (q) by.set(q.u, (by.get(q.u) || 0) + q.n); else if (a) rest.push(a); }
   return [...[...by].map(([u, n]) => fmtUnitNum(n, u) + u), ...new Set(rest)].join(" ＋ ");
 }
-function matchStock(name, stock) {
+function matchStock(name, stock, noSub) {
   stock = stock || S.stock; const n = normName(name); if (!n || n === "長ねぎ") return null;
-  return stock.find(s => normName(s.name) === n) || stock.find(s => { const m = normName(s.name); return m.length >= 2 && n.length >= 2 && (n.includes(m) || m.includes(n)); }) || null;
+  return stock.find(s => normName(s.name) === n) || stock.find(s => { const m = normName(s.name); return m.length >= 2 && n.length >= 2 && (n.includes(m) || m.includes(n)); }) || (noSub ? null : (subOf(name, stock) || {}).s) || null;
+}
+// 在庫に無い材料の代わりになる在庫（無ければ null）: { s: 在庫, use, amount, note }
+function subOf(name, stock) {
+  stock = stock || S.stock; const l = ING_SUB[normName(name)]; if (!l) return null;
+  for (const o of l) { const s = matchStock(o.use.split("・")[0], stock, true); if (s && hasQty(s)) return { s, ...o }; }
+  return null;
 }
 // レシピの材料（「名前：量」の行）
 const ingsOf = r => String(r && r.ingredients || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => { const i = l.lastIndexOf("："); return i < 0 ? { name: l, amount: "" } : { name: l.slice(0, i), amount: toFrac(l.slice(i + 1)) }; })
@@ -848,10 +867,10 @@ function groupItems(x) {
 // 大さじ・小さじ → 「22.5ml(27g)」（在庫の単位が ml でも g でも比べられるように。重さは SPOON_G の値、無ければ水と同じ）
 const gPerMl = name => { const t = SPOON_G.find(([re]) => re.test(normName(name))); return t && !t[2] ? t[1] / 15 : 1; };
 function spoonQ(name, a) {
-  const m = String(a || "").trim().match(/^(大さじ|小さじ)\s*(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)/); if (!m) return "";
+  const m = String(a || "").trim().match(/^(大さじ|小さじ|カップ)\s*(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)/); if (!m) return "";
   const v = numOf(m[2]); if (!v) return "";
-  const ml = v * (m[1] === "大さじ" ? 15 : 5);
-  return `${exactNum(Math.round(ml * 10) / 10)}ml(${exactNum(Math.round(ml * gPerMl(name) * 10) / 10)}g)`;
+  const ml = v * (m[1] === "大さじ" ? 15 : m[1] === "カップ" ? 200 : 5), g = m[1] === "カップ" ? v * cupG(name) : ml * gPerMl(name);
+  return `${exactNum(Math.round(ml * 10) / 10)}ml(${exactNum(Math.round(g * 10) / 10)}g)`;
 }
 // 買う量: 液体は ml、粉・乾物などは g で書く（片栗粉 8ml → 5g）
 const spoonBuy = (name, sq) => { const liq = SPOON_G.some(t => t[2] === "ml" && t[0].test(normName(name))), m = String(sq).match(/^([\d.]+)ml\(([\d.]+)g\)/); return !m ? sq : liq ? `${m[1]}ml` : `${m[2]}g`; };
@@ -1007,7 +1026,7 @@ const expSoon = s => s.exp && s.exp <= shiftDay(today(), 2);
 // 色の順（赤→橙→黄→緑→青→紫）。色の薄い物（灰色っぽい物）は後ろ。カテゴリの中はこの順に並べる
 const hueKey = name => { const m = tileStyle(name).match(/--h:(\d+);--s:(\d+)%/); if (!m) return 999; let h = +m[1]; if (h >= 345) h -= 360; return (+m[2] < 30 ? 400 : 0) + h; };
 // ===== 画面 =====
-const TABS = [["menu", "献立"], ["stock", "在庫"], ["tools", "器具"]];
+const TABS = [["menu", "献立"], ["stock", "在庫"], ["recipes", "レシピ"], ["tools", "器具"]];
 const OUT_EST = { 朝: { kcal: 500, p: 18, f: 15, c: 70 }, 昼: { kcal: 800, p: 28, f: 28, c: 105 }, おやつ: { kcal: 200, p: 3, f: 8, c: 28 }, 夜: { kcal: 900, p: 35, f: 35, c: 105 } };
 const isOut = p => p.recipeId === "OUT";
 function draw() {
@@ -1016,7 +1035,7 @@ function draw() {
   $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.t; S.stockSort = false; draw(); window.scrollTo(0, 0); });
   $("app").classList.remove("fill"); document.documentElement.classList.remove("lock");
   if (S.tab === "menu" && S.draft && S.draft.meals) { drawDraft(); return; }
-  ({ menu: drawMenu, stock: drawStock, tools: drawTools })[S.tab]();
+  ({ menu: drawMenu, stock: drawStock, recipes: drawRecipes, tools: drawTools })[S.tab]();
   jobBanner(); askFab();
 }
 // 横向きから縦に戻したとき、ずれた表示（はみ出し・拡大のまま）を直す
@@ -1600,7 +1619,7 @@ function drawStock() {
       ${missing.length ? `<p class="note red">在庫に無い材料: ${esc(missing.join("、"))}</p>` : ""}
       <p class="note">タイルをタップすると、使う量の確認と、量の修正ができます。</p>
       ${gs.length ? (lackSet.size ? `<div class="fixbox ng"><b>このままだと献立に足りない材料があります: ${esc([...lackSet].join("、"))}</b><button class="btn wide" id="goFix">栄養を考えながら、在庫に合わせて献立を見直す</button></div>` : `<div class="fixbox okk"><b>今の在庫で、予定の献立は全部作れます</b></div>`) : ""}</section>
-    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3><span class="row" style="gap:6px;flex:none"><button class="chip" id="vegSet">📏 食材の単位</button><button class="chip" id="catEdit">✎ カテゴリ</button></span></div><p class="note">量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへ移せます。</p>${byCat(restList) || `<p class="note">ありません</p>`}</section>`;
+    <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3><span class="row" style="gap:6px;flex:none"><button class="chip" id="vegSet">📏 単位（本のとおり）</button><button class="chip" id="catEdit">✎ カテゴリ</button></span></div><p class="note">量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへ移せます。</p>${byCat(restList) || `<p class="note">ありません</p>`}</section>`;
   $("app").querySelectorAll(".tilebtn").forEach(b => b.onclick = () => { if (S.stockSort || S.lpFired) { S.lpFired = false; return; } openStockItem(b.dataset.id); });
   stockSortSetup(cats);
   // 買い物リスト: チェックと量の直しは、画面を描き直しても残す（在庫に入れたら消す）
@@ -1792,10 +1811,8 @@ function openStockItem(id) {
     <div class="grid2"><label>消費期限<input id="sExp" type="date" value="${esc(s.exp)}"></label>
     <label>カテゴリ<select id="sCat">${cats.map(c => `<option ${c === s.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label></div>
     <div class="grid2"><button class="btn" id="sSave">保存</button><button class="btn danger" id="sDel">なくなった（消す）</button></div>
-    <button class="chip" id="sUnit" style="justify-self:start">⚙ 単位の設定</button>
     <button class="btn ghost wide" id="sClose">閉じる</button>`);
   $("sClose").onclick = closeSheet;
-  $("sUnit").onclick = () => openUnitSet(s.name, () => openStockItem(id));
   $("sSave").onclick = async () => { const item = { ...s, qty: qtyVal(document.querySelector("#sheetBody .qf")) || "あり", exp: $("sExp").value, cat: $("sCat").value }; busy(true, "保存しています…"); try { await run("saveStock", [item]); await load(); closeSheet(); } catch (e) { alert(e.message); } busy(false); };
   $("sDel").onclick = async () => { if (!confirm(`${s.name} を在庫から消しますか？`)) return; busy(true, "消しています…"); try { await run("deleteStock", [s.id]); await load(); closeSheet(); } catch (e) { alert(e.message); } busy(false); };
 }
@@ -1818,6 +1835,16 @@ function unitMigrate2() {
   if (ups.length) run("saveStock", ups);
   S.settings["本を戻す"] = today(); run("saveSetting", "本を戻す", today());
 }
+// 2026-11-25: 単位と分母を本（女子栄養大学の毎日おかず）に合わせる。設定の単位・分母は消し（1週間の量だけ残す）、在庫の量を本の単位に直す。1回だけ
+function bookUnitMigrate() {
+  if (SET("本の単位に合わせる") || WQ.length) return;
+  const m = vegMap(); let ch = false;
+  Object.keys(m).forEach(k => { if (!vegBase(k)) return; const e = m[k]; ch = true; if (!e.off && e.pack != null && +e.pack > 0) m[k] = { pack: +e.pack }; else delete m[k]; });
+  if (ch) { const v = JSON.stringify(m); S.settings["野菜の単位"] = v; run("saveSetting", "野菜の単位", v); }
+  const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || /^(あり|わずか)$/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
+  if (ups.length) run("saveStock", ups);
+  S.settings["本の単位に合わせる"] = today(); run("saveSetting", "本の単位に合わせる", today());
+}
 function vegMigrate() {
   if (SET("野菜単位の移行") || WQ.length) return;
   const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || /^(あり|わずか)$/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
@@ -1826,7 +1853,7 @@ function vegMigrate() {
 }
 // 単位の設定: 野菜の単位と分母（1/4・1/8 など）を決める。「グラムなどで数える」で分数をやめる
 // 単位は g・ml・個・本・袋・切れ だけ。g・ml は分数にしない（レシピに書いた量のまま数える）。個・袋は「分けかた」で数える
-const VEG_UNITS = ["g", "ml", "個", "本", "袋", "切れ"], GM = u => u === "g" || u === "ml";
+const VEG_UNITS = ["g", "ml", "個", "本", "袋", "切れ", "束", "株", "節", "丁", "玉", "パック"], GM = u => u === "g" || u === "ml";
 // その食材の今の設定（g・ml の物も含む）: {u, d, pack}
 function unitOf(name) {
   const v = vegOf(name); if (v) return v;
@@ -1853,32 +1880,15 @@ function openUnitSet(name, back) {
     draw(); (back || closeSheet)();
   };
 }
-// 🥕 野菜の単位: 全部の野菜の「単位・分けかた（分母）・買う単位」を1つの画面で決める（在庫に無い野菜も）
+// 📏 単位の一覧（見るだけ）: 単位・分母・重さは『女子栄養大学の毎日おかず』のとおりで、アプリでは変えない
 function openVegSet() {
-  const row = (nm, v) => `<li class="vrow" data-n="${esc(nm)}"><b>${esc(nm)}</b><div class="vctl"><select class="vsU">${VEG_UNITS.map(u => `<option ${v.u === u ? "selected" : ""}>${u}</option>`).join("")}</select><select class="vsD">${[[1, "分けない"], [2, "1/2ずつ"], [4, "1/4ずつ"], [8, "1/8ずつ"]].map(([d, l]) => `<option value="${d}" ${v.d === d ? "selected" : ""}>${l}</option>`).join("")}</select><input class="vsP" value="${v.pack ? fracText(v.pack) : ""}" placeholder="なし" autocomplete="off"></div></li>`;
-  openSheet(`<h2>📏 食材の単位</h2><p class="note">在庫は「単位」を「分けかた」で数えます（例: 大根は 本 を 1/8ずつ）。単位が g・ml の食材は、分数にせず、レシピに書いた量のまま数えます。<br>「1週間の量」は、1週間で使い切りたい量です。使うときはこの量の倍数（1缶なら 1缶・2缶…）で使って買い、半端（1/2缶）にしません。使わない週があってもかまいません。空なら決まりなしです。野菜以外（ツナ缶など）も、下の「食材を足す」で入れられます。</p>
-    <div class="vctl vhead"><small>単位</small><small>分けかた</small><small>1週間の量</small></div><ul class="list vlist" id="vsList">${vegRows().map(n => row(n, unitOf(n))).join("")}</ul>
-    <div class="row" style="gap:6px;margin:8px 0"><input id="vsNew" placeholder="食材を足す（例: かぶ、ツナ缶）" style="flex:1"><button class="chip" id="vsAdd">＋ 足す</button></div>
-    <div class="grid2"><button class="btn" id="vsSave">保存</button><button class="btn ghost" id="vsClose">閉じる</button></div>`);
+  const gOf = (re, u) => { const w = UNIT_G.find(([r]) => r.test(re)); return w && w[1][u] ? `1${u}＝${w[1][u]}g` : ""; };
+  openSheet(`<h2>📏 食材の単位（本のとおり）</h2><p class="note">在庫と買い物は、この単位と分け方で数えます。単位・分け方・重さは『女子栄養大学の毎日おかず』の材料表に合わせてあり、変えられません。グラムで書かれた量は、この重さで割って数えます。</p>
+    <ul class="list">${VEG_LIST.map(([n, , u, d]) => `<li><span class="nm">${esc(n)}<small>${esc(gOf(n, u))}</small></span><span>${esc(u)}・${d > 1 ? `1/${d}ずつ` : "分けない"}</span></li>`).join("")}</ul>
+    <h3>大さじ・小さじ・カップの重さ</h3><p class="note">大さじ1＝15ml・小さじ1＝5ml・カップ1＝200ml。重さは本の「標準計量カップ・スプーンによる重量一覧」のとおりです。</p>
+    <ul class="list">${[["水・酢・酒", 5, 15, 200], ["しょうゆ・みりん・みそ", 6, 18, 230], ["塩", 6, 18, 240], ["あら塩", 5, 15, 180], ["砂糖", 3, 9, 130], ["小麦粉", 3, 9, 110], ["かたくり粉", 3, 9, 130], ["牛乳", 5, 15, 210], ["ウスターソース", 6, 18, 240], ["トマトケチャップ", 5, 15, 230], ["マヨネーズ", 4, 12, 190], ["粉チーズ", 2, 6, 90], ["ごま", 3, 9, 120], ["油・バター", 4, 12, 180]].map(([n, a, b, c]) => `<li><span class="nm">${esc(n)}</span><span>小${a}g・大${b}g・カップ${c}g</span></li>`).join("")}<li><span class="nm">米</span><span>カップ1＝170g・1合（180ml）＝150g</span></li></ul>
+    <button class="btn ghost wide" id="vsClose">閉じる</button>`);
   $("vsClose").onclick = closeSheet;
-  $("vsAdd").onclick = () => { const n = $("vsNew").value.trim(); if (!n || document.querySelector(`#vsList [data-n="${CSS.escape(n)}"]`)) return; $("vsList").insertAdjacentHTML("beforeend", row(n, vegOf(n) || { u: "個", d: 1, pack: 0 })); $("vsNew").value = ""; };
-  $("vsSave").onclick = async () => {
-    const before = S.stock.map(x => [x, vegOf(x.name)]), m = { ...vegMap() };
-    document.querySelectorAll("#vsList .vrow").forEach(li => {
-      const n = li.dataset.n, b = vegBase(n), nv = unitSetVal(li);
-      const same = b && b.name === n && !nv.off && nv.u === b.u && nv.d === b.d && nv.pack === b.pack;
-      if (same) delete m[n]; else m[n] = nv;
-    });
-    busy(true, "保存しています…");
-    try {
-      const v = JSON.stringify(m); S.settings["野菜の単位"] = v; await run("saveSetting", "野菜の単位", v);
-      // 今の在庫の量も、新しい単位・分けかたに合わせる
-      const ups = []; before.forEach(([x, ov]) => { const nv = vegOf(x.name); if (!nv || !ov || (ov.u === nv.u && ov.d === nv.d)) return; const n = vegN(x.name, x.qty, ov.u === nv.u ? ov : nv); if (n == null) return; const q = vegFmt(n, nv); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
-      if (ups.length) await run("saveStock", ups);
-      closeSheet(); draw();
-    } catch (e) { alert(e.message); }
-    busy(false);
-  };
 }
 // 長ねぎ: 白い部分・青い部分の量を、1つの画面で直す
 function openNegi() {
@@ -1910,6 +1920,108 @@ function drawTools() {
   $("tAdd").onclick = () => openTool("");
   $("pref").onclick = openPref;
 }
+// ===== レシピ帳: 本・AI・自分で入れたレシピを見る・探す・直す =====
+// 本から入れたレシピは、メモの先頭に「【本】本の名前 p.ページ｜種類｜食材｜説明」と書いておく（シートの列を増やさずに持つため）
+const BOOK_RE = /^【本】(.+?) p\.(\d*)｜([^｜]*)｜([^｜]*)｜?/;
+const bookOf = r => { const m = String((r && r.memo) || "").match(BOOK_RE); return m ? { book: m[1], page: m[2], kind: m[3], food: m[4], note: String(r.memo).slice(m[0].length) } : null; };
+const R_KINDS = ["主菜", "副菜", "主食", "汁物", "その他"];
+const kindOf = r => {
+  const b = bookOf(r); if (b && b.kind) { const k = R_KINDS.find(x => b.kind.startsWith(x)); return k || "その他"; }
+  const t = String(r.title || "");
+  if (/ごはん|ご飯|丼|チャーハン|パスタ|雑炊|カレー|ピラフ|トースト|サンド|うどん|そば|そうめん|焼きそば/.test(t)) return "主食";
+  if (/汁|スープ|ポタージュ|チャウダー/.test(t)) return "汁物";
+  if (/クッキー|ゼリー|グミ|ムース|マドレーヌ|ビスケット|ヨーグルト|バナナ|牛乳|プロテイン|茶巾|生チョコ/.test(t)) return "その他";
+  if (/肉|鶏|豚|牛|鮭|さば|ぶり|アジ|魚|エビ|イカ|卵|豆腐|麻婆|つくね|ハンバーグ/.test(t)) return "主菜";
+  return "副菜";
+};
+// AIのレシピは同じ料理名の写しが多いので、料理名ごとに一番新しい1つだけ出す
+function recipeBook() {
+  const seen = new Map();
+  (S.recipes || []).forEach(r => { if (!r || !r.title) return; const k = r.title; if (!bookOf(r) && seen.has(k) && !bookOf(seen.get(k))) seen.delete(k); if (!seen.has(k) || !bookOf(seen.get(k))) seen.set(k, r); });
+  return [...seen.values()];
+}
+function drawRecipes() {
+  const F = S.rf || (S.rf = { q: "", kind: "", src: "" });
+  const all = recipeBook(), books = [...new Set(all.map(r => (bookOf(r) || {}).book).filter(Boolean))];
+  const Rt = rates();
+  const hit = r => {
+    if (F.kind && kindOf(r) !== F.kind) return false;
+    const b = bookOf(r);
+    if (F.src === "ai" && b) return false; if (F.src && F.src !== "ai" && (!b || b.book !== F.src)) return false;
+    if (F.q) { const q = F.q.replace(/\s+/g, ""); const txt = (r.title + "\n" + (r.ingredients || "") + "\n" + (b ? b.food : "")).replace(/\s+/g, ""); if (!q.split(/[、,]/).every(w => !w || txt.includes(w))) return false; }
+    return true;
+  };
+  const list = all.filter(hit).sort((a, b) => { const x = bookOf(a), y = bookOf(b); if (!!x !== !!y) return x ? -1 : 1; if (x && y) return x.book === y.book ? (+x.page || 0) - (+y.page || 0) : x.book.localeCompare(y.book); return String(a.title).localeCompare(String(b.title), "ja"); });
+  const chip = (k, v, l) => `<button class="chip${F[k] === v ? " on" : ""}" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`;
+  const shown = list.slice(0, S.rMore || 60);
+  $("app").innerHTML = `<div class="card"><h2>レシピ帳</h2><p class="note">本から入れたレシピと、AIが考えたレシピ（同じ料理名は新しい1つだけ）です。料理名・材料で探せます。「、」で区切ると両方を含むレシピだけ出ます。</p>
+    <input id="rQ" type="search" placeholder="例: 鶏肉、キャベツ" value="${esc(F.q)}">
+    <div class="rfilter">${chip("kind", "", "すべて")}${R_KINDS.map(k => chip("kind", k, k)).join("")}</div>
+    <div class="rfilter">${chip("src", "", "本もAIも")}${books.map(b => chip("src", b, "📖 " + b)).join("")}${chip("src", "ai", "AIのレシピ")}</div>
+    <p class="note">${list.length}品</p></div>
+    <div class="rlist">${shown.map(r => { const b = bookOf(r), rt = Rt[r.id]; return `<button class="card rcard" data-id="${esc(r.id)}"><b>${esc(r.title)}${rt === "good" ? " 👍" : rt === "bad" ? " 👎" : ""}</b><span class="rk">${esc(kindOf(r))}</span><small>${b ? `📖 ${esc(b.book)} ${b.page ? "p." + esc(b.page) : ""}${b.food ? "・" + esc(b.food) : ""}` : "AIのレシピ"}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal` : ""}${r.servings ? `・${esc(r.servings)}人分` : ""}</small></button>`; }).join("")}</div>
+    ${list.length > shown.length ? `<button class="btn ghost wide" id="rMore" style="margin-top:8px">もっと見る（あと${list.length - shown.length}品）</button>` : ""}
+    <button class="btn wide" id="rAdd" style="margin-top:10px">＋ レシピを手で入れる</button>
+    <label class="btn ghost wide" style="margin-top:8px;text-align:center;display:block">📥 ファイルからまとめて取り込む<input id="rFile" type="file" accept=".json,application/json" hidden></label>`;
+  let tm; $("rQ").oninput = e => { clearTimeout(tm); tm = setTimeout(() => { F.q = e.target.value.trim(); S.rMore = 0; const pos = e.target.selectionStart; drawRecipes(); const q = $("rQ"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} }, 250); };
+  $("app").querySelectorAll(".rfilter .chip").forEach(b => b.onclick = () => { F[b.dataset.k] = b.dataset.v; S.rMore = 0; drawRecipes(); });
+  $("app").querySelectorAll(".rcard").forEach(b => b.onclick = () => openRecipe(b.dataset.id));
+  if ($("rMore")) $("rMore").onclick = () => { S.rMore = (S.rMore || 60) + 60; drawRecipes(); };
+  $("rAdd").onclick = () => editRecipe(null);
+  $("rFile").onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) importRecipes(f); };
+}
+// レシピのファイル（JSONの配列。1品 = レシピ表の1行と同じ形）を取り込む。同じid、または同じ本・同じ料理名のレシピは入れ直さない
+async function importRecipes(file) {
+  let list; try { list = JSON.parse(await file.text()); } catch (e) { alert("ファイルを読めませんでした（JSONではないようです）"); return; }
+  if (!Array.isArray(list)) list = [list];
+  // 同じレシピ（同じid、または同じ本の同じ料理名）がもう入っていれば、ファイルの内容で上書きする（本の栄養価などを入れ直すため）
+  const keyOf = r => (bookOf(r) ? bookOf(r).book + "|" : "") + r.title, F = ["title", "servings", "cuisine", "keepDays", "ingredients", "steps", "kcal", "p", "f", "c", "memo"];
+  const byId = new Map((S.recipes || []).map(r => [r.id, r])), byKey = new Map((S.recipes || []).map(r => [keyOf(r), r]));
+  const all = list.filter(r => r && r.title && String(r.ingredients || "").trim()).map(r => ({ id: String(r.id || ""), title: String(r.title), servings: String(r.servings || "2"), cuisine: String(r.cuisine || ""), keepDays: String(r.keepDays || ""), ingredients: String(r.ingredients || ""), steps: String(r.steps || ""), kcal: r.kcal == null ? "" : String(r.kcal), p: r.p == null ? "" : String(r.p), f: r.f == null ? "" : String(r.f), c: r.c == null ? "" : String(r.c), memo: String(r.memo || "") }));
+  const add = [], upd = []; let same = 0;
+  all.forEach(r => { const old = (r.id && byId.get(r.id)) || byKey.get(keyOf(r)); if (!old) { add.push(r); return; } if (F.every(k => String(old[k] == null ? "" : old[k]) === r[k])) { same++; return; } upd.push({ ...r, id: old.id }); });
+  if (!add.length && !upd.length) { alert(`入れるレシピがありませんでした（${same}品はもう同じ内容で入っています）`); return; }
+  if (!confirm([add.length ? `${add.length}品を新しく取り込みます。` : "", upd.length ? `${upd.length}品は、もう入っているレシピをファイルの内容で上書きします（「直す」で変えた所も戻ります）。` : "", same ? `${same}品は同じ内容なので飛ばします。` : ""].join(""))) return;
+  const save = [...upd, ...add];
+  for (let i = 0; i < save.length; i += 40) run("saveRecipes", save.slice(i, i + 40));
+  upd.forEach(r => { const o = byId.get(r.id); if (o) Object.assign(o, r); });
+  S.rf = { q: "", kind: "", src: "" }; draw();
+  alert(`${add.length + upd.length}品を取り込みました。シートへの保存は裏で続きます（画面下の「保存中」が消えれば完了）。`);
+}
+function openRecipe(id) {
+  const r = recipeOf(id); if (!r) return;
+  const b = bookOf(r), ings = ingsOf(r), steps = stepsOf(r);
+  const memo = b ? b.note : String(r.memo || "");
+  openSheet(`<div class="rdetail"><h2>${esc(r.title)}</h2>
+    <p class="meta">${esc(kindOf(r))}${b ? `・📖 ${esc(b.book)}${b.page ? " p." + esc(b.page) : ""}` : "・AIのレシピ"}${r.servings ? `・${esc(r.servings)}人分` : ""}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal${r.p !== "" && r.p != null ? `（P${esc(r.p)}・F${esc(r.f)}・C${esc(r.c)}g）` : ""}` : ""}${r.keepDays ? `・日持ち${esc(r.keepDays)}日` : ""}</p>
+    ${memo ? `<p class="note">${esc(memo)}</p>` : ""}
+    <h3>材料</h3><ul class="list">${ings.map(i => { const sb = !matchStock(i.name, null, true) && subOf(i.name); return `<li><span class="nm">${esc(i.name)}${sb ? `<small>🔄 在庫の${esc(sb.use)}で代用${sb.amount ? `（${esc(sb.amount)}）` : ""}${sb.note ? `。${esc(sb.note)}` : ""}</small>` : ""}</span><span>${esc(i.amount)}</span></li>`; }).join("") || "<li>（なし）</li>"}</ul>
+    ${steps.length ? `<h3>作り方</h3><ol>${steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+    <div class="grid2" style="margin-top:10px"><button class="btn" id="rEdit">直す</button><button class="btn ghost" id="rClose">閉じる</button></div></div>`);
+  $("rClose").onclick = closeSheet; $("rEdit").onclick = () => editRecipe(id);
+}
+function editRecipe(id) {
+  const r = id ? recipeOf(id) : { id: "", title: "", servings: "2", cuisine: "", keepDays: "", ingredients: "", steps: "", kcal: "", p: "", f: "", c: "", memo: "" };
+  if (!r) return;
+  const f = (k, l, v, t) => `<label>${l}<input id="re_${k}" ${t ? `type="${t}" inputmode="decimal"` : ""} value="${esc(v == null ? "" : v)}"></label>`;
+  openSheet(`<h2>${id ? "レシピを直す" : "レシピを入れる"}</h2>
+    ${f("title", "料理名", r.title)}
+    <div class="grid3">${f("servings", "何人分", r.servings, "number")}${f("kcal", "1人分kcal", r.kcal, "number")}${f("keepDays", "日持ち（日）", r.keepDays, "number")}</div>
+    <label>材料（1行に「名前：量」）<textarea id="re_ings" rows="8" placeholder="鶏もも肉：1枚（250g）">${esc(r.ingredients || "")}</textarea></label>
+    <label>作り方（1行に1つ）<textarea id="re_steps" rows="8">${esc(r.steps || "")}</textarea></label>
+    <label>メモ<textarea id="re_memo" rows="2">${esc(r.memo || "")}</textarea></label>
+    <p class="note">本から入れたレシピは、メモの先頭の「【本】…｜」を消すと本のレシピとして出なくなります。</p>
+    <div class="grid2"><button class="btn" id="reSave">保存</button><button class="btn ghost" id="reNo">やめる</button></div>`);
+  $("reNo").onclick = () => id ? openRecipe(id) : closeSheet();
+  $("reSave").onclick = async () => {
+    const v = k => $("re_" + k).value.trim();
+    const title = v("title"); if (!title) { alert("料理名を入れてください"); return; }
+    const ings = v("ings").split("\n").map(l => l.trim()).filter(Boolean).map(l => /：/.test(l) ? l : l.replace(/:/, "：")).join("\n");
+    const o = { ...clean(r), title, servings: v("servings"), kcal: v("kcal"), keepDays: v("keepDays"), ingredients: ings, steps: v("steps"), memo: v("memo") };
+    if (id && o.kcal !== String(r.kcal || "")) { o.p = ""; o.f = ""; o.c = ""; }
+    try { const nid = (await run("saveRecipes", [o]))[0]; closeSheet(); draw(); if (nid) openRecipe(nid); } catch (e) { alert(e.message); }
+  };
+}
 // 好み・予算: 設定タブに書き、AIに頼むたびに読み込む
 const PREF = [["世帯", "暮らし方・献立の決まり", "例: 平日は節約メニュー。魚は週1回くらい"], ["好き", "好きな味・料理", ""], ["苦手", "苦手・アレルギー", ""], ["決まりごと", "調理の決まりごと（器具など）", ""], ["調味料メモ", "手元の調味料の説明", ""], ["記念日", "記念日・家のイベント（1行に1つ。その日はちなんだ料理にします）", "例: 03-15 結婚記念日"]];
 const BUDGET = [["予算_材料", "材料"], ["予算_米", "米"], ["予算_調味料", "調味料・油"]];
@@ -1917,6 +2029,7 @@ const T_KEYS = [["目標1", "人1"], ["目標2", "人2"]];
 function openPref() {
   const tg = k => String(SET(k)).split("/");
   openSheet(`<h2>好み・予算</h2><p class="note">ここに書いた内容を、AIが献立やレシピを考えるたびに読み込みます。書き換えると、次の提案から反映されます。</p>
+    <label>AIの役割<select data-k="AIの役割"><option value="選ぶ"${SET("AIの役割") !== "考える" ? " selected" : ""}>レシピ帳から選ぶだけ（新しい料理は作らない）</option><option value="考える"${SET("AIの役割") === "考える" ? " selected" : ""}>新しい料理も考える</option></select></label>
     ${PREF.map(([k, l, ph]) => `<label>${esc(l)}<textarea data-k="${k}" rows="3" placeholder="${esc(ph)}">${esc(SET(k))}</textarea></label>`).join("")}
     <h3 style="margin-top:6px">1か月の予算（円）</h3>
     <div class="grid3">${BUDGET.map(([k, l]) => `<label>${esc(l)}<input data-k="${k}" type="number" inputmode="numeric" value="${esc(SET(k))}"></label>`).join("")}</div>
@@ -1984,20 +2097,33 @@ function showDayPhotos(d, ps) {
 
 // --- 調理モード: 材料（上）と手順（大きく）。左をタップで戻る・右で次へ ---
 // 器具: 手順の最後の［…］。タイマー: 手順の「N分」。手順ごとに持ち、ほかの手順へ進んでも止まらない
-const UNIT_G = [[/玉ねぎ|たまねぎ/, { 個: 200 }], [/じゃがいも/, { 個: 150 }], [/にんじん|人参/, { 本: 150 }], [/大根/, { 本: 1000, cm: 30 }], [/キャベツ/, { 個: 1200, 枚: 50 }], [/白菜/, { 個: 2000, 枚: 100 }], [/白ネギ|白ねぎ|長ネギ|長ねぎ/, { 本: 100 }],
-  [/なす/, { 本: 80 }], [/トマト/, { 個: 150 }], [/きゅうり/, { 本: 100 }], [/ピーマン/, { 個: 35 }], [/さつまいも/, { 本: 250 }], [/かぼちゃ/, { 個: 1200 }], [/卵/, { 個: 60 }], [/しめじ|えのき|まいたけ/, { パック: 100, 袋: 100 }],
-  [/豆腐/, { 丁: 350 }], [/油揚げ/, { 枚: 30 }], [/鮭|ぶり|さば|鯖|たら/, { 切れ: 100 }], [/ブロッコリー/, { 株: 250 }], [/チンゲン菜|ちんげんさい|青梗菜|チンゲンサイ/, { 株: 100, 袋: 300 }], [/れんこん/, { 節: 200 }], [/ごぼう/, { 本: 150 }], [/りんご/, { 個: 300 }],
-  [/バナナ/, { 本: 100 }], [/しょうが|生姜/, { かけ: 15 }], [/にんにく/, { かけ: 5 }], [/もやし/, { 袋: 200 }], [/小松菜|ほうれん草/, { 袋: 200, 束: 200, 株: 40 }], [/納豆/, { パック: 45 }], [/鶏むね|鶏もも/, { 枚: 300 }], [/豆苗/, { 袋: 100 }]];
-// 大さじ・小さじ・カップに g / ml を添える（大さじ1=15ml。重さは女子栄養大学の重量表の値）
+// 1単位の重さ（g）。『女子栄養大学の毎日おかず』の材料表「1/2個(100g)」などから、本のとおりの重さにした（卵は本の「卵1個=50g」）
+const UNIT_G = [[/玉ねぎ|たまねぎ/, { 個: 200 }], [/じゃがいも|じゃが芋/, { 個: 140 }], [/にんじん|人参/, { 本: 160 }], [/大根/, { 本: 1000, cm: 30 }], [/キャベツ/, { 個: 1000, 枚: 100 }], [/白菜/, { 株: 2000, 個: 2000, 枚: 100 }], [/白ネギ|白ねぎ|長ネギ|長ねぎ|^ねぎ/, { 本: 100 }],
+  [/なす/, { 本: 80 }], [/ミニトマト|プチトマト/, { 個: 15 }], [/トマト/, { 個: 150 }], [/きゅうり/, { 本: 100 }], [/ピーマン/, { 個: 30 }], [/さつまいも|さつま芋/, { 本: 300 }], [/かぼちゃ/, { 個: 1000 }], [/卵/, { 個: 50 }],
+  [/しめじ|まいたけ/, { パック: 100, 袋: 100 }], [/えのき/, { パック: 80, 袋: 80 }], [/エリンギ/, { 本: 50, パック: 100 }], [/しいたけ/, { 枚: 15, 個: 15 }],
+  [/豆腐/, { 丁: 300 }], [/油揚げ/, { 枚: 30 }], [/厚揚げ/, { 枚: 200 }], [/鮭|サケ|ぶり|ブリ|さば|サバ|鯖|たら|タラ|鱈/, { 切れ: 80 }], [/ブロッコリー/, { 株: 300 }], [/カリフラワー/, { 株: 400 }], [/チンゲン菜|ちんげんさい|青梗菜|チンゲンサイ/, { 株: 125, 袋: 250 }], [/れんこん/, { 節: 240 }], [/ごぼう/, { 本: 150 }], [/りんご/, { 個: 300 }],
+  [/バナナ/, { 本: 100 }], [/しょうが|生姜/, { かけ: 15 }], [/にんにく/, { かけ: 5 }], [/もやし/, { 袋: 210 }], [/小松菜/, { 束: 400, 袋: 200, 株: 40 }], [/ほうれん草/, { 束: 300, 袋: 200, 株: 30 }], [/春菊/, { 束: 200, 袋: 200 }], [/にら|ニラ/, { 束: 100, 袋: 100 }], [/水菜/, { 束: 200, 袋: 200 }],
+  [/レタス/, { 玉: 400, 個: 400, 枚: 20 }], [/セロリ/, { 本: 150 }], [/かぶ/, { 個: 70 }], [/里芋|さといも/, { 個: 60 }], [/アスパラ/, { 本: 25 }], [/オクラ/, { 本: 10 }], [/ゴーヤ/, { 本: 240 }], [/ズッキーニ/, { 本: 100 }],
+  [/納豆/, { パック: 45 }], [/鶏もも/, { 枚: 300 }], [/鶏むね|鶏胸/, { 枚: 250 }], [/ささ身|ささみ/, { 本: 50 }], [/こんにゃく/, { 枚: 260 }], [/しらたき/, { 玉: 200 }], [/ベーコン/, { 枚: 20 }], [/豆苗/, { 袋: 100 }]];
+// 大さじ・小さじ・カップに g / ml を添える（大さじ1=15ml・小さじ1=5ml・カップ1=200ml）
+// 重さは『女子栄養大学の毎日おかず』の「標準計量カップ・スプーンによる重量一覧（実測値）」: [見つけ方, 大さじ1のg, "ml"（水と同じ扱い）, カップ1のg]
+// 本の表: 水・酢・酒 15g/200g、しょうゆ・みりん・みそ 18g/230g、塩 18g/240g、あら塩 15g/180g、砂糖 9g/130g、小麦粉 9g/110g、かたくり粉 9g/130g、牛乳 15g/210g、
+//   ウスターソース 18g/240g、トマトケチャップ 15g/230g、マヨネーズ 12g/190g、粉チーズ 6g/90g、ごま 9g/120g、油 12g/180g、バター 12g/180g、米 カップ170g（1合150g）、
+//   参考値: オイスターソース 大さじ19g、豆板醤 大さじ20g、顆粒鶏がらだし 小さじ3g
 const SPOON_G = [
-  [/だし汁|スープ(?!の素)|水|湯|酒|酢|牛乳|豆乳|生クリーム|レモン汁|ポン酢|めんつゆ|白だし/, 15, "ml"],
-  [/醤油|しょうゆ|しょう油|みりん|味噌|みそ|オイスター|ウスター|中濃|とんかつソース|焼肉のたれ/, 18],
-  [/ごま油|オリーブ|サラダ油|油|ラード/, 12], [/バター|マーガリン/, 12], [/マヨ/, 12],
-  [/豆板醤|コチュジャン|甜麺醤|はちみつ|蜂蜜|ジャム/, 21],
-  [/粗塩|あら塩/, 15], [/塩/, 18], [/グラニュー/, 12], [/砂糖|三温糖|きび糖/, 9],
-  [/ケチャップ|ヨーグルト|マスタード|チューブ|おろし|からし|わさび/, 15],
-  [/ベーキングパウダー/, 12], [/すりごま|粉チーズ|カレー粉|こしょう|胡椒/, 6], [/片栗粉|小麦粉|薄力粉|強力粉|米粉|ごま|きなこ|ココア|顆粒|だしの素|ほんだし|鶏ガラ|コンソメ|中華だし|ガラスープ/, 9],
-  [/パン粉/, 3], [/わかめ|ひじき|青のり|あおさ|とろろ昆布/, 3], [/かつお節|鰹節|削り節/, 2]];
+  [/牛乳/, 15, "ml", 210],
+  [/だし汁|スープ(?!の素)|水|湯|酒|酢|豆乳|生クリーム|レモン汁|ポン酢|めんつゆ|白だし|ワイン/, 15, "ml", 200],
+  [/オイスター/, 19], [/ウスター|中濃|とんかつソース/, 18, "", 240],
+  [/醤油|しょうゆ|しょう油|みりん|味噌|みそ|焼肉のたれ|焼き肉のたれ/, 18, "", 230],
+  [/ごま油|オリーブ|サラダ油|油|ラード/, 12, "", 180], [/バター|マーガリン/, 12, "", 180], [/マヨ/, 12, "", 190],
+  [/豆板醤|コチュジャン|甜麺醤/, 20], [/はちみつ|蜂蜜|ジャム/, 21],
+  [/粗塩|あら塩/, 15, "", 180], [/塩/, 18, "", 240], [/グラニュー/, 12], [/砂糖|三温糖|きび糖|黒砂糖/, 9, "", 130],
+  [/ケチャップ/, 15, "", 230], [/ヨーグルト|マスタード|チューブ|おろし|からし|わさび/, 15],
+  [/ベーキングパウダー/, 12], [/粉チーズ|パルメザン/, 6, "", 90], [/すりごま|カレー粉|こしょう|胡椒|ペッパー/, 6],
+  [/片栗粉|かたくり粉/, 9, "", 130], [/小麦粉|薄力粉|強力粉/, 9, "", 110], [/ごま/, 9, "", 120],
+  [/米粉|きなこ|ココア|顆粒|だしの素|ほんだし|鶏ガラ|鶏がら|コンソメ|中華だし|ガラスープ/, 9],
+  [/パン粉/, 3], [/わかめ|ひじき|青のり|あおさ|とろろ昆布/, 3], [/かつお節|鰹節|削り節|削りガツオ/, 2]];
+const cupG = name => { const t = SPOON_G.find(([re]) => re.test(normName(name))); return t && t[3] ? t[3] : 200 * gPerMl(name); };
 const numOf = t => { const m = String(t).match(/(\d+)と(\d+)\/(\d+)|(\d+(?:\.\d+)?)(?:\/(\d+))?/); return !m ? null : m[1] ? +m[1] + m[2] / m[3] : m[5] ? m[4] / m[5] : +m[4]; };
 // 0.27 → "1/4"、1.3 → "1と1/4" のように、台所で使う分数にする
 function fracText(x) {
@@ -2008,21 +2134,29 @@ function fracText(x) {
 }
 // ===== 野菜は「分母を固定した数」で数える（大きい野菜は1/8、小ぶりな野菜・葉物は1/4）。グラムは出さない =====
 // 設定「野菜の単位」: {"食材名": {"u":"本","d":8}}（{"off":true} はグラムなどで数える）。無い物は下の決まりで決める
-// 野菜の一覧: [名前, 見つけ方, 単位, 分母, 買う単位（0は足りない分だけ）]。設定「野菜の単位」（🥕 野菜の単位の画面）で名前ごとに変えられる
-const VEG_LIST = [["大根", /大根/, "本", 8, 1], ["かぼちゃ", /かぼちゃ/, "個", 8, 1 / 4], ["キャベツ", /キャベツ/, "個", 8, 1], ["白菜", /白菜/, "個", 8, 1 / 2],
-  ["長ねぎ", /長ねぎ|白ねぎ|長ネギ|白ネギ/, "本", 4, 0], ["にんじん", /にんじん|人参/, "本", 4, 2], ["玉ねぎ", /玉ねぎ|たまねぎ/, "個", 4, 3], ["じゃがいも", /じゃがいも|メークイン|男爵/, "個", 4, 5],
-  ["さつまいも", /さつまいも/, "本", 4, 1], ["なす", /なす/, "本", 4, 3], ["きゅうり", /きゅうり/, "本", 4, 3], ["ちんげんさい", /ちんげんさい|チンゲン菜|チンゲンサイ|青梗菜/, "袋", 4, 1],
-  ["小松菜", /小松菜/, "袋", 4, 1], ["ほうれん草", /ほうれん草/, "袋", 4, 1], ["水菜", /水菜/, "袋", 4, 1], ["ごぼう", /ごぼう/, "本", 4, 1], ["れんこん", /れんこん/, "個", 4, 1],
-  ["ブロッコリー", /ブロッコリー/, "個", 4, 1], ["トマト", /^トマト$/, "個", 4, 0], ["ミニトマト", /ミニトマト/, "個", 4, 0], ["ピーマン", /ピーマン/, "個", 4, 5],
+// 野菜などの一覧: [名前, 見つけ方, 単位, 分母, 1週間の量（0は決まりなし）]
+// 単位と分母は『女子栄養大学の毎日おかず』の材料表に合わせた（本が正）。分母は、本に出てくる分け方（1/2・1/3・1/4・1/6 など）が全部表せる数にした。
+//   例: 大根は本に 1/3本・1/4本・1/6本 が出てくるので 1/12 ずつ（表示は約分して 1/6本 など）。本がいつも1個・1本で使う物（なす・じゃが芋）は分けない
+const VEG_LIST = [["大根", /大根/, "本", 12, 1], ["かぼちゃ", /かぼちゃ/, "個", 12, 1 / 4], ["キャベツ", /キャベツ/, "個", 8, 1], ["白菜", /白菜/, "株", 8, 1 / 2],
+  ["長ねぎ", /^(長)?ねぎ|^(長)?ネギ|白ねぎ|白ネギ/, "本", 4, 0], ["にんじん", /にんじん|人参/, "本", 12, 2], ["玉ねぎ", /玉ねぎ|たまねぎ/, "個", 4, 3], ["じゃがいも", /じゃがいも|じゃが芋|メークイン|男爵/, "個", 1, 5],
+  ["さつまいも", /さつまいも|さつま芋/, "本", 6, 1], ["なす", /^なす|^長なす|^米なす/, "本", 1, 3], ["きゅうり", /きゅうり/, "本", 2, 3], ["ちんげんさい", /ちんげんさい|チンゲン菜|チンゲンサイ|青梗菜/, "株", 1, 0],
+  ["小松菜", /小松菜/, "束", 4, 1], ["ほうれん草", /ほうれん草/, "束", 6, 1], ["水菜", /水菜/, "束", 2, 1], ["春菊", /春菊/, "束", 12, 1], ["にら", /^にら|^ニラ/, "束", 6, 1],
+  ["ごぼう", /ごぼう/, "本", 12, 1], ["れんこん", /れんこん/, "節", 12, 1], ["ブロッコリー", /ブロッコリー/, "株", 12, 1], ["カリフラワー", /カリフラワー/, "株", 4, 0],
+  ["ミニトマト", /ミニトマト|プチトマト/, "個", 1, 0], ["トマト", /^トマト$|^完熟トマト/, "個", 2, 0], ["ピーマン", /^ピーマン|^赤ピーマン/, "個", 4, 5],
+  ["レタス", /レタス/, "玉", 12, 0], ["セロリ", /セロリ/, "本", 12, 0], ["もやし", /もやし/, "袋", 4, 0],
+  ["しめじ", /しめじ/, "パック", 2, 0], ["えのきたけ", /えのき/, "パック", 2, 0], ["まいたけ", /まいたけ/, "パック", 2, 0], ["エリンギ", /エリンギ/, "本", 1, 0],
+  ["豆腐", /豆腐$/, "丁", 12, 0], ["かぶ", /^かぶ/, "個", 1, 0], ["里芋", /里芋|さといも/, "個", 1, 0], ["ゴーヤー", /ゴーヤ/, "本", 6, 0], ["ズッキーニ", /ズッキーニ/, "本", 2, 0],
   ["食パン", /食パン/, "個", 1, 6]];
 const VEG_DEF = VEG_LIST.map(x => [x[1], x[2], x[3]]);
 const vegMap = () => { try { return JSON.parse(SET("野菜の単位") || "{}") || {}; } catch (e) { return {}; } };
-const vegBase = n => { const L = VEG_LIST.find(x => x[1].test(n)); return L ? { name: L[0], u: L[2], d: L[3], pack: L[4] || 0 } : null; };
+const vegBase = n => { const n2 = normName(n), L = VEG_LIST.find(x => x[1].test(n) || x[1].test(n2)); return L ? { name: L[0], u: L[2], d: L[3], pack: L[4] || 0 } : null; };
 function vegOf(name) {
   const n = String(name || "").trim(); if (!n || isRice(n)) return null;
   const m = vegMap(), b = vegBase(n), hit = m[n] || m[normName(n)] || (b && m[b.name]);
-  if (hit) return hit.off ? null : { u: hit.u, d: +hit.d || 1, pack: hit.pack != null ? +hit.pack || 0 : b && b.u === hit.u ? b.pack : 0 };
-  return b ? { u: b.u, d: b.d, pack: b.pack } : null;
+  // 本に載っている食材は、本の単位・分母を使う（設定は「1週間の量」だけ見る）
+  if (b) return { u: b.u, d: b.d, pack: hit && hit.pack != null && !hit.off ? +hit.pack || 0 : b.pack };
+  if (hit) return hit.off ? null : { u: hit.u, d: +hit.d || 1, pack: +hit.pack || 0 };
+  return null;
 }
 // AIに伝える「買う単位」（例: 玉ねぎは3個、白菜は1/2個）
 const vegRows = () => { const m = vegMap(), names = VEG_LIST.map(x => x[0]); Object.keys(m).forEach(k => { if (!names.includes(k)) names.push(k); }); S.stock.forEach(x => { if (!vegBase(x.name) && vegOf(x.name) && !names.includes(x.name)) names.push(x.name); }); return names; };
@@ -2041,16 +2175,17 @@ function vegN(name, q, v) {
   const o = ps.find(p => w && w[1][p.u]); if (o && per) return o.n * w[1][o.u] / per;
   return null;
 }
-// いくつ → 「1と1/4個」「3/8本」（分母は約分しない。0より大きければ最低 1/分母）
+// いくつ → 「1と1/4個」「1/6本」（分母で丸めてから約分する。0より大きければ最低 1/分母）
+const gcdN = (a, b) => b ? gcdN(b, a % b) : a || 1;
 function vegFmt(n, v, min) {
   if (!(n > 1e-6)) return ""; const d = v.d || 1; let k = Math.round(n * d); if (k < 1 && min !== false) k = 1; if (k < 1) return "";
-  const w = Math.floor(k / d), f = k % d;
-  return w && f ? `${w}と${f}/${d}${v.u}` : w ? `${w}${v.u}` : `${f}/${d}${v.u}`;
+  const w = Math.floor(k / d), f0 = k % d, g = gcdN(f0, d), f = f0 / g, dd = d / g;
+  return w && f ? `${w}と${f}/${dd}${v.u}` : w ? `${w}${v.u}` : `${f}/${dd}${v.u}`;
 }
 const vegQ = (name, q) => { const v = vegOf(name), n = v ? vegN(name, q, v) : null; return n == null ? q : (vegFmt(n, v) || "なし"); };
 function withGram(name, amt) {
   const a = String(amt || ""); if (!a) return a;
-  { const v = vegOf(name), n = v ? vegN(name, a, v) : null; if (n != null && n > 0) return vegFmt(n, v); }
+  { const v = vegOf(name); if (v && pqAll(a).some(p => p.u === v.u)) return a.replace(/[（(][^）)]*g[）)]/, "").trim(); const n = v ? vegN(name, a, v) : null; if (n != null && n > 0) return vegFmt(n, v); }
   const nm = normName(name), gr = x => x < 10 ? Math.round(x * 2) / 2 : Math.round(x);
   // g だけの野菜などは「約1/4本」のように、本・個の目安も添える
   if (/\d\s*(g|kg|ｇ)(?![a-z])/.test(a)) {
@@ -2065,7 +2200,7 @@ function withGram(name, amt) {
   const sp = a.match(/(大さじ|小さじ|カップ)\s*(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)/);
   if (sp) {
     const v = numOf(sp[2]); if (!v) return a;
-    if (sp[1] === "カップ") return `${a}（約${Math.round(v * 200)}ml・${gr(v * 200 * gPerMl(name))}g）`;
+    if (sp[1] === "カップ") return `${a}（約${Math.round(v * 200)}ml・${gr(v * cupG(name))}g）`;
     const t = SPOON_G.find(([re]) => re.test(nm)), per = sp[1] === "小さじ" ? 1 / 3 : 1;
     if (!t || t[2]) return `${a}（約${gr(v * 15 * per)}ml・${gr(v * 15 * per * gPerMl(name))}g）`;
     const x = v * t[1] * per; return `${a}（約${x < 10 ? Math.round(x * 2) / 2 : Math.round(x)}${t[2] || "g"}）`;
@@ -2573,9 +2708,40 @@ ${dailyItems().length ? `- いつもの飲み物（献立とは別に毎日飲�
 ${S.stock.filter(hasQty).map(s => `- ${s.name}: ${s.qty}${s.exp ? `（期限 ${s.exp}）` : ""}`).join("\n")}
 ■器具
 ${eqText()}
-■これまでのレシピ（同じ料理を使うときは recipe_id を書く）
-${S.recipes.slice(-70).map(r => `- id=${r.id}｜${r.title}（${r.servings}人分・日持ち${r.keepDays || "?"}日）`).join("\n")}
+${pickOnly() ? catalogText() : `■これまでのレシピ（同じ料理を使うときは recipe_id を書く）
+${S.recipes.slice(-70).map(r => `- id=${r.id}｜${r.title}（${r.servings}人分・日持ち${r.keepDays || "?"}日）`).join("\n")}`}
 ${rateText()}`;
+}
+// AIは「レシピ帳から選ぶだけ」（設定「AIの役割」が「考える」でなく、本などのレシピが入っているとき）
+const pickOnly = () => SET("AIの役割") !== "考える" && (S.recipes || []).some(r => bookOf(r));
+// レシピ帳の一覧（AIに渡す）: 料理ごとに id・種類・人数・1人分kcal・主な材料と量
+function catalogText() {
+  const Rt = rates(), list = recipeBook().filter(r => Rt[r.id] !== "bad" && ingsOf(r).length);
+  [RICE_AM, RICE_LD].forEach(id => { const r = recipeOf(id); if (r && !list.includes(r)) list.push(r); });
+  const main = r => ingsOf(r).filter(i => !SEAS_RE.test(normName(i.name)) && !/^(水|湯)$/.test(normName(i.name))).slice(0, 6).map(i => `${normName(i.name)}${i.amount}`).join("・");
+  const subs = Object.entries(ING_SUB).map(([k]) => { const o = subOf(k); return o ? `${k}→${o.use}${o.amount && o.amount !== "同量" ? `（${o.amount}）` : ""}` : ""; }).filter(Boolean);
+  return `■レシピ帳（献立は必ずこの中から選ぶ。新しい料理は作らない）
+- 料理は必ず下の一覧から選び、meals に recipe_id を書く。recipe は書かない（材料・手順・栄養はレシピ帳のものを使う）。
+- dish はレシピ帳の料理名をそのまま書く（料理名を短くする決まりより優先）。量は people（食べる人数）で調整される。作り置きの分は、作り置きを食べる枠を leftover:true で入れれば足される。
+- 一覧に合う料理が無い枠は、その枠を空けずに、いちばん近い料理を選ぶ（主菜なら主菜）。行事の日も、一覧の中から行事に合いそうな料理を選ぶ。
+- 「本」は料理本のレシピ。なるべく本のレシピを使い、朝の手軽な物などは「家」のレシピも使ってよい。
+- 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
+- 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}｜${main(r)}`; }).join("\n")}`;
+}
+// AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
+function pickFix(meals) {
+  const byTitle = new Map(); (S.recipes || []).forEach(r => { if (r && r.title && (!byTitle.has(r.title) || bookOf(r))) byTitle.set(r.title, r); });
+  const bad = [], out = [];
+  meals.forEach(m => {
+    if (m.leftover) { out.push(m); return; }
+    let r = m.recipe_id && recipeOf(m.recipe_id);
+    if (!r) r = byTitle.get(m.dish) || (m.recipe && byTitle.get(m.recipe.title)) || (/^白ごはん|^ごはん$|^ご飯$/.test(m.dish) ? recipeOf(m.meal === "朝" ? RICE_AM : RICE_LD) : null);
+    if (!r) { bad.push(m.dish); return; }
+    const { recipe, ...o } = m; out.push({ ...o, recipe_id: r.id });
+  });
+  const badSet = new Set(bad);
+  return { bad, meals: out.filter(m => !(m.leftover && badSet.has(m.dish))) };
 }
 // 料理の評価（食べたあとに付ける）: 設定「レシピ評価」に {レシピid: "good"|"ok"|"bad"} で保存
 const rates = () => { try { return JSON.parse(SET("レシピ評価") || "{}") || {}; } catch (e) { return {}; } };
@@ -2870,10 +3036,18 @@ async function applyAi(res, meta, prompt, id) {
   const c = meta.ctx || {}; if (!S.slotSel && c.slotSel) S.slotSel = c.slotSel; if (!S.rbWish) S.rbWish = c.rbWish || ""; if (!S.dealText) S.dealText = c.dealText || "";
   // 週の献立: 選んだ枠（外食・なしを除く）以外に入れてきた料理は捨てる
   const okKeys = meta.mode === "week" && meta.slotKeys && meta.slotKeys.length ? new Set(meta.slotKeys) : null, okDays = okKeys ? new Set([...okKeys].map(k => k.slice(0, 10))) : null;
-  const meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; return { ...m, meal, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : (+m.people || 2) }; });
+  let meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; return { ...m, meal, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : (+m.people || 2) }; });
   const shop = (Array.isArray(res.shopping) ? res.shopping : []).filter(x => x && x.name).map(x => ({ name: String(x.name), amount: String(x.amount || ""), reason: String(x.reason || ""), mark: "" }));
   const { ctx, prompt: _p, ...m0 } = meta;
+  // AIは選ぶだけ: レシピ帳に無い料理を作ってきたら、1回だけ選び直してもらう（それでも残る料理は外す）
+  let pickDrop = [];
+  if (pickOnly()) {
+    const fx = pickFix(meals);
+    if (fx.bad.length && !meta.retried) { await askAi(prompt + `\n【前の案の問題】次の料理はレシピ帳に無い: ${fx.bad.join("、")}。必ずレシピ帳の一覧から選び、recipe_id を書く（新しい料理を作らない）。`, { ...m0, retried: true }); return; }
+    meals = fx.meals; pickDrop = fx.bad;
+  }
   S.draft = { ...m0, ctx0: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
+  if (pickDrop.length) S.draft.note = (S.draft.note || "") + `（レシピ帳に無い料理だったので外しました: ${pickDrop.join("、")}）`;
   absorbRest(S.draft); S.draft.absorbed = true;
   // 「在庫だけで」なのに買い物が出た／「使い切る」と選んだ食材がまだ残る → 問題を伝えて1回だけ考え直す
   if (!meta.retried) {
@@ -3226,7 +3400,7 @@ function drawDraft() {
     ${D.stockOnly && items.some(i => !(D.buyOnly || []).some(n => normName(n) === normName(i.name))) ? `<div class="msg">在庫だけで考え直しましたが、まだ買い物が必要な材料があります（下の買い物リスト）。</div>` : ""}
     ${D.mode === "fix" && draftLacks(D).length ? `<div class="msg">この案でも足りない材料があります: ${esc(draftLacks(D).join("、"))}。買い足してください。</div>` : ""}
     <section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3>${items.length ? `<small>カゴ ${inCart}/${items.length}</small>` : ""}</div>
-      ${items.length ? `<p class="note">カゴに入れたら ✓。買わない物は NG。名前をタップすると、その食材の単位と1週間の量を直せます（直したら ✓ を付けずに下のボタンで考え直し）。量がリストと違うときは「買った量」へ。</p>
+      ${items.length ? `<p class="note">カゴに入れたら ✓。買わない物は NG。量がリストと違うときは「買った量」へ。</p>
       <ul class="list cart buy">${items.map((i, n) => { const c = cart[i.name], g = got(i), ah = n === 0 || aisleOf(items[n - 1].name) !== aisleOf(i.name) ? `<li class="aisle">${AISLES[aisleOf(i.name)]}</li>` : ""; return ah + `<li class="${g ? "incart" : isNg(i) ? "ngrow" : ""}"><button class="ckb" data-c="${n}" aria-label="カゴに入れた"><span class="ck">${g ? "✓" : ""}</span></button><button class="ngb${isNg(i) ? " on" : ""}" data-ng="${n}">NG</button><button class="cartbtn" data-un="${n}"><span class="nm">${esc(i.name)}<small>${esc([...new Set(i.when)].join("・"))}${i.rest ? `・${esc(i.rest)}余る` : ""}</small></span><b>${esc(buyText(i))}</b></button><input class="bq" data-bq="${n}" value="${typeof c === "string" && c !== "later" && c !== "ng" ? esc(c) : ""}" placeholder="買った量" autocomplete="off"></li>`; }).join("")}</ul>` : `<p class="note">買う物はありません</p>`}
       ${pend ? `<p class="note red">下の「栄養のための買い足しの提案」で、買える／買えないを選んでください</p>`
         : ngProp ? `<button class="btn alt wide" id="dfNg">買えない物を除いて、献立を考え直す</button>`
@@ -3281,7 +3455,6 @@ function drawDraft() {
   // 買った量: 数字だけなら、リストの単位を付ける（2 → 2本）。0 は「買わなかった」= NG
   $("app").querySelectorAll("[data-bq]").forEach(el => el.onchange = () => { const i = items[+el.dataset.bq], v = el.value.trim().normalize("NFKC"); if (v && numOf(v) === 0 && /^[\d.\/\s]+$/.test(v)) cart[i.name] = "ng"; else if (v) cart[i.name] = withUnit(i, v); else if (cart[i.name]) cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-ng]").forEach(b => b.onclick = () => { const i = items[+b.dataset.ng]; if (isNg(i)) delete cart[i.name]; else cart[i.name] = "ng"; lsSet(cartKey, cart); drawDraft(); });
-  $("app").querySelectorAll("[data-un]").forEach(b => b.onclick = () => openUnitSet(items[+b.dataset.un].name, () => { closeSheet(); drawDraft(); }));
   $("app").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { const i = items[+b.dataset.c]; if (got(i)) delete cart[i.name]; else cart[i.name] = true; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-cl]").forEach(b => b.onclick = () => { const i = items[+b.dataset.cl]; if (isLater(i)) delete cart[i.name]; else cart[i.name] = "later"; lsSet(cartKey, cart); drawDraft(); });
   $("app").querySelectorAll("[data-cq]").forEach(b => b.onclick = () => { const i = items[+b.dataset.cq], v = prompt(`${i.name} の買った量`, cart[i.name] === true ? buyText(i) : cart[i.name]); if (v == null) return; cart[i.name] = v.trim() || true; lsSet(cartKey, cart); drawDraft(); });
