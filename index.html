@@ -277,9 +277,16 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .cgrp.now { border-color: var(--accent); }
 .cih { font-size: .76rem; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
 .cgrp ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px 12px; }
-.cgrp li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px; padding: 1px 4px; border-radius: 6px; cursor: pointer; }
-.cgrp li span { flex: 1 1 5em; min-width: 0; overflow-wrap: anywhere; }
-.cgrp li b { margin-left: auto; text-align: right; overflow-wrap: anywhere; }
+.cgrp li { display: grid; gap: 0; padding: 2px 5px; border-radius: 6px; cursor: pointer; line-height: 1.3; }
+.cgrp li .ci1 { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+.cgrp li .cin { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.cgrp li .cin i { font-style: normal; font-size: .68rem; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
+.cgrp li b { flex: none; text-align: right; white-space: nowrap; }
+.cgrp li b small { display: block; font-size: .66rem; font-weight: 400; color: var(--muted); line-height: 1.1; }
+.cgrp li .ci2 { font-size: .68rem; color: var(--muted); line-height: 1.25; }
+.cgrp li .ci2.sb { color: var(--accent); font-weight: 700; }
+.cgrp li.skip { opacity: .45; }
+.cgrp li.skip .cin { text-decoration: line-through; }
 .cgrp li.hit { background: var(--butter); color: var(--butter-ink); font-weight: 700; }
 .cprog { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .cprog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
@@ -324,6 +331,15 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .ctbar { display: flex; align-items: center; gap: 5px; background: var(--surface); border: 2px solid var(--accent); border-radius: 18px; padding: 5px 7px 5px 10px; min-width: 0; }
 .ctbar .tbox { flex: 1; min-width: 0; display: grid; }
 .ctbar.done { border-color: var(--alert); animation: blink 1s infinite; }
+.ctbar { flex-wrap: wrap; }
+.ctbar .calms { order: -1; flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+.ctbar .calms[hidden] { display: none; }
+.ctbar .calms .alm { padding: 4px 8px; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.ctbar .calms .alm.ring { background: var(--alert); border-color: var(--alert); color: #fff; animation: blink 1s infinite; }
+.ctbar.ring { border-color: var(--alert); }
+.calm .alp { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.calm .alin { align-items: center; gap: 4px; flex-wrap: nowrap; }
+.calm .alin input { width: 4.2em; }
 .ctbar .tv { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .ctbar .tl { min-width: 0; font-size: .66rem; color: var(--muted); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ctbar .chip, .ctbar a.chip { flex: none; padding: 7px 8px; font-weight: 700; text-decoration: none; color: var(--ink); white-space: nowrap; }
@@ -2278,6 +2294,12 @@ const TIME_GUESS = [[/溶き入れ|回し入れ|絡め|からめ|和え/, "30秒
 const stepTxt = s => s.part || stepsOf(s.c.r)[s.i] || "";
 // 本の作り方の「①の鶏肉」の①は手順の番号。アプリでは「手順1の鶏肉」と書く
 const stepNo = t => String(t).replace(/[①-⑳]/g, m => `手順${m.charCodeAt(0) - 0x245F}`);
+// 調理モードの材料の量: 「大さじ1/2（約7.5ml・7.5g）」→ 大きく「大さじ1/2」、小さく「7.5g」
+function cookAmt(a) {
+  a = String(a || ""); const m = a.match(/^(.*?)\s*[（(]([^（）()]*)[）)]\s*$/); if (!m || !m[1]) return { main: a, sub: "" };
+  const parts = m[2].replace(/^約/, "").split("・"), g = parts.find(x => /\dg$/.test(x)) || parts[0];
+  return { main: m[1], sub: (/^約|^\d/.test(m[2]) && !/^約/.test(g) && /\d/.test(g) ? "約" : "") + g };
+}
 function stepHtml(c, i, part) {
   let t = esc(stepNo(scaleSteps(splitTool(part || stepsOf(c.r)[i]).text, c.k))).replace(QTY_RE, m0 => `<mark>${m0}</mark>`);
   return t;
@@ -2413,7 +2435,7 @@ function bookPlan(cooks) {
   // 「●…」「※…」はコツの説明なので手順にしない。省く材料だけの手順（盛り付けは除く）も出さない
   const skipStep = (c, i) => { const t = splitTool(stepsOf(c.r)[i]).text; if (/^[●※]/.test(t)) return true; if (/盛/.test(t)) return false; const used = ingsOf(c.r).filter(g => ingHit(ingBase(c.r, g.name), t)); return used.length > 0 && used.every(g => ingState(g.name, g.amount, c.k).st === "skip"); };
   const noteOf = (c, i, part) => { const t = splitTool(part || stepsOf(c.r)[i]).text, out = [];
-    ingsOf(c.r).forEach(g => { const b = ingBase(c.r, g.name); if (!ingHit(b, t)) return; const x = ingState(g.name, g.amount, c.k); if (x.st === "skip") out.push(`${b}は無いので省く`); else if (x.st === "sub") out.push(`${b}の代わりに${x.sub.use.split("・")[0]}${x.sub.amount ? `（${x.sub.amount}）` : ""}`); });
+    const hs = hitNames(c, t, i); ingsOf(c.r).forEach(g => { const b = ingBase(c.r, g.name); if (!hs.has(g.name)) return; const x = ingState(g.name, g.amount, c.k); if (x.st === "skip") out.push(`${b}は無いので省く`); else if (x.st === "sub") out.push(`${b}の代わりに${x.sub.use.split("・")[0]}${x.sub.amount ? `（${x.sub.amount}）` : ""}`); });
     return [...new Set(out)].join("。"); };
   const pushAt = (c, i, part, extra) => { const txt = part || stepsOf(c.r)[i], mixHere = mixes.filter(m => m.rid === c.r.id && (m.words || [m.word]).some(w => mentions(txt, w))).map(m => m.id);
     order.push({ recipe_id: c.r.id, step: i + 1, part: part || "", note: [noteOf(c, i, part), extra].filter(Boolean).join("。"), scene: null, mix: mixHere }); };
@@ -2463,23 +2485,24 @@ async function startCook(cooks, d, m) {
   run("setCooking", true).catch(() => {});   // 調理中は、段取りの先作りでAIをふさがない
   CK = { cooks, d, m, steps: [], idx: 0, sw: { acc: 0, start: 0, goal: 0, from: -1, rung: false }, tick: null, colors: dishColors(cooks, null), peek: false, phase: "prep" };
   ov.className = "cook prep" + (cooks.length > 1 ? " multi" : "");
-  ov.innerHTML = `<div class="chead"><b>${esc(cooks.map(c => c.r.title).join("・"))}</b>${cooks.some(c => bookPageOf(c.r.id)) ? `<button class="btn alt" id="cBookB">📖 本</button>` : ""}<button class="btn alt" id="cAskB">💬 質問</button><button class="btn ghost" id="cEnd">終了</button></div>
+  ov.innerHTML = `<div class="chead"><b>${esc(cooks.map(c => c.r.title).join("・"))}</b>${cooks.some(c => bookPageOf(c.r.id)) ? `<button class="btn alt" id="cBookB">📖 本</button>` : ""}<button class="btn ghost" id="cEnd">終了</button></div>
     <div class="cprog"><i id="cProg"></i></div>
     <div class="cings" id="cIngs"></div><div class="cstep" id="cStep"></div>
-    <div class="ctbar" id="cTbar"><span class="tbox"><span class="tv" id="tV">0:00</span><span class="tl" id="tL"></span></span><button class="chip" id="tGo">▶ スタート</button><button class="chip" id="tRe">リセット</button><a class="chip" id="tApp" target="_top" href="#" aria-label="iPhoneの時計のタイマー">⏰</a></div>
-    <p class="note chint">◀ 左半分をタップで戻る　右半分をタップで次へ ▶</p><div class="cpeek" id="cPeek" hidden></div><div class="cpeek cask" id="cAsk" hidden></div>`;
+    <div class="ctbar" id="cTbar"><span class="tbox"><span class="tv" id="tV">0:00</span><span class="tl" id="tL"></span></span><button class="chip" id="tGo">▶ スタート</button><button class="chip" id="tRe">リセット</button><button class="chip" id="tAlm" aria-label="タイマー">⏰</button><div class="calms" id="cAlms"></div></div>
+    <p class="note chint">◀ 左半分をタップで戻る　右半分をタップで次へ ▶</p><div class="cpeek" id="cPeek" hidden></div><div class="cpeek cask" id="cAsk" hidden></div><div class="cpeek calm" id="cAlm" hidden></div>`;
   ov.hidden = false;
   $("tGo").onclick = e => { e.stopPropagation(); timerGo(); };
   $("tRe").onclick = e => { e.stopPropagation(); timerReset(); };
-  $("tApp").onclick = e => e.stopPropagation();
+  $("tAlm").onclick = e => { e.stopPropagation(); openAlarm(); };
+  $("cAlm").onclick = e => e.stopPropagation();
   $("cEnd").onclick = e => { e.stopPropagation(); endCook(); };
-  $("cAskB").onclick = e => { e.stopPropagation(); openAsk(); };
   // 本のページ: 今の手順の料理を先に出す
   if ($("cBookB")) $("cBookB").onclick = e => { e.stopPropagation(); const s = CK.phase === "cook" && CK.steps[Math.min(CK.idx, CK.steps.length - 1)], ids = CK.cooks.map(c => c.r.id); if (s) ids.sort((a, b) => (b === s.c.r.id) - (a === s.c.r.id)); showBookPage(ids); };
   $("cAsk").onclick = e => e.stopPropagation();
   ov.onclick = e => {
     if (!CK) return;
-    if (e.target.closest(".cask")) return;
+    if (e.target.closest(".cask, .calm, .calms")) return;
+    if (!$("cAlm").hidden) { $("cAlm").hidden = true; return; }
     if (!$("cAsk").hidden) { $("cAsk").hidden = true; return; }
     const ing = e.target.closest("[data-ing]"); if (ing) { openPeek(ing.dataset.ing); return; }
     if (!$("cPeek").hidden) { $("cPeek").hidden = true; return; }
@@ -2607,7 +2630,30 @@ function drawPrep() {
   $("ppGo").onclick = e => { e.stopPropagation(); go(!done); };
   const sk = $("ppSkip"); if (sk) sk.onclick = e => { e.stopPropagation(); go(false); };
 }
-function ingHit(name, stepTxt) { const n = normName(name); return !!(stepTxt && n && (stepTxt.includes(n) || (n.length > 3 && stepTxt.includes(n.slice(0, 4))))); }
+// 手順の文で使う材料（本の分け方つき）。同じ名前が分け方ちがいで2つあるとき（下味の酒と炒める酒など）は、
+// 分け方の名前（a・b・下味…）が文に出ている物、または分け方の中の他の材料が文に出ている物だけにする
+function hitNames(c, text, si) {
+  const ings = ingsOf(c.r), out = new Set(); if (!text) return out;
+  const base = g => ingBase(c.r, g.name), tag = g => ingTag(c.r, g.name), key = g => normName(base(g));
+  const cnt = {}; ings.forEach(g => { cnt[key(g)] = (cnt[key(g)] || 0) + 1; });
+  // 「ごま油」の中の「油」のように、ほかの材料名の一部だけに当たるときは数えない
+  const hit = (g, t) => { const b = base(g); let x = t; ings.forEach(h => { const hb = base(h); if (hb !== b && hb.includes(b)) x = x.split(hb).join("　"); }); return ingHit(b, x); };
+  const act = t => { const w = new Set(), m = new Set(); ings.forEach(g => { const tg = tag(g); if (!tg) return; if (tg.split("・").some(x => mentions(t, x))) w.add(tg); else if (cnt[key(g)] === 1 && hit(g, t)) m.add(tg); }); return { w, m }; };
+  // 分け方を最初に使う手順（下ごしらえの手順）だけは、名前が出てくる仲間の材料も光らせる（「白菜は…塩をふってもみ」の塩）
+  const first = {}; stepsOf(c.r).forEach((t0, i) => { const t = splitTool(t0).text, x = act(t); [...x.w, ...x.m].forEach(tg => { if (!(tg in first)) first[tg] = i; }); });
+  const { w, m } = act(text);
+  ings.forEach(g => { const tg = tag(g);
+    if (tg) { if (w.has(tg) || (m.has(tg) && hit(g, text) && (cnt[key(g)] === 1 || first[tg] === si))) out.add(g.name); }
+    else if (hit(g, text)) out.add(g.name);   // 分け方の無い材料は名前で（「酒、白菜、bを加え」の酒は、下味の酒ではなくこちら）
+  });
+  return out;
+}
+function ingHit(name, stepTxt) {
+  if (!stepTxt) return false; const raw = String(name).replace(/[（(][^（）()]*[）)]/g, "").trim(), n = normName(name);
+  // 本の書き方（鶏もも肉 → 手順では「鶏肉」、豚こま切れ肉 →「豚肉」）も拾う
+  const short = raw.replace(/(もも|むね|胸|こま切れ|こま|切り落とし|薄切り|ロース|バラ|肩)/g, "");
+  return [raw, n, short].some(x => x && (stepTxt.includes(x) || (x.length > 3 && stepTxt.includes(x.slice(0, 4)))));
+}
 function drawCook() {
   const ov = $("cook"), n = CK.steps.length, multi = CK.cooks.length > 1;
   $("cProg").style.width = `${Math.min(CK.idx, n) / n * 100}%`;
@@ -2621,8 +2667,10 @@ function drawCook() {
 
   ov.style.background = multi ? tintOf(CK.colors[ci]) : ""; ov.style.setProperty("--halo", multi ? tintOf(CK.colors[ci]) : "var(--bg)");
   // 上: 材料（今の手順に出てくる材料は強調）。まとめて作るときは料理ごとに色分け
-  $("cIngs").innerHTML = CK.cooks.map((c, j) => `<div class="cgrp${multi && j === ci ? " now" : ""}" style="${multi ? `background:${tintOf(CK.colors[j])}` : ""}"><div class="cih">${multi ? `${j + 1}品目 ` : ""}${esc(c.r.title)}（${c.total}人分）</div><ul>${ingsOf(c.r).map(g => { const b = ingBase(c.r, g.name), tg = ingTag(c.r, g.name), x = ingState(g.name, g.amount, c.k), lb = ingLabel(g.name, g.amount, c.k);
-      return `<li class="${j === ci && ingHit(b, st.text) ? "hit" : ""}" data-ing="${esc(g.name)}"${x.st === "skip" ? ` style="opacity:.45"` : ""}><span>${esc(b)}${tg ? ` <small>［${esc(tg)}］</small>` : ""}${lb ? ` <small>${x.st === "sub" ? "🔄 " : ""}${esc(lb)}</small>` : ""}</span><b>${x.st === "skip" ? "—" : esc(withGram(g.name, scaleAmount(g.amount, c.k * kOf(g.name))) + lessTag(g.name))}</b></li>`; }).join("")}</ul></div>`).join("");
+  const hits = hitNames(s.c, st.text, s.i);
+  $("cIngs").innerHTML = CK.cooks.map((c, j) => `<div class="cgrp${multi && j === ci ? " now" : ""}" style="${multi ? `background:${tintOf(CK.colors[j])}` : ""}"><div class="cih">${multi ? `${j + 1}品目 ` : ""}${esc(c.r.title)}（${c.total}人分）</div><ul>${ingsOf(c.r).map(g => { const b = ingBase(c.r, g.name), tg = ingTag(c.r, g.name), x = ingState(g.name, g.amount, c.k), am = cookAmt(withGram(g.name, scaleAmount(g.amount, c.k * kOf(g.name))));
+      const sub = x.st === "sub" ? `→ ${x.sub.use.split("・")[0]}${x.sub.amount && !/^同量$/.test(x.sub.amount) ? `（${x.sub.amount}）` : ""}` : x.st === "none" ? "在庫なし" : "";
+      return `<li class="${x.st === "skip" ? "skip" : j === ci && hits.has(g.name) ? "hit" : ""}" data-ing="${esc(g.name)}"><span class="ci1"><span class="cin">${esc(b)}${tg ? `<i>${esc(tagWord(tg))}</i>` : ""}</span><b>${x.st === "skip" ? "使わない" : esc(am.main)}${am.sub && x.st !== "skip" ? `<small>${esc(am.sub)}</small>` : ""}</b></span>${sub ? `<span class="ci2${x.st === "sub" ? " sb" : ""}">${esc(sub)}</span>` : ""}${lessTag(g.name) ? `<span class="ci2">${esc(lessTag(g.name))}</span>` : ""}</li>`; }).join("")}</ul></div>`).join("");
   const now = $("cIngs").querySelector(".cgrp.now") || $("cIngs").querySelector("li.hit"); if (now) now.scrollIntoView({ block: "nearest" });
   $("cStep").innerHTML = `${multi ? `<div class="cdish" style="background:${tintOf(CK.colors[ci])}">${ci + 1}品目 ${esc(s.c.r.title)}</div>` : ""}
     <div class="cno">手順 ${s.i + 1} / ${stepsOf(s.c.r).length}${multi ? `<small class="note">（全体 ${CK.idx + 1} / ${n}）</small>` : ""}</div>
@@ -2650,6 +2698,38 @@ function timerGo() {
   }, 250);
   paintTimers();
 }
+// ===== アプリ内のタイマー（アラーム）: 時間を決めて開始 → 0になったら止めるまで鳴らす。いくつでも同時に動かせる =====
+function openAlarm() {
+  const sec = stepSec(CK.idx), s = CK.steps[Math.min(CK.idx, CK.steps.length - 1)], lbl = s ? `${CK.cooks.length > 1 ? `${CK.cooks.indexOf(s.c) + 1}品目 ` : ""}手順${s.i + 1}` : "タイマー";
+  const v = $("cAlm");
+  v.innerHTML = `<div class="secthead"><b>⏰ タイマー</b><button class="chip" id="alX">閉じる</button></div>
+    ${sec ? `<button class="btn wide" data-al="${sec}">この手順の目安 ${fmtSec(sec)} で開始</button>` : ""}
+    <div class="alp">${[1, 3, 5, 8, 10, 15, 20, 30].map(m => `<button class="chip" data-al="${m * 60}">${m}分</button>`).join("")}</div>
+    <div class="row alin"><input id="alM" type="number" inputmode="numeric" min="0" placeholder="分"><span>分</span><input id="alS" type="number" inputmode="numeric" min="0" max="59" placeholder="秒"><span>秒</span><button class="btn" id="alGo">開始</button></div>
+    <p class="note">名前: <input id="alL" value="${esc(lbl)}" style="width:10em"></p>`;
+  v.hidden = false;
+  const go = n => { if (!(n > 0)) return; addAlarm(n, $("alL").value.trim() || lbl); v.hidden = true; };
+  v.querySelectorAll("[data-al]").forEach(b => b.onclick = e => { e.stopPropagation(); go(+b.dataset.al); });
+  $("alGo").onclick = e => { e.stopPropagation(); go((+$("alM").value || 0) * 60 + (+$("alS").value || 0)); };
+  $("alX").onclick = e => { e.stopPropagation(); v.hidden = true; };
+}
+function addAlarm(sec, label) {
+  const al = CK.alarms || (CK.alarms = []); al.push({ id: Date.now() + Math.random(), label, end: Date.now() + sec * 1000, rung: false });
+  chime();   // 音を出せるようにしておく（iPhoneはタップのときに音を許可する）
+  if (!CK.atick) CK.atick = setInterval(() => {
+    if (!CK) return; const now = Date.now();
+    (CK.alarms || []).forEach(a => { if (!a.rung && now >= a.end) { a.rung = true; a.last = 0; } if (a.rung && now - (a.last || 0) > 3000) { a.last = now; beep(); } });
+    if (!(CK.alarms || []).length) { clearInterval(CK.atick); CK.atick = null; }
+    paintAlarms();
+  }, 500);
+  paintAlarms();
+}
+function paintAlarms() {
+  const box = $("cAlms"); if (!box || !CK) return; const now = Date.now(), al = CK.alarms || [];
+  box.innerHTML = al.map(a => `<button class="chip alm${a.rung ? " ring" : ""}" data-alid="${a.id}">${a.rung ? "🔔 止める" : "⏰"} ${esc(a.label)} ${a.rung ? "" : fmtSec(Math.max(0, Math.ceil((a.end - now) / 1000)))}${a.rung ? "" : " ✕"}</button>`).join("");
+  box.hidden = !al.length; $("cTbar").classList.toggle("ring", al.some(a => a.rung));
+  box.querySelectorAll("[data-alid]").forEach(b => b.onclick = e => { e.stopPropagation(); CK.alarms = (CK.alarms || []).filter(a => String(a.id) !== b.dataset.alid); paintAlarms(); });
+}
 function timerReset() { Object.assign(CK.sw, { acc: 0, start: 0, goal: 0, from: -1, rung: false }); paintTimers(); }
 function paintTimers() {
   if (!CK || !$("cTbar")) return;
@@ -2657,7 +2737,7 @@ function paintTimers() {
   $("tV").textContent = fmtSec(el);
   $("cTbar").classList.toggle("done", !!(w.rung && w.start));
   $("tGo").textContent = w.start ? "⏸ ストップ" : "▶ スタート"; $("tGo").classList.toggle("run", !!w.start);
-  $("tApp").href = "shortcuts:" + "\/\/run-shortcut?name=" + encodeURIComponent("調理タイマー") + "&input=text&text=" + (sec || w.goal || 60);   // 「//」をそのまま書くと、配信時に注釈とみなされて壊れるため
+  paintAlarms();
   $("tL").textContent = idle ? (sec ? `この手順の目安 ${fmtSec(sec)}` : "") : w.rung ? `目安の${fmtSec(w.goal)}を過ぎました` : w.goal ? `目安 ${fmtSec(w.goal)}${from && w.from !== CK.idx ? `（${from.c.r.title.slice(0, 5)}・手順${from.i + 1}）` : ""}` : w.start ? "計測中" : "ストップ中";
 }
 
@@ -2672,7 +2752,11 @@ function guessScene(s) {
   const raw = stepTxt(s), st = splitTool(raw), t = st.text + " " + st.tool + " " + (s.detail || ""), pan = panOf(st.tool) || (/(炒め|焼|煮|ゆで|茹で|沸か|熱し)/.test(st.text) ? panOf(st.text) : "");
   return { board: /(切|刻|みじん|むく|むき|皮|まな板|包丁|ほぐ)/.test(st.text + st.tool), sink: /(洗|水にさら|水気を切|ゆでこぼ|ザル|ざる|水で戻)/.test(st.text), mw: /(レンジ|\d+W)/.test(t), fire: pan ? [{ burner: DEF_BURNER[pan], pan: PAN_NAME[pan], now: true }] : [], trays: [] };
 }
-function sceneAt(i) { const s = CK.steps[i]; if (s.scene) return s.scene; const g = { ...guessScene(s), mix: s.mix || [] }; if (CK.fires) g.fire = CK.fires[i] || []; return g; }
+function sceneAt(i) { const s = CK.steps[i]; if (s.scene) return s.scene; const g = { ...guessScene(s), mix: s.mix || [] }; if (CK.fires) { g.fire = CK.fires[i] || [];
+  // 本のレシピ: 手順で使う材料を置いたバット・ボウル・小鉢も光らせる
+  const hs = hitNames(s.c, splitTool(stepTxt(s)).text, s.i), tr = new Set(); hs.forEach(n => { const pl = placeOf(n, s.c.r.id); if (pl && /^(\d|[sb]\d)$/i.test(pl.to)) tr.add(pl.to); });
+  g.trays = [...tr].map(no => ({ no })); }
+  return g; }
 // 本のレシピ（AIを使わない）: 料理ごとに使う鍋・フライパンを器具一覧から選び、コンロの口に置く
 // 加熱する手順の文から鍋かフライパンかを決め、量（材料のg・ml）で大小を選ぶ。ふたを使うなら、ふた有りの物
 const PAN_STEP_RE = /なべ|鍋|フライパン|煮立|煮る|煮て|煮込|ゆで|ゆが|いため|炒め|からいり|焼|熱し|揚げ|沸か/;
@@ -2776,7 +2860,7 @@ JSONだけで答える: {"answer":"答え"}`;
   paint(); setTimeout(() => { const i = $("akIn"); if (i) i.focus(); }, 50);
 }
 function beep() { tone([[880, 0, .25], [880, .4, .25], [880, .8, .25], [880, 1.6, .25], [880, 2, .25], [880, 2.4, .25]]); buzz([300, 150, 300, 150, 300]); }
-function endCook() { if (CK) run("setCooking", false).catch(() => {}); if (CK && CK.tick) clearInterval(CK.tick); if (CK) CK.tick = null; CK = null; const ov = $("cook"); ov.hidden = true; ov.innerHTML = ""; ov.style.background = ""; keepAwake("cook", false); }
+function endCook() { if (CK) run("setCooking", false).catch(() => {}); if (CK && CK.tick) clearInterval(CK.tick); if (CK && CK.atick) clearInterval(CK.atick); if (CK) CK.tick = null; CK = null; const ov = $("cook"); ov.hidden = true; ov.innerHTML = ""; ov.style.background = ""; keepAwake("cook", false); }
 const PLAN_RULES = `あなたは家庭料理の段取り係です。レシピ（1品または複数）を作るときの手順の順番を、全体が早く終わり、できあがりの時間がそろうように組み直してください。
 - 各レシピの手順の文章は書き換えない・省略しない・統合しない。順番は基本そのレシピのとおりにする。
 - 衛生のため、生の肉・魚を切る・触る・下味をつける手順は、すべてのレシピの野菜を洗う・切る、計量、合わせ調味料づくりなどの下ごしらえが終わった後にまとめる。そのためなら、同じレシピの中でも「加熱する前の下ごしらえの手順（洗う・切る・計量・合わせる・ゆでる湯を沸かす）」だけは前へ移してよい。加熱・味付け・盛り付けの順番は変えない。
