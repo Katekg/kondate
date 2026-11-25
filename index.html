@@ -2192,7 +2192,7 @@ function withGram(name, amt) {
   const nm = normName(name), gr = x => x < 10 ? Math.round(x * 2) / 2 : Math.round(x);
   // g だけの野菜などは「約1/4本」のように、本・個の目安も添える
   if (/\d\s*(g|kg|ｇ)(?![a-z])/.test(a)) {
-    if (/[本個株袋丁]/.test(a)) return a;
+    if (/[本個株袋丁枚束節玉]|切れ|パック|かけ/.test(a)) return a;
     const gm = a.match(/(\d+(?:\.\d+)?)\s*(kg|g|ｇ)(?![a-z])/), t = UNIT_G.find(([re]) => re.test(nm)); if (!gm || !t) return a;
     const u = Object.keys(t[1]).find(k => !/^(cm|かけ|切れ)$/.test(k)); if (!u) return a;
     const r = fracText(+gm[1] * (gm[2] === "kg" ? 1000 : 1) / t[1][u]); return r ? `${a}（約${r}${u}）` : a;
@@ -2342,13 +2342,21 @@ function bookPlan(cooks) {
     const tags = new Map(), mark = cooks.length > 1 ? "①②③④"[ci] || "" : "";
     ingsOf(c.r).forEach(i => {
       if (ingState(i.name, i.amount, c.k).st === "skip") return;
-      const t = ingTag(c.r, i.name), nm = normName(ingBase(c.r, i.name));
-      if (t) { if (!tags.has(t)) tags.set(t, { id: mark + t, label: t, word: tagWord(t), items: [] }); tags.get(t).items.push(ingBase(c.r, i.name)); place.push({ name: i.name, rid: c.r.id, to: mark + t }); return; }
+      if (isRice(i.name)) { place.push({ name: i.name, rid: c.r.id, to: "炊" }); return; }
+      // 「下味」と「下味・a」のように、同じ下ごしらえの材料は1つの容器にまとめる（肉と下味の調味料を最初から同じ袋に）
+      const t0 = ingTag(c.r, i.name), nm = normName(ingBase(c.r, i.name)), tk = t0.split("・"), t = tk.length > 1 && !/^[a-fA-F]$/.test(tk[0]) ? tk[0] : t0;
+      if (t) { if (!tags.has(t)) tags.set(t, { id: mark + t, label: t, words: new Set(), items: [], ings: [] }); const g = tags.get(t); tk.forEach(w => g.words.add(w)); g.words.add(t); g.items.push(ingBase(c.r, i.name)); g.ings.push({ name: i.name, amount: scaleAmount(i.amount, c.k) }); place.push({ name: i.name, rid: c.r.id, to: mark + t }); return; }
       // 分け方の無い野菜などはバット（料理ごとに1枚）。生の肉・魚と調味料は、容器に入れずそのまま
       const raw = RAW_RE.test(nm) && !NOT_RAW.test(nm), seas = SPOON_G.some(([re]) => re.test(nm)) || LIQ_RE.test(nm);
-      place.push({ name: i.name, rid: c.r.id, to: !raw && !seas ? String(Math.min(ci + 1, 2)) : "" });
+      place.push({ name: i.name, rid: c.r.id, to: !raw && !seas && ingState(i.name, i.amount, c.k).st !== "sub" ? String(Math.min(ci + 1, 2)) : "" });
     });
-    tags.forEach(x => mixes.push({ id: x.id, label: (mark ? mark + " " : "") + x.label, word: x.word, items: x.items.join("・"), use: "", rid: c.r.id }));
+    tags.forEach(x => {
+      // 容器: 生の肉・魚の下味はポリ袋、煮汁・スープは計量カップで鍋へ。野菜など・多い液体はボウル、液体は小鉢、粉・顆粒だけなら小皿
+      const raw = x.ings.some(g => { const n = normName(g.name); return RAW_RE.test(n) && !NOT_RAW.test(n); }), prod = x.ings.some(g => vegOf(g.name) || /野菜室/.test((matchStock(g.name, null, true) || {}).cat || ""));
+      const ml = x.ings.reduce((t, g) => { const sp = spoonQ(g.name, g.amount), q = pqAll(sp || g.amount).find(p => conv(p, "ml") != null); return t + (q ? conv(q, "ml") : 0); }, 0), liq = x.ings.some(g => LIQ_RE.test(normName(g.name)) && !/顆粒|粉/.test(normName(g.name)));
+      const kind = raw && /下味|下ごしらえ/.test(x.label) ? "ポリ袋" : /^(煮汁|スープ|汁|つゆ|浸し汁|漬け汁)/.test(x.label) && ml > 60 ? "計量カップで鍋へ" : raw || prod || ml > 60 ? "ボウル" : liq ? "小鉢" : "小皿";
+      mixes.push({ id: x.id, label: (mark ? mark + " " : "") + x.label, words: [...x.words].filter(w => !/^\d$/.test(w)), word: tagWord(x.label), kind, items: x.items.join("・"), use: "", rid: c.r.id });
+    });
   });
   // 手順: 料理ごとにレシピの順。2品以上は、待ち時間の長い料理から始め、煮込み・おく時間（8分以上）のあいだにほかの料理を進める
   const wait = c => stepsOf(c.r).reduce((t, x) => t + timerSec(splitTool(x).text), 0);
@@ -2358,7 +2366,7 @@ function bookPlan(cooks) {
   const noteOf = (c, i) => { const t = splitTool(stepsOf(c.r)[i]).text, out = [];
     ingsOf(c.r).forEach(g => { const b = ingBase(c.r, g.name); if (!ingHit(b, t)) return; const x = ingState(g.name, g.amount, c.k); if (x.st === "skip") out.push(`${b}は無いので省く`); else if (x.st === "sub") out.push(`${b}の代わりに${x.sub.use.split("・")[0]}${x.sub.amount ? `（${x.sub.amount}）` : ""}`); });
     return [...new Set(out)].join("。"); };
-  const push = (x, extra) => { const i = x.i++; if (skipStep(x.c, i)) return; const mixHere = mixes.filter(m => m.rid === x.c.r.id && mentions(stepsOf(x.c.r)[i], m.word)).map(m => m.id);
+  const push = (x, extra) => { const i = x.i++; if (skipStep(x.c, i)) return; const mixHere = mixes.filter(m => m.rid === x.c.r.id && (m.words || [m.word]).some(w => mentions(stepsOf(x.c.r)[i], w))).map(m => m.id);
     order.push({ recipe_id: x.c.r.id, step: i + 1, note: [noteOf(x.c, i), extra].filter(Boolean).join("。"), scene: null, mix: mixHere }); };
   let k = 0;
   while (list.some(x => x.i < x.n)) {
@@ -2370,6 +2378,9 @@ function bookPlan(cooks) {
     if (timerSec(t) >= 480 && go.length) { push(x, `待つあいだに「${go[0].c.r.title}」を進める`); k = list.indexOf(go[0]); continue; }
     push(x, "");
   }
+  // 容器の数の決まり: バット2枚・小鉢2個・小皿2個・ボウル1個まで。先に使う物から容器に入れ、入りきらない分は手順のときに量って入れる
+  const first = m => { const j = order.findIndex(o => (o.mix || []).includes(m.id)); return j < 0 ? 999 : j; }, CAP = { ボウル: 1, 小鉢: 2, 小皿: 2 }, used = {};
+  [...mixes].sort((a, b) => first(a) - first(b)).forEach(m => { if (!(m.kind in CAP)) return; used[m.kind] = (used[m.kind] || 0) + 1; if (used[m.kind] > CAP[m.kind]) m.kind = "容器なし（手順のときに量る）"; });
   return { prep: { mixes, place, book: true }, steps: order };
 }
 // 手順の文に、分け方の名前（a・b・煮汁など）が出てくるか
@@ -2415,6 +2426,7 @@ const cookPlansOf = (d, m) => S.plans.filter(p => p.date === d && p.meal === m &
 const spoonMl = a => { const m = String(a || "").match(/^(大さじ|小さじ)\s*(\d+(?:\.\d+)?)(?:\/(\d+))?/); return m ? `${(m[3] ? m[2] / m[3] : +m[2]) * (m[1] === "大さじ" ? 15 : 5)}ml` : ""; };
 // 合わせる容器: 野菜や肉なども一緒に混ぜるならボウル。調味料だけなら、大さじ4くらいまで小鉢、それより多ければ小ボウル
 function mixKind(id) {
+  { const mx = mixOf(id); if (mx && mx.kind) return mx.kind; }
   let ml = 0;
   const placed = ((CK && CK.prep && CK.prep.place) || []).filter(x => x.to === id);
   if (placed.some(x => { const st = matchStock(x.name); return RAW_RE.test(normName(x.name)) || (st && /野菜室/.test(st.cat || "")); })) return "ボウル";
@@ -2429,13 +2441,14 @@ function mixKind(id) {
 // 小さい容器: 液体（醤油・みりん・油など）が入るなら小鉢、粉末・顆粒・薬味など乾いた物だけなら小皿
 const LIQ_RE = /醤油|しょうゆ|みりん|酒|酢|油|つゆ|ソース|ケチャップ|マヨ|味噌|みそ|水|湯|だし汁|オイスター|はちみつ|蜂蜜|ジャム|牛乳|豆乳|レモン汁|ポン酢|白だし|たれ|コチュジャン|豆板醤|チューブ|おろし/;
 function smallKind(id) {
+  { const mx = mixOf(id); if (mx && mx.kind) return mx.kind; }
   const placed = ((CK && CK.prep && CK.prep.place) || []).filter(x => x.to === id);
   return placed.length && !placed.some(x => LIQ_RE.test(normName(x.name)) && !/顆粒|粉/.test(normName(x.name))) ? "小皿" : "小鉢";
 }
 // 材料を出す画面の並び: 容器ごとに見出しを付けてまとめる。合わせ調味料の材料をほかの料理でも使うときは、その料理の分だけを容器に入れ、残りは別に分ける
 const boxOrder = to => to === "省く" ? "zz" : !to ? "z" : /^\d$/.test(to) ? "a" + to : /^s\d$/i.test(to) ? "c" + to : "b" + to;
 const mixOf = id => ((CK && CK.prep && CK.prep.mixes) || []).find(m => m.id === id);
-const boxHead = to => to === "省く" ? "使わない（在庫に無い飾りなど）" : !to ? "そのまま使う（その都度量る）" : mixOf(to) && mixOf(to).label ? `${mixKind(to)}「${mixOf(to).label}」` : /^b\d$/i.test(to) ? "ボウル" : /^\d$/.test(to) ? `バット${"①②③④"[+to - 1] || to}` : /^s\d$/i.test(to) ? `${smallKind(to)}${to.slice(1)}` : `${mixKind(to)}${to}（合わせる）`;
+const boxHead = to => to === "炊" ? "炊飯器" : to === "省く" ? "使わない（在庫に無い飾りなど）" : !to ? "そのまま使う（その都度量る）" : mixOf(to) && mixOf(to).label ? `${mixKind(to)}「${mixOf(to).label}」` : /^b\d$/i.test(to) ? "ボウル" : /^\d$/.test(to) ? `バット${"①②③④"[+to - 1] || to}` : /^s\d$/i.test(to) ? `${smallKind(to)}${to.slice(1)}` : `${mixKind(to)}${to}（合わせる）`;
 // その合わせ調味料を使う料理（手順の scene の mix から）
 const mixDishes = id => new Set((CK.steps || []).filter((st, j) => (sceneAt(j).mix || []).map(String).includes(String(id))).map(st => st.c));
 function prepEntries(list) {
@@ -2462,13 +2475,13 @@ function placeOf(name, rid) { const P = CK.prep; if (!P) return null; if (P.book
 function paintPrepMap() {
   if (!CK || CK.phase !== "prep" || !$("prepMap")) return;
   $("prepMap").innerHTML = CK.prep ? kitchenSvg(-1) : `<p class="note" style="margin:4px">${CK.noAi ? "置き場所は手順の画面で確かめてください。" : "バットと合わせ調味料の置き場所を、AIが考えています…"}</p>`;
-  (CK.prepList || []).forEach((i, n) => { const t = $("cStep").querySelector(`[data-tag="${n}"]`), p = placeOf(i.name, i.rid); if (t) t.textContent = !p || !p.to ? "" : /^b\d$/i.test(p.to) ? "→ ボウル" : /^\d$/.test(p.to) ? `→ バット${"①②③④"[+p.to - 1] || p.to}` : /^s\d$/i.test(p.to) ? `→ ${smallKind(p.to)}${p.to.slice(1)}` : mixOf(p.to) && mixOf(p.to).label ? `→ ${mixKind(p.to)}「${mixOf(p.to).label}」` : `→ ${mixKind(p.to)}${p.to}（合わせる）`; });
+  (CK.prepList || []).forEach((i, n) => { const t = $("cStep").querySelector(`[data-tag="${n}"]`), p = placeOf(i.name, i.rid); if (t) t.textContent = !p || !p.to ? "" : p.to === "炊" ? "→ 炊飯器" : /^b\d$/i.test(p.to) ? "→ ボウル" : /^\d$/.test(p.to) ? `→ バット${"①②③④"[+p.to - 1] || p.to}` : /^s\d$/i.test(p.to) ? `→ ${smallKind(p.to)}${p.to.slice(1)}` : mixOf(p.to) && mixOf(p.to).label ? `→ ${mixKind(p.to)}「${mixOf(p.to).label}」` : `→ ${mixKind(p.to)}${p.to}（合わせる）`; });
   // 用意する容器
   const box = $("prepBox"); if (!box) return;
   const P = CK.prep || { mixes: [], place: [] }, ns = new Set();
   P.place.forEach(x => { if (/^(\d|s\d|b\d)$/i.test(x.to)) ns.add(x.to.toLowerCase()); });
   CK.steps.forEach((st, j) => (sceneAt(j).trays || []).forEach(x => ns.add(String(x.no).toLowerCase())));
-  const cs = [...[...ns].filter(k => /^\d$/.test(k)).sort().map(k => ({ k, t: `バット${"①②③④"[+k - 1] || k}` })), ...[...ns].filter(k => /^s/.test(k)).sort().map(k => ({ k, t: `${smallKind(k)}${k.slice(1)}` })), ...[...ns].filter(k => /^b\d$/.test(k)).slice(0, 1).map(k => ({ k, t: "ボウル" })), ...P.mixes.map(m => ({ k: "m" + m.id, t: m.label ? `${mixKind(m.id)}「${m.label}」` : `${mixKind(m.id)}${m.id}` }))];
+  const cs = [...[...ns].filter(k => /^\d$/.test(k)).sort().map(k => ({ k, t: `バット${"①②③④"[+k - 1] || k}` })), ...[...ns].filter(k => /^s/.test(k)).sort().map(k => ({ k, t: `${smallKind(k)}${k.slice(1)}` })), ...[...ns].filter(k => /^b\d$/.test(k)).slice(0, 1).map(k => ({ k, t: "ボウル" })), ...P.mixes.filter(m => !m.kind || /^(ボウル|小ボウル|小鉢|小皿|ポリ袋)$/.test(m.kind)).map(m => ({ k: "m" + m.id, t: m.label ? `${mixKind(m.id)}「${m.label}」` : `${mixKind(m.id)}${m.id}` }))];
   const got = CK.gotC || (CK.gotC = {});
   $("cprep").className = "cprep one";
   $("ppH").textContent = "① 容器と材料を調理台に出す";
@@ -2615,7 +2628,7 @@ function kitchenSvg(idx) {
     ${nZ ? [...Array(nZ)].map((_, k) => { const no = String(k + 1), z = zones[no], on = nowT.has(no), x = X0 + k * zw, items = (z.plan.length ? z.plan : z.put).join("・");
       return `<rect class="${on ? "on" : "base"}" x="${x + 3}" y="8" width="${zw - 6}" height="62" rx="7" style="${on || prep ? "" : "opacity:.45"}"/><text class="tn${on || prep ? "" : " dim"}" x="${x + zw / 2}" y="24" text-anchor="middle">バット${"①②③④"[k]}</text>${z.out && !on ? `<text class="zt dim" x="${x + zw / 2}" y="40" text-anchor="middle">（空）</text>` : items ? wrap(items, x + zw / 2, 40, zw - 8, `zt${on || prep ? "" : " dim"}`) : ""}`; }).join("") : `<text class="lbl" x="${X0 + W / 2}" y="40" text-anchor="middle">バットの場所</text>`}
     <rect class="base" x="${X0 + 3}" y="76" width="${W / 2 - 6}" height="66" rx="7" style="stroke-dasharray:3 3"/>
-    ${(() => { const cs = [...mixes.map(mx => ({ id: mx.id, lbl: (mx.word || mx.id).slice(0, 2), items: mx.items, on: mixOn.has(mx.id), r: /^小(鉢|皿)$/.test(mixKind(mx.id)) ? 9 : 11 })), ...bowls.map(b => ({ id: b, lbl: /^b/i.test(b) ? "ボ" : "小" + b.slice(1), items: (zones[b].plan.length ? zones[b].plan : zones[b].put).join("・"), on: nowT.has(b), out: zones[b].out, r: 8 }))].slice(0, 5);
+    ${(() => { const cs = [...mixes.filter(mx => !mx.kind || /^(ボウル|小ボウル|小鉢|小皿)$/.test(mx.kind)).map(mx => ({ id: mx.id, lbl: (mx.word || mx.id).slice(0, 2), items: mx.items, on: mixOn.has(mx.id), r: /^小(鉢|皿)$/.test(mixKind(mx.id)) ? 9 : 11 })), ...bowls.map(b => ({ id: b, lbl: /^b/i.test(b) ? "ボ" : "小" + b.slice(1), items: (zones[b].plan.length ? zones[b].plan : zones[b].put).join("・"), on: nowT.has(b), out: zones[b].out, r: 8 }))].slice(0, 5);
       if (!cs.length) return `<text class="lbl" x="${X0 + W / 4}" y="112" text-anchor="middle">小ボウル・小鉢・小皿</text>`;
       const gap = Math.min(30, (W / 2 - 16) / cs.length), show = cs.filter(c => prep || c.on);
       return cs.map((c, k) => { const cx = X0 + 8 + gap / 2 + k * gap; return `<circle class="mixc${c.on ? " on" : ""}" cx="${cx}" cy="96" r="${c.r}"/><text class="mt" x="${cx}" y="${99.5}" text-anchor="middle" style="font-size:${c.r > 9 ? 10 : 7.5}px">${esc(c.lbl)}</text>`; }).join("")
