@@ -2348,7 +2348,7 @@ function bookPlan(cooks) {
       if (t) { if (!tags.has(t)) tags.set(t, { id: mark + t, label: t, words: new Set(), items: [], ings: [] }); const g = tags.get(t); tk.forEach(w => g.words.add(w)); g.words.add(t); g.items.push(ingBase(c.r, i.name)); g.ings.push({ name: i.name, amount: scaleAmount(i.amount, c.k) }); place.push({ name: i.name, rid: c.r.id, to: mark + t }); return; }
       // 分け方の無い野菜などはバット（料理ごとに1枚）。生の肉・魚と調味料は、容器に入れずそのまま
       const raw = RAW_RE.test(nm) && !NOT_RAW.test(nm), seas = SPOON_G.some(([re]) => re.test(nm)) || LIQ_RE.test(nm);
-      place.push({ name: i.name, rid: c.r.id, to: !raw && !seas && ingState(i.name, i.amount, c.k).st !== "sub" ? String(Math.min(ci + 1, 2)) : "" });
+      place.push({ name: i.name, rid: c.r.id, to: !raw && !seas && ingState(i.name, i.amount, c.k).st !== "sub" ? "T" + ci : "" });
     });
     tags.forEach(x => {
       // 容器: 生の肉・魚の下味はポリ袋、煮汁・スープは計量カップで鍋へ。野菜など・多い液体はボウル、液体は小鉢、粉・顆粒だけなら小皿
@@ -2378,6 +2378,8 @@ function bookPlan(cooks) {
     if (timerSec(t) >= 480 && go.length) { push(x, `待つあいだに「${go[0].c.r.title}」を進める`); k = list.indexOf(go[0]); continue; }
     push(x, "");
   }
+  // バットの番号: バットを使う料理だけに、①から順に（2枚まで）
+  { const ts = [...new Set(place.filter(x => /^T\d+$/.test(x.to)).map(x => x.to))].sort(); place.forEach(x => { if (/^T\d+$/.test(x.to)) x.to = String(Math.min(ts.indexOf(x.to) + 1, 2)); }); }
   // 容器の数の決まり: バット2枚・小鉢2個・小皿2個・ボウル1個まで。先に使う物から容器に入れ、入りきらない分は手順のときに量って入れる
   const first = m => { const j = order.findIndex(o => (o.mix || []).includes(m.id)); return j < 0 ? 999 : j; }, CAP = { ボウル: 1, 小鉢: 2, 小皿: 2 }, used = {};
   [...mixes].sort((a, b) => first(a) - first(b)).forEach(m => { if (!(m.kind in CAP)) return; used[m.kind] = (used[m.kind] || 0) + 1; if (used[m.kind] > CAP[m.kind]) m.kind = "容器なし（手順のときに量る）"; });
@@ -2625,7 +2627,7 @@ function kitchenSvg(idx) {
     ${Object.entries(fire).map(([b, f]) => panSvg(b, f) + `<text class="pl" x="${BURNER[b][0]}" y="${BURNER[b][1] + (b === "後" ? 30 : -24)}" text-anchor="middle">${PAN_NAME[f.pan]}</text>`).join("")}
     ${sc.mw ? `<rect class="on" x="10" y="8" width="74" height="18" rx="5"/><text class="tn" x="47" y="21" text-anchor="middle">レンジを使う</text>` : ""}
     <rect class="base" x="${X0}" y="4" width="${W}" height="142" rx="10"/>
-    ${nZ ? [...Array(nZ)].map((_, k) => { const no = String(k + 1), z = zones[no], on = nowT.has(no), x = X0 + k * zw, items = (z.plan.length ? z.plan : z.put).join("・");
+    ${nZ ? [...Array(nZ)].map((_, k) => { const no = String(k + 1), z = zones[no] || { plan: [], put: [], out: false }, on = nowT.has(no), x = X0 + k * zw, items = (z.plan.length ? z.plan : z.put).join("・");
       return `<rect class="${on ? "on" : "base"}" x="${x + 3}" y="8" width="${zw - 6}" height="62" rx="7" style="${on || prep ? "" : "opacity:.45"}"/><text class="tn${on || prep ? "" : " dim"}" x="${x + zw / 2}" y="24" text-anchor="middle">バット${"①②③④"[k]}</text>${z.out && !on ? `<text class="zt dim" x="${x + zw / 2}" y="40" text-anchor="middle">（空）</text>` : items ? wrap(items, x + zw / 2, 40, zw - 8, `zt${on || prep ? "" : " dim"}`) : ""}`; }).join("") : `<text class="lbl" x="${X0 + W / 2}" y="40" text-anchor="middle">バットの場所</text>`}
     <rect class="base" x="${X0 + 3}" y="76" width="${W / 2 - 6}" height="66" rx="7" style="stroke-dasharray:3 3"/>
     ${(() => { const cs = [...mixes.filter(mx => !mx.kind || /^(ボウル|小ボウル|小鉢|小皿)$/.test(mx.kind)).map(mx => ({ id: mx.id, lbl: (mx.word || mx.id).slice(0, 2), items: mx.items, on: mixOn.has(mx.id), r: /^小(鉢|皿)$/.test(mixKind(mx.id)) ? 9 : 11 })), ...bowls.map(b => ({ id: b, lbl: /^b/i.test(b) ? "ボ" : "小" + b.slice(1), items: (zones[b].plan.length ? zones[b].plan : zones[b].put).join("・"), on: nowT.has(b), out: zones[b].out, r: 8 }))].slice(0, 5);
