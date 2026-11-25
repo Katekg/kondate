@@ -2239,8 +2239,10 @@ function stepExtra(s, st) {
 }
 const TIME_GUESS = [[/溶き入れ|回し入れ|絡め|からめ|和え/, "30秒〜1分"], [/両面.*焼/, "片面2〜3分ずつ（焼き色がつくまで）"], [/炒め/, "3〜4分（火が通るまで）"], [/焼/, "3〜5分（焼き色がつくまで）"], [/予熱|熱し/, "1〜2分（温まるまで）"],
   [/沸か|沸騰/, "3〜5分（沸くまで）"], [/煮込|煮る|煮て|煮立/, "5〜10分（やわらかくなるまで）"], [/ゆで|茹で/, "2〜3分"], [/レンジ/, "600Wで2分から様子を見る"]];
-function stepHtml(c, i) {
-  let t = esc(scaleSteps(splitTool(stepsOf(c.r)[i]).text, c.k)).replace(QTY_RE, m0 => `<mark>${m0}</mark>`);
+// 手順の文（本のレシピで1つの手順を分けたときは、その部分だけ）
+const stepTxt = s => s.part || stepsOf(s.c.r)[s.i] || "";
+function stepHtml(c, i, part) {
+  let t = esc(scaleSteps(splitTool(part || stepsOf(c.r)[i]).text, c.k)).replace(QTY_RE, m0 => `<mark>${m0}</mark>`);
   return t;
 }
 // 生の肉・魚を使う料理（加工品は除く）
@@ -2263,7 +2265,7 @@ const cleanPrep = v => { v = v && typeof v === "object" ? v : {}; return { mixes
 // AIの並びを確かめる: 全部の手順を1回ずつ含めばそのまま。足りなければ、各料理の順番を守って補う
 function mergeSteps(cooks, order) {
   const total = cooks.reduce((n, c) => n + stepsOf(c.r).length, 0), seen = new Set(), perm = [];
-  for (const x of order || []) { const c = cooks.find(y => y.r.id === String(x && x.recipe_id)), i = (parseInt(x && x.step, 10) || 0) - 1; if (!c || stepsOf(c.r)[i] == null || seen.has(c.r.id + ":" + i)) continue; seen.add(c.r.id + ":" + i); perm.push({ c, i, mix: Array.isArray(x.mix) ? x.mix : null, note: String(x.note || "").slice(0, 120), tray: String(x.tray || "").slice(0, 80), detail: String(x.detail || "").slice(0, 80), short: String(x.short || "").slice(0, 50), cut: String(x.cut || "").slice(0, 120), scene: cleanScene(x.scene) }); }
+  for (const x of order || []) { const c = cooks.find(y => y.r.id === String(x && x.recipe_id)), i = (parseInt(x && x.step, 10) || 0) - 1; if (!c || stepsOf(c.r)[i] == null || seen.has(c.r.id + ":" + i + (x.part || ""))) continue; seen.add(c.r.id + ":" + i + (x.part || "")); perm.push({ c, i, part: x.part ? String(x.part) : "", mix: Array.isArray(x.mix) ? x.mix : null, note: String(x.note || "").slice(0, 120), tray: String(x.tray || "").slice(0, 80), detail: String(x.detail || "").slice(0, 80), short: String(x.short || "").slice(0, 50), cut: String(x.cut || "").slice(0, 120), scene: cleanScene(x.scene) }); }
   if (total && perm.length === total) return perm;
   if (order && order.book) return perm;
   const next = new Map(cooks.map(c => [c, 0])), out = [];
@@ -2373,11 +2375,31 @@ function bookPlan(cooks) {
   const list = cooks.map(c => ({ c, i: 0, n: stepsOf(c.r).length })).sort((a, b) => wait(b.c) - wait(a.c));
   // 「●…」「※…」はコツの説明なので手順にしない。省く材料だけの手順（盛り付けは除く）も出さない
   const skipStep = (c, i) => { const t = splitTool(stepsOf(c.r)[i]).text; if (/^[●※]/.test(t)) return true; if (/盛/.test(t)) return false; const used = ingsOf(c.r).filter(g => ingHit(ingBase(c.r, g.name), t)); return used.length > 0 && used.every(g => ingState(g.name, g.amount, c.k).st === "skip"); };
-  const noteOf = (c, i) => { const t = splitTool(stepsOf(c.r)[i]).text, out = [];
+  const noteOf = (c, i, part) => { const t = splitTool(part || stepsOf(c.r)[i]).text, out = [];
     ingsOf(c.r).forEach(g => { const b = ingBase(c.r, g.name); if (!ingHit(b, t)) return; const x = ingState(g.name, g.amount, c.k); if (x.st === "skip") out.push(`${b}は無いので省く`); else if (x.st === "sub") out.push(`${b}の代わりに${x.sub.use.split("・")[0]}${x.sub.amount ? `（${x.sub.amount}）` : ""}`); });
     return [...new Set(out)].join("。"); };
-  const push = (x, extra) => { const i = x.i++; if (skipStep(x.c, i)) return; const mixHere = mixes.filter(m => m.rid === x.c.r.id && (m.words || [m.word]).some(w => mentions(stepsOf(x.c.r)[i], w))).map(m => m.id);
-    order.push({ recipe_id: x.c.r.id, step: i + 1, note: [noteOf(x.c, i), extra].filter(Boolean).join("。"), scene: null, mix: mixHere }); };
+  const pushAt = (c, i, part, extra) => { const txt = part || stepsOf(c.r)[i], mixHere = mixes.filter(m => m.rid === c.r.id && (m.words || [m.word]).some(w => mentions(txt, w))).map(m => m.id);
+    order.push({ recipe_id: c.r.id, step: i + 1, part: part || "", note: [noteOf(c, i, part), extra].filter(Boolean).join("。"), scene: null, mix: mixHere }); };
+  const push = (x, extra) => { const i = x.i++; if (skipStep(x.c, i)) return; pushAt(x.c, i, "", extra); };
+  // まな板の決まり: 生の肉・魚は、野菜・サラダの下ごしらえが全部終わってからまな板に出す（菌がうつらないように）
+  // 火を使う前の手順（盛り付けを除く）を全部の料理から集め、生の肉・魚を使わない物 → 使う物 の順に並べる。
+  // 1つの手順に「鶏肉は…切り、玉ねぎは…切る」と両方あるときは、文を分けて野菜を先にする
+  const rawNames = c => ingsOf(c.r).filter(g => ingState(g.name, g.amount, c.k).st !== "skip").map(g => ingBase(c.r, g.name)).filter(b => { const n = normName(b); return RAW_RE.test(n) && !NOT_RAW.test(n); });
+  const hasRaw = (c, t) => rawNames(c).some(b => ingHit(b, t)) || /(^|[、。])(肉|魚|鶏肉|豚肉|牛肉)は/.test(t);
+  const endForm = t => { t = t.replace(/[、。\s]+$/, ""); return (/り$/.test(t) ? t.replace(/り$/, "る") : /し$/.test(t) ? t.replace(/し$/, "す") : /き$/.test(t) ? t.replace(/き$/, "く") : /み$/.test(t) ? t.replace(/み$/, "む") : /[けせてねべめれえげぜでへ]$/.test(t) ? t + "る" : t) + "。"; };
+  const vegParts = [], rawParts = [];
+  list.forEach(x => {
+    while (x.i < x.n) { const t = splitTool(stepsOf(x.c.r)[x.i]).text; if (PAN_STEP_RE.test(t) || /盛|電子レンジ|レンジ|オーブン|トースター/.test(t)) break;
+      const i = x.i++; if (skipStep(x.c, i)) continue;
+      const cl = t.split(/、(?=[^、。をにでとがへ]{1,12}は)/), rw = cl.map(p => hasRaw(x.c, p));
+      if (cl.length > 1 && rw.some(Boolean) && rw.some(r => !r)) {
+        vegParts.push({ c: x.c, i, part: endForm(cl.filter((_, j) => !rw[j]).join("、")) });
+        rawParts.push({ c: x.c, i, part: endForm(cl.filter((_, j) => rw[j]).join("、")) });
+      } else (rw.some(Boolean) ? rawParts : vegParts).push({ c: x.c, i, part: "" });
+    }
+  });
+  vegParts.forEach(p => pushAt(p.c, p.i, p.part, ""));
+  rawParts.forEach((p, j) => pushAt(p.c, p.i, p.part, j === 0 && vegParts.length ? "生の肉・魚は、野菜の下ごしらえが終わってからまな板に出す" : ""));
   let k = 0;
   while (list.some(x => x.i < x.n)) {
     list.forEach(y => { while (y.i < y.n && skipStep(y.c, y.i)) y.i++; });
@@ -2556,7 +2578,7 @@ function drawCook() {
     $("cEnd2").onclick = e => { e.stopPropagation(); endCook(); };
     paintTimers(); return;
   }
-  const s = CK.steps[CK.idx], ci = CK.cooks.indexOf(s.c), raw = stepsOf(s.c.r)[s.i], st = splitTool(raw), sec = stepSec(CK.idx);
+  const s = CK.steps[CK.idx], ci = CK.cooks.indexOf(s.c), raw = stepTxt(s), st = splitTool(raw), sec = stepSec(CK.idx);
 
   ov.style.background = multi ? tintOf(CK.colors[ci]) : ""; ov.style.setProperty("--halo", multi ? tintOf(CK.colors[ci]) : "var(--bg)");
   // 上: 材料（今の手順に出てくる材料は強調）。まとめて作るときは料理ごとに色分け
@@ -2567,7 +2589,7 @@ function drawCook() {
     <div class="cno">手順 ${s.i + 1} / ${stepsOf(s.c.r).length}${multi ? `<small class="note">（全体 ${CK.idx + 1} / ${n}）</small>` : ""}</div>
     ${CK.noAi && CK.idx === 0 ? `<p class="note">AIに段取りを頼めなかったため、レシピの順に並べています。</p>` : ""}
     ${(() => { const why = s.note ? `<span class="cwhy${/洗|生/.test(s.note) ? " warn" : ""}">${esc(s.note)}</span>` : "";
-      return `<div class="ctext">${stepHtml(s.c, s.i).replace(/。$/, "")}${stepExtra(s, st).map(x => `。${esc(x).replace(QTY_RE, m0 => `<mark>${m0}</mark>`)}`).join("")}${why}</div>`; })()}
+      return `<div class="ctext">${stepHtml(s.c, s.i, s.part).replace(/。$/, "")}${stepExtra(s, st).map(x => `。${esc(x).replace(QTY_RE, m0 => `<mark>${m0}</mark>`)}`).join("")}${why}</div>`; })()}
     ${s.tray && !s.scene ? `<div class="ctray">🥣 ${esc(s.tray)}</div>` : ""}
     ${st.tool && !s.scene ? `<div class="ctool">🍳 ${esc(st.tool)}</div>` : ""}
     ${kitchenSvg(CK.idx)}`;
@@ -2575,7 +2597,7 @@ function drawCook() {
 }
 const fmtSec = v => `${Math.floor(v / 60)}:${pad(v % 60)}`;
 // ストップウォッチ（画面の下に常に1つ）: 手順を進めても止まらない。手順に「N分」があれば、その時間で知らせる
-function stepSec(i) { const s = CK.steps[i]; if (!s) return 0; const st = splitTool(stepsOf(s.c.r)[s.i]); return timerSec(st.text) || timerSec(s.detail || "") || timerSec(st.tool); }
+function stepSec(i) { const s = CK.steps[i]; if (!s) return 0; const st = splitTool(stepTxt(s)); return timerSec(st.text) || timerSec(s.detail || "") || timerSec(st.tool); }
 const swSec = w => Math.floor((w.acc + (w.start ? Date.now() - w.start : 0)) / 1000);
 function timerGo() {
   const w = CK.sw;
@@ -2608,7 +2630,7 @@ const BURNER = { 左: [24, 104], 右: [70, 104], 後: [47, 42] };
 const DEF_BURNER = { bigfp: "右", smfp: "右", bigpot: "左", smpot: "後", sep: "左" };
 // AIの scene が無いときは、手順の文から推測する
 function guessScene(s) {
-  const raw = stepsOf(s.c.r)[s.i], st = splitTool(raw), t = st.text + " " + st.tool + " " + (s.detail || ""), pan = panOf(st.tool) || (/(炒め|焼|煮|ゆで|茹で|沸か|熱し)/.test(st.text) ? panOf(st.text) : "");
+  const raw = stepTxt(s), st = splitTool(raw), t = st.text + " " + st.tool + " " + (s.detail || ""), pan = panOf(st.tool) || (/(炒め|焼|煮|ゆで|茹で|沸か|熱し)/.test(st.text) ? panOf(st.text) : "");
   return { board: /(切|刻|みじん|むく|むき|皮|まな板|包丁|ほぐ)/.test(st.text + st.tool), sink: /(洗|水にさら|水気を切|ゆでこぼ|ザル|ざる|水で戻)/.test(st.text), mw: /(レンジ|\d+W)/.test(t), fire: pan ? [{ burner: DEF_BURNER[pan], pan: PAN_NAME[pan], now: true }] : [], trays: [] };
 }
 function sceneAt(i) { const s = CK.steps[i]; if (s.scene) return s.scene; const g = { ...guessScene(s), mix: s.mix || [] }; if (CK.fires) g.fire = CK.fires[i] || []; return g; }
@@ -2617,7 +2639,7 @@ function sceneAt(i) { const s = CK.steps[i]; if (s.scene) return s.scene; const 
 const PAN_STEP_RE = /なべ|鍋|フライパン|煮立|煮る|煮て|煮込|ゆで|ゆが|いため|炒め|からいり|焼|熱し|揚げ|沸か/;
 function bookFires(steps) {
   const eq = (S.equipment || []).filter(e => panOf(e.name) && !/セパレート/.test(e.name)), dishes = [], used = new Set(), burners = new Set();
-  const txtOf = st => stepsOf(st.c.r)[st.i] || "";
+  const txtOf = stepTxt;
   [...new Set(steps.map(st => st.c))].forEach(c => {
     const hs = steps.map((st, j) => ({ st, j })).filter(x => x.st.c === c && PAN_STEP_RE.test(txtOf(x.st)) && !/電子レンジ|レンジ|オーブン|トースター/.test(txtOf(x.st)));
     if (!hs.length) return;
@@ -2700,7 +2722,7 @@ function openAsk() {
 ${eqText()}
 【在庫】${S.stock.map(s => `${s.name} ${s.qty}`).join("、")}
 ${CK.cooks.map(c => `【作っている料理】${c.r.title}（${c.total}人分）\n材料: ${ingsOf(c.r).map(i => `${i.name} ${scaleAmount(i.amount, c.k)}`).join("、")}\n手順:\n${stepsOf(c.r).map((t, i) => `${i + 1}. ${scaleSteps(t, c.k)}`).join("\n")}`).join("\n\n")}
-${s ? `【今の手順】${s.c.r.title} の手順${s.i + 1}: ${stepsOf(s.c.r)[s.i]}` : ""}
+${s ? `【今の手順】${s.c.r.title} の手順${s.i + 1}: ${stepTxt(s)}` : ""}
 ${qa.slice(0, -1).slice(-4).map(y => `【前の質問】${y.q}\n【前の答え】${y.a || ""}`).join("\n")}
 【質問】${q}
 JSONだけで答える: {"answer":"答え"}`;
