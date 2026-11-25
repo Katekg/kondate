@@ -1960,12 +1960,28 @@ function drawRecipes() {
     <p class="note">${list.length}品</p></div>
     <div class="rlist">${shown.map(r => { const b = bookOf(r), rt = Rt[r.id]; return `<button class="card rcard" data-id="${esc(r.id)}"><b>${esc(r.title)}${rt === "good" ? " 👍" : rt === "bad" ? " 👎" : ""}</b><span class="rk">${esc(kindOf(r))}</span><small>${b ? `📖 ${esc(b.book)} ${b.page ? "p." + esc(b.page) : ""}${b.food ? "・" + esc(b.food) : ""}` : "AIのレシピ"}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal` : ""}${r.servings ? `・${esc(r.servings)}人分` : ""}</small></button>`; }).join("")}</div>
     ${list.length > shown.length ? `<button class="btn ghost wide" id="rMore" style="margin-top:8px">もっと見る（あと${list.length - shown.length}品）</button>` : ""}
-    <button class="btn wide" id="rAdd" style="margin-top:10px">＋ レシピを手で入れる</button>`;
+    <button class="btn wide" id="rAdd" style="margin-top:10px">＋ レシピを手で入れる</button>
+    <label class="btn ghost wide" style="margin-top:8px;text-align:center;display:block">📥 ファイルからまとめて取り込む<input id="rFile" type="file" accept=".json,application/json" hidden></label>`;
   let tm; $("rQ").oninput = e => { clearTimeout(tm); tm = setTimeout(() => { F.q = e.target.value.trim(); S.rMore = 0; const pos = e.target.selectionStart; drawRecipes(); const q = $("rQ"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} }, 250); };
   $("app").querySelectorAll(".rfilter .chip").forEach(b => b.onclick = () => { F[b.dataset.k] = b.dataset.v; S.rMore = 0; drawRecipes(); });
   $("app").querySelectorAll(".rcard").forEach(b => b.onclick = () => openRecipe(b.dataset.id));
   if ($("rMore")) $("rMore").onclick = () => { S.rMore = (S.rMore || 60) + 60; drawRecipes(); };
   $("rAdd").onclick = () => editRecipe(null);
+  $("rFile").onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) importRecipes(f); };
+}
+// レシピのファイル（JSONの配列。1品 = レシピ表の1行と同じ形）を取り込む。同じid、または同じ本・同じ料理名のレシピは入れ直さない
+async function importRecipes(file) {
+  let list; try { list = JSON.parse(await file.text()); } catch (e) { alert("ファイルを読めませんでした（JSONではないようです）"); return; }
+  if (!Array.isArray(list)) list = [list];
+  const has = new Set((S.recipes || []).flatMap(r => [r.id, (bookOf(r) ? bookOf(r).book + "|" : "") + r.title]));
+  const add = list.filter(r => r && r.title && String(r.ingredients || "").trim()).map(r => ({ id: String(r.id || ""), title: String(r.title), servings: String(r.servings || "2"), cuisine: String(r.cuisine || ""), keepDays: String(r.keepDays || ""), ingredients: String(r.ingredients || ""), steps: String(r.steps || ""), kcal: r.kcal == null ? "" : String(r.kcal), p: String(r.p || ""), f: String(r.f || ""), c: String(r.c || ""), memo: String(r.memo || "") }))
+    .filter(r => !has.has(r.id) && !has.has((bookOf(r) ? bookOf(r).book + "|" : "") + r.title));
+  const skip = list.length - add.length;
+  if (!add.length) { alert(`入れるレシピがありませんでした（${skip}品はもう入っています）`); return; }
+  if (!confirm(`${add.length}品を取り込みます。${skip ? `（${skip}品はもう入っているので飛ばします）` : ""}`)) return;
+  for (let i = 0; i < add.length; i += 40) run("saveRecipes", add.slice(i, i + 40));
+  S.rf = { q: "", kind: "", src: "" }; draw();
+  alert(`${add.length}品を取り込みました。シートへの保存は裏で続きます（画面下の「保存中」が消えれば完了）。`);
 }
 function openRecipe(id) {
   const r = recipeOf(id); if (!r) return;
