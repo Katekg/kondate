@@ -286,8 +286,6 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .cboxes { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: .85rem; }
 .cboxes:empty { display: none; }
 .slalts .btn { padding-left: 4px; padding-right: 4px; font-size: .85rem; white-space: nowrap; }
-.cprep .ptools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13px; }
-.cprep .ptools .chip { padding: 2px 8px; font-size: 12px; }
 .cprep .pskip { align-self: center; color: var(--muted); }
 #ppN, #prepBox { display: none; }
 .cboxes .cbox.on { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -2434,7 +2432,7 @@ async function startCook(cooks, d, m) {
   drawPrep();
   // 段取り: AIを使わず、レシピの材料の分け方と手順から決める
   { const bp = bookPlan(cooks); bp.steps.book = true; begin(bp); }
-  function begin(p) { if (!CK || CK.cooks !== cooks || CK.steps.length) return; CK.steps = mergeSteps(cooks, p && p.steps); CK.prep = p && p.prep && p.prep.book ? p.prep : cleanPrep(p && p.prep); CK.colors = dishColors(cooks, p && p.colors); if (CK.phase === "cook") drawCook(); else if ($("cStep") && $("cStep").querySelector(".cprep")) { CK.prepVals = {}; $("cStep").querySelectorAll(".pq").forEach(b => { CK.prepVals[b.dataset.i] = qtyVal(b); }); const sc = $("cStep").querySelector(".pil"), top = sc ? sc.scrollTop : 0; drawPrep(); const sc2 = $("cStep").querySelector(".pil"); if (sc2) sc2.scrollTop = top; } else paintPrepMap(); }
+  function begin(p) { if (!CK || CK.cooks !== cooks || CK.steps.length) return; CK.steps = mergeSteps(cooks, p && p.steps); CK.fires = p && p.steps && p.steps.book ? bookFires(CK.steps) : null; CK.prep = p && p.prep && p.prep.book ? p.prep : cleanPrep(p && p.prep); CK.colors = dishColors(cooks, p && p.colors); if (CK.phase === "cook") drawCook(); else if ($("cStep") && $("cStep").querySelector(".cprep")) { CK.prepVals = {}; $("cStep").querySelectorAll(".pq").forEach(b => { CK.prepVals[b.dataset.i] = qtyVal(b); }); const sc = $("cStep").querySelector(".pil"), top = sc ? sc.scrollTop : 0; drawPrep(); const sc2 = $("cStep").querySelector(".pil"); if (sc2) sc2.scrollTop = top; } else paintPrepMap(); }
 }
 const cookPlansOf = (d, m) => S.plans.filter(p => p.date === d && p.meal === m && !isLo(p) && !isOut(p));
 const spoonMl = a => { const m = String(a || "").match(/^(大さじ|小さじ)\s*(\d+(?:\.\d+)?)(?:\/(\d+))?/); return m ? `${(m[3] ? m[2] / m[3] : +m[2]) * (m[1] === "大さじ" ? 15 : 5)}ml` : ""; };
@@ -2504,23 +2502,6 @@ function paintPrepMap() {
   box.querySelectorAll("[data-cb]").forEach(b => b.onclick = e => { e.stopPropagation(); got[b.dataset.cb] = !got[b.dataset.cb]; paintPrepMap(); });
 }
 // ① 材料を調理台に出す: 出したらタップ。冷蔵庫などに戻す残りの量を直すと、ここで在庫を更新する
-// 使う調理器具: 実際に行う手順の文（省いた手順は除く）から拾う。登録した器具に同じ物があれば、その名前で出す
-const TOOL_RULES = [
-  [/炊飯器/, "炊飯器"], [/包丁|まな板|切[りっるれ]|刻|みじん|せん切|そぎ|ざく/, "包丁・まな板"],
-  [/フライパン|いため|炒め|からいり|焼きつけ|焼き色/, "フライパン"], [/なべ|鍋|煮立|煮る|煮て|煮汁|ゆで|ゆが/, "なべ"],
-  [/ふた/, "ふた"], [/ざる/, "ざる"], [/重石|重しを/, "重石にする皿"], [/電子レンジ|レンジ/, "電子レンジ"],
-  [/トースター/, "オーブントースター"], [/オーブン(?!トースター)/, "オーブン"], [/グリル|魚焼き/, "魚焼きグリル"],
-  [/おろし|すりおろ/, "おろし金"], [/菜箸|さいばし/, "菜箸"], [/木べら|へら/, "木べら"], [/盛/, "盛りつける器"]
-];
-function toolsOf(cooks) {
-  const txt = (CK && CK.steps && CK.steps.length ? CK.steps.map(x => x.c && stepsOf(x.c.r)[x.i] || "") : cooks.flatMap(c => stepsOf(c.r))).join("\n");
-  const rice = cooks.some(c => ingsOf(c.r).some(g => isRice(g.name)));
-  const out = TOOL_RULES.filter(([re, n]) => n === "炊飯器" ? rice || re.test(txt) : re.test(txt)).map(([, n]) => n);
-  if (/(大さじ|小さじ)/.test(cooks.map(c => ingsOf(c.r).map(g => g.amount).join(" ")).join(" "))) out.push("計量スプーン");
-  if (/カップ/.test(cooks.map(c => ingsOf(c.r).map(g => g.amount).join(" ")).join(" "))) out.push("計量カップ");
-  const eq = S.equipment || [];
-  return out.map(n => { const e = n.length >= 2 && eq.find(x => n.split("・").some(w => String(x.name).includes(w === "なべ" ? "鍋" : w)) || (n === "なべ" && /なべ|鍋/.test(x.name))); return e ? `${n}（${e.name}）` : n; });
-}
 function drawPrep() {
   const cooks = CK.cooks, done = CK.d && cookPlansOf(CK.d, CK.m).every(p => p.status === "作った"), rows = done ? [] : stockRows(cooks);
   const bk = CK.prep && CK.prep.book, ings = new Map(); cooks.forEach(c => ingsOf(c.r).forEach(i => { if (/^(水|湯|お湯|熱湯)$/.test(normName(i.name))) return;
@@ -2533,7 +2514,7 @@ function drawPrep() {
   const seenRow = new Set();
   $("cProg").style.width = "0";
   CK.ingNote = `${done ? "この料理の在庫は、もう引いてあります。" : "容器を図の場所に並べ、野菜は札のバットへ、調味料はボウル・小鉢（粉末などは小皿）へ量って入れます。戻す<b>残りの量</b>を直して、下のボタンで在庫を引きます。"}`;
-  $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}${(() => { const t = toolsOf(cooks); return t.length ? `<div class="ptools"><b>使う調理器具</b> ${t.map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div>` : ""; })()}<h3 id="ppH"></h3><p class="note" id="ppN"></p>
+  $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}<h3 id="ppH"></h3><p class="note" id="ppN"></p>
     <div class="cboxes" id="prepBox"></div>
     <div class="plist pil"><ul class="list">${prepEntries(list).map(e => { const i = e.i, row = e.row && i.ri >= 0 && !seenRow.has(i.ri) ? rows[i.ri] : null; if (row) seenRow.add(i.ri); const v = CK.prepVals && CK.prepVals[i.ri];
       const lb = i.st.st === "sub" ? `${i.st.sub.use.split("・")[0]}で代用${i.st.sub.amount ? `（${i.st.sub.amount}）` : ""}${i.st.sub.note ? `。${i.st.sub.note}` : ""}` : i.st.st === "skip" ? "在庫に無いので省く" : "";
@@ -2630,7 +2611,28 @@ function guessScene(s) {
   const raw = stepsOf(s.c.r)[s.i], st = splitTool(raw), t = st.text + " " + st.tool + " " + (s.detail || ""), pan = panOf(st.tool) || (/(炒め|焼|煮|ゆで|茹で|沸か|熱し)/.test(st.text) ? panOf(st.text) : "");
   return { board: /(切|刻|みじん|むく|むき|皮|まな板|包丁|ほぐ)/.test(st.text + st.tool), sink: /(洗|水にさら|水気を切|ゆでこぼ|ザル|ざる|水で戻)/.test(st.text), mw: /(レンジ|\d+W)/.test(t), fire: pan ? [{ burner: DEF_BURNER[pan], pan: PAN_NAME[pan], now: true }] : [], trays: [] };
 }
-function sceneAt(i) { const s = CK.steps[i]; return s.scene || { ...guessScene(s), mix: s.mix || [] }; }
+function sceneAt(i) { const s = CK.steps[i]; if (s.scene) return s.scene; const g = { ...guessScene(s), mix: s.mix || [] }; if (CK.fires) g.fire = CK.fires[i] || []; return g; }
+// 本のレシピ（AIを使わない）: 料理ごとに使う鍋・フライパンを器具一覧から選び、コンロの口に置く
+// 加熱する手順の文から鍋かフライパンかを決め、量（材料のg・ml）で大小を選ぶ。ふたを使うなら、ふた有りの物
+const PAN_STEP_RE = /なべ|鍋|フライパン|煮立|煮る|煮て|煮込|ゆで|ゆが|いため|炒め|からいり|焼|熱し|揚げ|沸か/;
+function bookFires(steps) {
+  const eq = (S.equipment || []).filter(e => panOf(e.name) && !/セパレート/.test(e.name)), dishes = [], used = new Set(), burners = new Set();
+  const txtOf = st => stepsOf(st.c.r)[st.i] || "";
+  [...new Set(steps.map(st => st.c))].forEach(c => {
+    const hs = steps.map((st, j) => ({ st, j })).filter(x => x.st.c === c && PAN_STEP_RE.test(txtOf(x.st)) && !/電子レンジ|レンジ|オーブン|トースター/.test(txtOf(x.st)));
+    if (!hs.length) return;
+    const t = hs.map(x => txtOf(x.st)).join(" "), fp = /フライパン/.test(t) || (!/なべ|鍋/.test(t) && /いため|炒め|からいり|焼/.test(t));
+    const g = ingsOf(c.r).reduce((n, x) => { const nm = normName(ingBase(c.r, x.name)); if (ingState(x.name, x.amount, c.k).st === "skip" || isRice(x.name) || ((SEAS_RE.test(nm) || /^酒$|粉$/.test(nm)) && !/^(だし|水|湯|スープ)/.test(nm))) return n; const a = scaleAmount(x.amount, c.k), q = [...pqAll(a), ...pqAll(withGram(x.name, a)), ...pqAll(spoonQ(x.name, a) || "")], gg = (q.find(p => p.u === "g") || {}).n, ml = (q.find(p => conv(p, "ml") != null) || null); return n + (gg || (ml ? conv(ml, "ml") : 0)); }, 0);
+    const lid = /ふた/.test(t), big = fp ? g > 350 || lid : g > 500;
+    const keys = fp ? (big ? ["bigfp", "smfp"] : ["smfp", "bigfp"]) : (big ? ["bigpot", "smpot"] : ["smpot", "bigpot"]);
+    const k = keys.find(k => !used.has(k) && (!eq.length || eq.some(e => panOf(e.name) === k))) || keys[0]; used.add(k);
+    const order = [DEF_BURNER[k], "右", "左", "後"], b = order.find(x => !burners.has(x)) || DEF_BURNER[k]; burners.add(b);
+    // 火を止めても、盛りつけるまでは鍋・フライパンをコンロに置いたまま
+    const last = steps.reduce((m, st, j) => st.c === c ? j : m, -1);
+    dishes.push({ c, k, b, from: hs[0].j, to: Math.max(hs[hs.length - 1].j, last), heat: new Set(hs.map(x => x.j)) });
+  });
+  return steps.map((st, j) => dishes.filter(d => j >= d.from && j <= d.to).map(d => ({ burner: d.b, pan: PAN_NAME[d.k], now: d.heat.has(j) })));
+}
 function kitchenSvg(idx) {
   // idx = -1 は「材料を出す」画面（下準備の置き場所だけを見せる）
   const prep = idx < 0, sc = prep ? { board: false, mw: false, fire: [], trays: [], mix: [] } : sceneAt(idx), P = CK.prep || { mixes: [], place: [] };
