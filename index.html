@@ -1937,8 +1937,8 @@ const R_KINDS = ["主菜", "副菜", "主食", "汁物", "その他"];
 const kindOf = r => {
   const b = bookOf(r); if (b && b.kind) { const k = R_KINDS.find(x => b.kind.startsWith(x)); return k || "その他"; }
   const t = String(r.title || "");
-  if (/汁|スープ|ポタージュ|チャウダー/.test(t)) return "汁物";
   if (/ごはん|ご飯|丼|チャーハン|パスタ|雑炊|カレー|ピラフ|トースト|サンド|うどん|そば|そうめん|焼きそば/.test(t)) return "主食";
+  if (/汁|スープ|ポタージュ|チャウダー/.test(t)) return "汁物";
   if (/クッキー|ゼリー|グミ|ムース|マドレーヌ|ビスケット|ヨーグルト|バナナ|牛乳|プロテイン|茶巾|生チョコ/.test(t)) return "その他";
   if (/肉|鶏|豚|牛|鮭|さば|ぶり|アジ|魚|エビ|イカ|卵|豆腐|麻婆|つくね|ハンバーグ/.test(t)) return "主菜";
   return "副菜";
@@ -2034,6 +2034,7 @@ const T_KEYS = [["目標1", "人1"], ["目標2", "人2"]];
 function openPref() {
   const tg = k => String(SET(k)).split("/");
   openSheet(`<h2>好み・予算</h2><p class="note">ここに書いた内容を、AIが献立やレシピを考えるたびに読み込みます。書き換えると、次の提案から反映されます。</p>
+    <label>AIの役割<select data-k="AIの役割"><option value="選ぶ"${SET("AIの役割") !== "考える" ? " selected" : ""}>レシピ帳から選ぶだけ（新しい料理は作らない）</option><option value="考える"${SET("AIの役割") === "考える" ? " selected" : ""}>新しい料理も考える</option></select></label>
     ${PREF.map(([k, l, ph]) => `<label>${esc(l)}<textarea data-k="${k}" rows="3" placeholder="${esc(ph)}">${esc(SET(k))}</textarea></label>`).join("")}
     <h3 style="margin-top:6px">1か月の予算（円）</h3>
     <div class="grid3">${BUDGET.map(([k, l]) => `<label>${esc(l)}<input data-k="${k}" type="number" inputmode="numeric" value="${esc(SET(k))}"></label>`).join("")}</div>
@@ -2690,9 +2691,40 @@ ${dailyItems().length ? `- いつもの飲み物（献立とは別に毎日飲�
 ${S.stock.filter(hasQty).map(s => `- ${s.name}: ${s.qty}${s.exp ? `（期限 ${s.exp}）` : ""}`).join("\n")}
 ■器具
 ${eqText()}
-■これまでのレシピ（同じ料理を使うときは recipe_id を書く）
-${S.recipes.slice(-70).map(r => `- id=${r.id}｜${r.title}（${r.servings}人分・日持ち${r.keepDays || "?"}日）`).join("\n")}
+${pickOnly() ? catalogText() : `■これまでのレシピ（同じ料理を使うときは recipe_id を書く）
+${S.recipes.slice(-70).map(r => `- id=${r.id}｜${r.title}（${r.servings}人分・日持ち${r.keepDays || "?"}日）`).join("\n")}`}
 ${rateText()}`;
+}
+// AIは「レシピ帳から選ぶだけ」（設定「AIの役割」が「考える」でなく、本などのレシピが入っているとき）
+const pickOnly = () => SET("AIの役割") !== "考える" && (S.recipes || []).some(r => bookOf(r));
+// レシピ帳の一覧（AIに渡す）: 料理ごとに id・種類・人数・1人分kcal・主な材料と量
+function catalogText() {
+  const Rt = rates(), list = recipeBook().filter(r => Rt[r.id] !== "bad" && ingsOf(r).length);
+  [RICE_AM, RICE_LD].forEach(id => { const r = recipeOf(id); if (r && !list.includes(r)) list.push(r); });
+  const main = r => ingsOf(r).filter(i => !SEAS_RE.test(normName(i.name)) && !/^(水|湯)$/.test(normName(i.name))).slice(0, 6).map(i => `${normName(i.name)}${i.amount}`).join("・");
+  const subs = Object.entries(ING_SUB).map(([k]) => { const o = subOf(k); return o ? `${k}→${o.use}${o.amount && o.amount !== "同量" ? `（${o.amount}）` : ""}` : ""; }).filter(Boolean);
+  return `■レシピ帳（献立は必ずこの中から選ぶ。新しい料理は作らない）
+- 料理は必ず下の一覧から選び、meals に recipe_id を書く。recipe は書かない（材料・手順・栄養はレシピ帳のものを使う）。
+- dish はレシピ帳の料理名をそのまま書く（料理名を短くする決まりより優先）。量は people（食べる人数）で調整される。作り置きの分は、作り置きを食べる枠を leftover:true で入れれば足される。
+- 一覧に合う料理が無い枠は、その枠を空けずに、いちばん近い料理を選ぶ（主菜なら主菜）。行事の日も、一覧の中から行事に合いそうな料理を選ぶ。
+- 「本」は料理本のレシピ。なるべく本のレシピを使い、朝の手軽な物などは「家」のレシピも使ってよい。
+- 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
+- 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}｜${main(r)}`; }).join("\n")}`;
+}
+// AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
+function pickFix(meals) {
+  const byTitle = new Map(); (S.recipes || []).forEach(r => { if (r && r.title && (!byTitle.has(r.title) || bookOf(r))) byTitle.set(r.title, r); });
+  const bad = [], out = [];
+  meals.forEach(m => {
+    if (m.leftover) { out.push(m); return; }
+    let r = m.recipe_id && recipeOf(m.recipe_id);
+    if (!r) r = byTitle.get(m.dish) || (m.recipe && byTitle.get(m.recipe.title)) || (/^白ごはん|^ごはん$|^ご飯$/.test(m.dish) ? recipeOf(m.meal === "朝" ? RICE_AM : RICE_LD) : null);
+    if (!r) { bad.push(m.dish); return; }
+    const { recipe, ...o } = m; out.push({ ...o, recipe_id: r.id });
+  });
+  const badSet = new Set(bad);
+  return { bad, meals: out.filter(m => !(m.leftover && badSet.has(m.dish))) };
 }
 // 料理の評価（食べたあとに付ける）: 設定「レシピ評価」に {レシピid: "good"|"ok"|"bad"} で保存
 const rates = () => { try { return JSON.parse(SET("レシピ評価") || "{}") || {}; } catch (e) { return {}; } };
@@ -2987,10 +3019,18 @@ async function applyAi(res, meta, prompt, id) {
   const c = meta.ctx || {}; if (!S.slotSel && c.slotSel) S.slotSel = c.slotSel; if (!S.rbWish) S.rbWish = c.rbWish || ""; if (!S.dealText) S.dealText = c.dealText || "";
   // 週の献立: 選んだ枠（外食・なしを除く）以外に入れてきた料理は捨てる
   const okKeys = meta.mode === "week" && meta.slotKeys && meta.slotKeys.length ? new Set(meta.slotKeys) : null, okDays = okKeys ? new Set([...okKeys].map(k => k.slice(0, 10))) : null;
-  const meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; return { ...m, meal, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : (+m.people || 2) }; });
+  let meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; return { ...m, meal, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : (+m.people || 2) }; });
   const shop = (Array.isArray(res.shopping) ? res.shopping : []).filter(x => x && x.name).map(x => ({ name: String(x.name), amount: String(x.amount || ""), reason: String(x.reason || ""), mark: "" }));
   const { ctx, prompt: _p, ...m0 } = meta;
+  // AIは選ぶだけ: レシピ帳に無い料理を作ってきたら、1回だけ選び直してもらう（それでも残る料理は外す）
+  let pickDrop = [];
+  if (pickOnly()) {
+    const fx = pickFix(meals);
+    if (fx.bad.length && !meta.retried) { await askAi(prompt + `\n【前の案の問題】次の料理はレシピ帳に無い: ${fx.bad.join("、")}。必ずレシピ帳の一覧から選び、recipe_id を書く（新しい料理を作らない）。`, { ...m0, retried: true }); return; }
+    meals = fx.meals; pickDrop = fx.bad;
+  }
   S.draft = { ...m0, ctx0: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
+  if (pickDrop.length) S.draft.note = (S.draft.note || "") + `（レシピ帳に無い料理だったので外しました: ${pickDrop.join("、")}）`;
   absorbRest(S.draft); S.draft.absorbed = true;
   // 「在庫だけで」なのに買い物が出た／「使い切る」と選んだ食材がまだ残る → 問題を伝えて1回だけ考え直す
   if (!meta.retried) {
