@@ -542,6 +542,27 @@ li.gone .nmt { text-decoration: line-through; color: var(--muted); }
 li.gone .qf, li.gone .exl { opacity: .35; pointer-events: none; }
 li.gone .ckout { background: var(--fill); color: var(--fill-ink); border-color: var(--fill); }
 .ckcats .chip.empty:not(.on) { opacity: .55; }
+/* 期限の欄と「今日」ボタン */
+.dtw { display: flex; gap: 6px; align-items: center; }
+.dtw input[type=date] { flex: 1; min-width: 0; }
+.dtw .tdy { flex: none; padding: 6px 10px; }
+label.hastdy { position: relative; }
+label.hastdy .tdy { position: absolute; right: 0; top: -6px; padding: 3px 12px; font-size: .8rem; }
+/* 在庫タブの買い物リスト: 材料名を大きく、1行を低く（量の欄は名前の右に。入らないときだけ下の行へ） */
+.card:has(> #sbList) { min-width: 0; }
+#sbList { min-width: 0; }
+#sbList li.qrow { min-width: 0; padding: 6px 0; gap: 4px 8px; align-items: center; }
+#sbList li.qrow .bcck { width: auto; flex: 1 1 10em; min-width: 0; gap: 10px; }
+#sbList .bcck input[type=checkbox] { width: 22px; height: 22px; }
+#sbList .bcck .nmt { font-size: 1.08rem; font-weight: 700; color: var(--ink); line-height: 1.25; min-width: 0; }
+#sbList .bcck .nmt small { font-weight: 400; font-size: .7rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sbList .qf.q { width: auto; flex: none; margin-left: auto; }
+#sbList .qf .qfl small { display: none; }
+#sbList .qf input, #sbList .qf select { height: 2.3em; }
+#sbList .qf .qn { width: 4.4em; }
+#sbList .qf.vq .qn { width: 3em; }
+#sbList .qf .qu { width: 3em; }
+#sbList .qf .qg { width: 3.4em; }
 </style>
 </head>
 <body>
@@ -727,7 +748,7 @@ async function load() {
   WQ.forEach(op => wqApply(d, op.fn, op.a));
   (d.stock || []).forEach(s => { s.qty = toFrac(s.qty); });
   Object.assign(S, d); S.stale = false; showStale(false); saveCache(d);
-  vegMigrate(); unitMigrate(); unitMigrate2(); bookUnitMigrate();
+  vegMigrate(); unitMigrate(); unitMigrate2(); bookUnitMigrate(); countMigrate();
   if (await takeJob(S.job)) return;
   draw();
   setTimeout(precookSoon, 3000);
@@ -865,7 +886,7 @@ function vegBox(q, cls, i, name, v) {
 function qtyBox(q, cls, i, name) {
   if (name && vegOf(name)) return vegBox(q, cls, i, name);
   const rice = name && isRice(name), t = String(q || "").trim(), m = t.match(QF_RE), n = m ? m[1] : "", u = m ? m[2] : (rice && !t ? "kg" : t), g = m && m[3] || "", gu = m && m[4] || "g";
-  return `<div class="qf${cls ? " " + cls : ""}${QF_W.test(u) && !(rice && /^k?g$/.test(u)) ? " nog" : ""}${rice ? " rice" : ""}"${i != null ? ` data-i="${i}"` : ""}><span class="qfl"><small>${rice ? "量" : `<span class="ql-n">個数</span><span class="ql-a">量</span>`}</small><input class="qn" inputmode="decimal" value="${esc(n)}" data-prev="${esc(n)}" aria-label="${rice ? "量" : "個数"}">${rice ? "" : `<button type="button" class="qslash" tabindex="-1" aria-label="分数の／を入れる">／</button>`}</span><span class="qfl"><small>単位</small><input class="qu" list="qUnits" value="${esc(u)}" placeholder="個" aria-label="単位"></span><span class="qsub"><span class="qfl"><small>${rice ? "約" : "総量（約）"}</small><input class="qg" inputmode="decimal" value="${esc(g)}" aria-label="総量"></span><span class="qfl"><small>&nbsp;</small><select class="qgu">${(rice ? ["合分"] : ["g", "ml"]).map(x => `<option ${x === gu.toLowerCase() || (x === "ml" && gu === "cc") ? "selected" : ""}>${x}</option>`).join("")}</select></span></span></div>`;
+  return `<div class="qf${cls ? " " + cls : ""}${QF_W.test(u) && !(rice && /^k?g$/.test(u)) ? " nog" : ""}${rice ? " rice" : ""}"${i != null ? ` data-i="${i}"` : ""}><span class="qfl"><small>${rice ? "量" : `<span class="ql-n">個数</span><span class="ql-a">量</span>`}</small><input class="qn" inputmode="decimal" value="${esc(n)}" data-prev="${esc(n)}" aria-label="${rice ? "量" : "個数"}">${rice ? "" : `<button type="button" class="qslash" tabindex="-1" aria-label="分数の／を入れる">／</button>`}</span><span class="qfl"><small>単位</small><input class="qu" list="qUnits" value="${esc(u)}" placeholder="個" aria-label="単位"></span><span class="qsub"><span class="qfl"><small>${rice ? "約" : "総量（約）"}</small><input class="qg" inputmode="decimal" value="${esc(g)}" placeholder="総量" aria-label="総量"></span><span class="qfl"><small>&nbsp;</small><select class="qgu">${(rice ? ["合分"] : ["g", "ml"]).map(x => `<option ${x === gu.toLowerCase() || (x === "ml" && gu === "cc") ? "selected" : ""}>${x}</option>`).join("")}</select></span></span></div>`;
 }
 const QTY_HINT = `<p class="note qhint">総量 ÷ 個数 ＝ 1個あたりの重さ</p>`;
 function qtyVal(box) {
@@ -1729,7 +1750,8 @@ function stockRows(cooks) {
   }));
   rows.forEach(x => {
     const v = vegOf(x.s.name), n0 = v ? vegN(x.s.name, x.s.qty, v) : null, us = v ? x.used.map(u => vegN(x.s.name, u, v)) : [];
-    if (v && n0 != null && us.every(u => u != null)) { const left = n0 - us.reduce((a, b) => a + b, 0), k = Math.round(left * v.d); x.gone = k <= 0; x.after = x.gone ? "" : vegFmt(k / v.d, v); return; }
+    // 使いかけを残さない物（卵・缶詰・バナナ）は、少しでも使ったら1つ減らす。ほかは分けかたの単位で丸める（1/2本 を使って 4本 → 4本 のままにならないように、分けかたは本に合わせてある）
+    if (v && n0 != null && us.every(u => u != null)) { const left = n0 - us.reduce((a, b) => a + b, 0), k = v.whole ? Math.floor(left * v.d + 1e-6) : Math.round(left * v.d); x.gone = k <= 0; x.after = x.gone ? "" : vegFmt(k / v.d, v); return; }
     let left = x.s.qty; for (const u of x.used) { const r = left === "gone" ? "gone" : subQty(left, u); left = r == null ? left : r; } x.gone = left === "gone"; x.after = left === "gone" ? "" : left; });
   return rows;
 }
@@ -1960,7 +1982,7 @@ function openAdd(cats) {
 }
 // 在庫確認モード: カテゴリごとに1画面ずつ、量と期限を見直す。「なくなった」で消す・「＋ 追加」で足す。次へ進むときに、変えた分だけ保存する
 const addMonth = (ds, n) => { const d = new Date(ds + "T00:00:00"), day = d.getDate(); d.setMonth(d.getMonth() + n); if (d.getDate() !== day) d.setDate(0); return ymd(d); };
-const EXQ = [["3日後", 3], ["1週間", 7], ["1ヶ月", "m"]];
+const EXQ = [["今日", "0"], ["3日後", 3], ["1週間", 7], ["1ヶ月", "m"]];
 const exQuick = () => `<span class="exq">${EXQ.map(([l, n]) => `<button type="button" class="chip" data-n="${n}">${l}</button>`).join("")}</span>`;
 function openCheckMode(idx, done) {
   done = done || new Set();
@@ -2066,6 +2088,13 @@ function bookUnitMigrate() {
   const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || /^(あり|わずか)$/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
   if (ups.length) run("saveStock", ups);
   S.settings["本の単位に合わせる"] = today(); run("saveSetting", "本の単位に合わせる", today());
+}
+// 2026-11-26: 卵・小ねぎ・バナナ・缶詰を個数・本数だけで数える（バナナ 4個 → 4本 など、在庫の書き方をそろえる）。1回だけ
+function countMigrate() {
+  if (SET("個数だけで数える") || WQ.length) return;
+  const ups = []; S.stock.forEach(x => { const b = vegBase(x.name); if (!b || !/^(卵|小ねぎ|バナナ|ツナ缶|トマト缶)$/.test(b.name) || /^(あり|わずか)$/.test(x.qty)) return; const v = vegOf(x.name), n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
+  if (ups.length) run("saveStock", ups);
+  S.settings["個数だけで数える"] = today(); run("saveSetting", "個数だけで数える", today());
 }
 function vegMigrate() {
   if (SET("野菜単位の移行") || WQ.length) return;
@@ -2329,7 +2358,7 @@ function showDayPhotos(d, ps) {
 // 器具: 手順の最後の［…］。タイマー: 手順の「N分」。手順ごとに持ち、ほかの手順へ進んでも止まらない
 // 1単位の重さ（g）。『女子栄養大学の毎日おかず』の材料表「1/2個(100g)」などから、本のとおりの重さにした（卵は本の「卵1個=50g」）
 const UNIT_G = [[/玉ねぎ|たまねぎ/, { 個: 200 }], [/じゃがいも|じゃが芋/, { 個: 140 }], [/にんじん|人参/, { 本: 160 }], [/大根/, { 本: 1000, cm: 30 }], [/キャベツ/, { 個: 1000, 枚: 100 }], [/白菜/, { 株: 2000, 個: 2000, 枚: 100 }], [/白ネギ|白ねぎ|長ネギ|長ねぎ|^ねぎ/, { 本: 100 }],
-  [/なす/, { 本: 80 }], [/ミニトマト|プチトマト/, { 個: 15 }], [/トマト/, { 個: 150 }], [/きゅうり/, { 本: 100 }], [/ピーマン/, { 個: 30 }], [/さつまいも|さつま芋/, { 本: 300 }], [/かぼちゃ/, { 個: 1000 }], [/卵/, { 個: 50 }],
+  [/なす/, { 本: 80 }], [/トマト缶|カットトマト|トマト水煮|ホールトマト/, { 個: 400, 缶: 400 }], [/ツナ/, { 個: 70, 缶: 70 }], [/小ねぎ|小ネギ|万能ねぎ|青ねぎ|細ねぎ|あさつき/, { 本: 5 }], [/ミニトマト|プチトマト/, { 個: 15 }], [/トマト/, { 個: 150 }], [/きゅうり/, { 本: 100 }], [/ピーマン/, { 個: 30 }], [/さつまいも|さつま芋/, { 本: 300 }], [/かぼちゃ/, { 個: 1000 }], [/卵/, { 個: 50 }],
   [/しめじ|まいたけ/, { パック: 100, 袋: 100 }], [/えのき/, { パック: 80, 袋: 80 }], [/エリンギ/, { 本: 50, パック: 100 }], [/しいたけ/, { 枚: 15, 個: 15 }],
   [/豆腐/, { 丁: 300 }], [/油揚げ/, { 枚: 30 }], [/厚揚げ/, { 枚: 200 }], [/鮭|サケ|ぶり|ブリ|さば|サバ|鯖|たら|タラ|鱈/, { 切れ: 80 }], [/ブロッコリー/, { 株: 300 }], [/カリフラワー/, { 株: 400 }], [/チンゲン菜|ちんげんさい|青梗菜|チンゲンサイ/, { 株: 125, 袋: 250 }], [/れんこん/, { 節: 240 }], [/ごぼう/, { 本: 150 }], [/りんご/, { 個: 300 }],
   [/バナナ/, { 本: 100 }], [/しょうが|生姜/, { かけ: 15 }], [/にんにく/, { かけ: 5 }], [/もやし/, { 袋: 210 }], [/小松菜/, { 束: 400, 袋: 200, 株: 40 }], [/ほうれん草/, { 束: 300, 袋: 200, 株: 30 }], [/春菊/, { 束: 200, 袋: 200 }], [/にら|ニラ/, { 束: 100, 袋: 100 }], [/水菜/, { 束: 200, 袋: 200 }],
@@ -2376,15 +2405,19 @@ const VEG_LIST = [["大根", /大根/, "本", 12, 1], ["かぼちゃ", /かぼ�
   ["レタス", /レタス/, "玉", 12, 0], ["セロリ", /セロリ/, "本", 12, 0], ["もやし", /もやし/, "袋", 4, 0],
   ["しめじ", /しめじ/, "パック", 2, 0], ["えのきたけ", /えのき/, "パック", 2, 0], ["まいたけ", /まいたけ/, "パック", 2, 0], ["エリンギ", /エリンギ/, "本", 1, 0],
   ["豆腐", /豆腐$/, "丁", 12, 0], ["かぶ", /^かぶ/, "個", 1, 0], ["里芋", /里芋|さといも/, "個", 1, 0], ["ゴーヤー", /ゴーヤ/, "本", 6, 0], ["ズッキーニ", /ズッキーニ/, "本", 2, 0],
-  ["食パン", /食パン/, "個", 1, 6]];
+  ["食パン", /食パン/, "個", 1, 6],
+  // 2026-11-26: 卵・小ねぎ・バナナ・缶詰も「個数・本数だけ」で数える（本の「卵1個=50g」などの重さで g の分量も個数に直す）。
+  //   6つ目が true の物は、使いかけを残さない（1/2個使ったら1個減らす。割った卵・開けた缶・むいたバナナは取っておかないため）
+  ["卵", /^(卵|たまご|玉子|鶏卵|全卵|ゆで卵|とき卵|溶き卵|卵黄|卵白)/, "個", 1, 0, true], ["小ねぎ", /^(小ねぎ|小ネギ|万能ねぎ|万能ネギ|青ねぎ|細ねぎ|あさつき)/, "本", 1, 0],
+  ["バナナ", /バナナ/, "本", 1, 0, true], ["ツナ缶", /ツナ/, "個", 1, 0, true], ["トマト缶", /トマト缶|カットトマト|トマト水煮|ホールトマト/, "個", 1, 0, true]];
 const VEG_DEF = VEG_LIST.map(x => [x[1], x[2], x[3]]);
 const vegMap = () => { try { return JSON.parse(SET("野菜の単位") || "{}") || {}; } catch (e) { return {}; } };
-const vegBase = n => { const n2 = normName(n), L = VEG_LIST.find(x => x[1].test(n) || x[1].test(n2)); return L ? { name: L[0], u: L[2], d: L[3], pack: L[4] || 0 } : null; };
+const vegBase = n => { const n2 = normName(n), L = VEG_LIST.find(x => x[1].test(n) || x[1].test(n2)); return L ? { name: L[0], u: L[2], d: L[3], pack: L[4] || 0, whole: !!L[5] } : null; };
 function vegOf(name) {
   const n = String(name || "").trim(); if (!n || isRice(n)) return null;
   const m = vegMap(), b = vegBase(n), hit = m[n] || m[normName(n)] || (b && m[b.name]);
   // 本に載っている食材は、本の単位・分母を使う（設定は「1週間の量」だけ見る）
-  if (b) return { u: b.u, d: b.d, pack: hit && hit.pack != null && !hit.off ? +hit.pack || 0 : b.pack };
+  if (b) return { u: b.u, d: b.d, pack: hit && hit.pack != null && !hit.off ? +hit.pack || 0 : b.pack, whole: b.whole };
   if (hit) return hit.off ? null : { u: hit.u, d: +hit.d || 1, pack: +hit.pack || 0 };
   return null;
 }
@@ -2395,7 +2428,7 @@ const COUNT_U = /^(本|個|玉|株|節|丁|房)$/;
 // 量の文字 → その野菜の単位でいくつ（g しか無いときは目安の重さで割る）。わからなければ null
 function vegN(name, q, v) {
   v = v || vegOf(name); if (!v) return null; const t = String(q || "").trim(); if (!t || t === OUT) return 0;
-  const ps = pqAll(t), same = ps.find(p => p.u === v.u); if (same) return same.n;
+  const ps = pqAll(t).map(p => /^[^\d]+分$/.test(p.u) && p.u !== "合分" ? { ...p, u: p.u.slice(0, -1) } : p), same = ps.find(p => p.u === v.u); if (same) return same.n;
   // 本・株・節・玉なども「個」と同じに数える（1本 = 1個）
   // 「枚」も、葉の枚数で数える野菜（キャベツ・白菜）以外は同じに数える（食パン2枚 = 2個）
   const w = UNIT_G.find(([re]) => re.test(normName(name)));
@@ -4128,6 +4161,18 @@ async function checkDraftStock(D, used) {
   const why = `在庫を確かめたら、次の材料が足りなかった: ${bad.join("、")}。この材料を使う料理は、今の在庫で作れる料理に作り直す（栄養も考える）`;
   D.mode === "week" ? startWeek(S.rbWish || "", why) : startFix(bad.join("、"), D.picked, false, D.ngShop);
 }
+// 期限の欄の横に「今日」ボタン（押すと今日の日付が入る。日付を選ぶ画面も今日から始まる）。在庫確認の行は、もとから「今日」などのボタンがある
+function todayBtns(root) {
+  (root || document).querySelectorAll('input[type=date]:not([data-tdy])').forEach(inp => {
+    inp.dataset.tdy = "1"; if (inp.closest(".exl")) return;
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip tdy"; b.textContent = "今日";
+    // 「消費期限」の見出しの右はしに置く（欄の横だと、となりの欄にはみ出すため）
+    if (inp.parentNode.tagName === "LABEL") { inp.parentNode.classList.add("hastdy"); inp.parentNode.insertBefore(b, inp); }
+    else { const w = document.createElement("span"); w.className = "dtw"; inp.parentNode.insertBefore(w, inp); w.appendChild(inp); w.appendChild(b); }
+    b.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); inp.value = today(); inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true })); });
+  });
+}
+new MutationObserver(() => todayBtns()).observe(document.body, { childList: true, subtree: true }); todayBtns();
 testBar(); if (TEST) document.title = "🧪 " + document.title;
 try { const c = JSON.parse(localStorage.getItem(DATA_KEY) || "null"); if (c) { WQ.forEach(op => wqApply(c, op.fn, op.a)); Object.assign(S, c); S.stale = true; draw(); showStale(true); } } catch (e) { S.stale = false; }
 { const k = lsGet("draftKeep"); if (k && k.draft && !S.draft) { S.draft = k.draft; S.applied = k.draft.jobId; const c = k.ctx || {}; S.slotSel = S.slotSel || c.slotSel; S.rbWish = S.rbWish || c.rbWish || ""; S.dealText = S.dealText || c.dealText || ""; S.tab = "menu"; } }
