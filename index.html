@@ -1972,7 +1972,11 @@ const SEAS_RE = /醤油|しょうゆ|味噌|みそ|酢|みりん|料理酒|砂�
 const DRY_RE = /米|パスタ|麺|うどん|そば|粉|乾燥|海苔|のり|ひじき|昆布|かつお節|ごま|春雨|麩|ゼラチン|イースト|きなこ|ココア/;
 const isSeas = s => s && (s.cat === "調味料" || SEAS_RE.test(normName(s.name)));
 const isDryOrSeas = s => s && (s.cat === "乾物" || isSeas(s) || DRY_RE.test(normName(s.name)));
+// 缶詰・レトルト・びん詰めは、中身の食材の名前（トマト・ツナなど）より先に見る。開ける前は常温で長く持つ（缶詰は約2年、レトルト・びん詰めは約1年）
+// 2026-11-26: 「カットトマト缶」が生のトマト（野菜室・5日）と見なされ、期限が5日後の11/29になっていたため
+const LONG_RULES = [[/缶|水煮/, "コンロ下", 730], [/レトルト|びん詰|瓶詰|ビン詰|パウチ/, "コンロ下", 365]];
 function guessExp(name, cat) {
+  { const r = LONG_RULES.find(x => x[0].test(String(name || ""))); if (r) return { cat: r[1], days: r[2], exp: shiftDay(today(), r[2]) }; }
   const r = EXP_RULES.find(x => x[0].test(String(name || ""))), c = cat || (r && r[1]) || "";
   const days = /冷凍/.test(c) ? 30 : r ? r[2] : CAT_DAYS[c] || 5;
   return { cat: r ? r[1] : "", days, exp: shiftDay(today(), days) };
@@ -1999,7 +2003,7 @@ function openAdd(cats) {
       const g = guessExp(name, catSet ? q(".aCat").value : "");
       if (!catSet && g.cat && cats.includes(g.cat)) q(".aCat").value = g.cat;
       const g2 = guessExp(name, q(".aCat").value);
-      if (!expSet) { q(".aExp").value = g2.exp; q(".aNote").textContent = `期限は目安（${q(".aCat").value}で約${g2.days}日）。袋の表示があればそちらに直してください。`; }
+      if (!expSet) { q(".aExp").value = g2.exp; q(".aNote").textContent = `期限は目安（${g2.days >= 365 ? `開ける前で約${Math.round(g2.days / 365)}年` : `${q(".aCat").value}で約${g2.days}日`}）。袋や缶の表示があればそちらに直してください。`; }
     };
     q(".aName").addEventListener("input", auto);
     // 野菜なら「整数＋分子」の欄に。野菜室の初めての食材は、単位を決める欄を出す
@@ -3746,7 +3750,7 @@ ${S.stock.map(x => `${x.id}｜${x.name}｜${x.qty}｜${x.cat || ""}｜${x.exp ||
 ${ps.map(x => `${x.id}｜${x.date}｜${x.meal}｜${x.title}｜${x.people}｜${isLo(x) ? "作り置き" : ""}｜${x.status}`).join("\n")}
 【頼まれたこと】${text}
 【直し方】
-- 買った物は stock に書く。在庫にある物は id を付け、qty は「今の量＋買った量」にする（例: 卵 4個 に 10個買った → 14個）。在庫に無い物は id を空にし、cat（${cats} のどれか）と exp（消費期限の目安 YYYY-MM-DD）を付ける。
+- 買った物は stock に書く。在庫にある物は id を付け、qty は「今の量＋買った量」にする（例: 卵 4個 に 10個買った → 14個）。在庫に無い物は id を空にし、cat（${cats} のどれか）と exp（消費期限の目安 YYYY-MM-DD）を付ける。缶詰は約2年後、レトルト・びん詰めは約1年後を目安にする（中身が生鮮でも、缶詰は生鮮の日数にしない）。
 - 使い切った・無くなった物は stock_delete、減っただけなら stock で残りの量にする。
 - 作った・食べた献立は plans_done。作らなかった・食べなかった・やめる献立は plans_delete（その料理の作り置きを後で食べる予定も一緒に外す）。
 - 外食・外で食べることになった枠は out（その枠の予定は外して外食にする）。1人だけで食べる枠は solo（who: 1 か 2。2人に戻すなら 0）。
