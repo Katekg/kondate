@@ -542,6 +542,17 @@ li.gone .nmt { text-decoration: line-through; color: var(--muted); }
 li.gone .qf, li.gone .exl { opacity: .35; pointer-events: none; }
 li.gone .ckout { background: var(--fill); color: var(--fill-ink); border-color: var(--fill); }
 .ckcats .chip.empty:not(.on) { opacity: .55; }
+/* 期限が切れた物 */
+.excard { border: 1.5px solid var(--alert); }
+.excard h3 { color: var(--alert); }
+.exlist li { flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+.exlist .nm { flex-basis: 100%; }
+.exlist .nm b { font-size: 1.05rem; }
+.exbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.exbtns .chip { padding: 5px 10px; }
+.exbtns .chip.danger { color: var(--alert); border-color: var(--alert); }
+.expick { color: var(--ink); font-weight: 400; margin: 0; display: inline-flex; align-items: center; gap: 4px; position: relative; overflow: hidden; }
+.expick input[type=date] { position: absolute; inset: 0; opacity: 0; width: 100%; min-height: 0; }
 /* 期限の欄と「今日」ボタン */
 .dtw { display: flex; gap: 6px; align-items: center; }
 .dtw input[type=date] { flex: 1; min-width: 0; }
@@ -1831,6 +1842,42 @@ function stockSortSetup(cats) {
   window._sortMU = e => { cancelHold(); if (drag) endDrag(e.clientX, e.clientY); };
   document.addEventListener("mousemove", window._sortMM); document.addEventListener("mouseup", window._sortMU);
 }
+// ===== 期限が切れた物（2026-11-26） =====
+// 在庫に残っている物は「まだ使える」として献立に使う。期限が切れた物は、在庫の一番上と献立を作る前に出して、
+// 「期限を延ばす」か「捨てる（在庫から消す）」を選んでもらう。延ばせば、その期限で献立に使う
+const expiredList = () => (S.stock || []).filter(s => s.exp && s.exp < today() && hasQty(s)).sort((a, b) => a.exp.localeCompare(b.exp));
+const daysPast = s => Math.round((new Date(today() + "T00:00:00") - new Date(s.exp + "T00:00:00")) / 864e5);
+function expiredRows(l) {
+  return `<ul class="list exlist">${l.map(s => `<li data-xid="${esc(s.id)}"><span class="nm"><b>${esc(s.name)}</b><small>${esc(vegQ(s.name, s.qty))}・期限 ${+s.exp.slice(5, 7)}/${+s.exp.slice(8)}（${daysPast(s)}日過ぎ）</small></span>
+    <span class="exbtns"><button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
+}
+function expiredCard() {
+  const l = expiredList(); if (!l.length) return "";
+  return `<section class="card excard"><div class="secthead"><h3>⚠ 期限が切れています（${l.length}品）</h3></div><p class="note">まだ使えそうなら期限を延ばし、だめなら「捨てる」で在庫から消してください。延ばした物は、その期限で献立に使います。</p>${expiredRows(l)}</section>`;
+}
+// 期限を延ばす・捨てるボタン。1品済むごとに done() を呼ぶ（画面を描き直す）
+function expiredBind(root, done) {
+  if (!root) return;
+  const ext = async (id, exp) => { const s = S.stock.find(x => x.id === id); if (!s || !exp) return; await run("saveStock", [{ ...s, exp }]); done(); };
+  root.querySelectorAll(".exlist [data-xd]").forEach(b => b.onclick = e => { e.preventDefault(); const id = b.closest("li").dataset.xid, n = b.dataset.xd; ext(id, n === "m" ? addMonth(today(), 1) : shiftDay(today(), +n)); });
+  root.querySelectorAll(".exlist [data-xdate]").forEach(i => i.onchange = () => { if (i.value >= today()) ext(i.closest("li").dataset.xid, i.value); });
+  root.querySelectorAll(".exlist [data-xdel]").forEach(b => b.onclick = async e => { e.preventDefault(); const li = b.closest("li"), s = S.stock.find(x => x.id === li.dataset.xid); if (!s || !confirm(`${s.name} を捨てて、在庫から消しますか？`)) return; await run("deleteStock", [s.id]); done(); });
+}
+// 献立を作る・考え直す前に、期限が切れた物をどうするか聞く。進むなら true
+function expiredGate() {
+  if (!expiredList().length) return Promise.resolve(true);
+  return new Promise(ok => {
+    const paint = () => {
+      const l = expiredList();
+      openSheet(`<h2>⚠ 期限が切れた物があります</h2><p class="note">献立を作る前に、まだ使えるなら期限を延ばし、だめなら「捨てる」を選んでください。延ばした物は献立で使います。</p>
+        ${l.length ? expiredRows(l) : `<p class="note okmark">✅ 全部決まりました</p>`}
+        <button class="btn wide" id="xGo">${l.length ? "このまま献立を作る（残りも使える物として使う）" : "献立を作る"}</button><button class="btn ghost wide" id="xNo">やめる</button>`);
+      expiredBind($("sheetBody"), paint);
+      $("xGo").onclick = () => ok(true); $("xNo").onclick = () => { closeSheet(); ok(false); };
+    };
+    paint();
+  });
+}
 // --- 在庫（買う物があるときは、一番上に買い物リスト） ---
 function drawStock() {
   const cats = String(S.settings["カテゴリ"] || "冷蔵室,瞬冷凍,野菜室,冷凍庫,コンロ下").split(",").map(s => s.trim()).filter(Boolean);
@@ -1858,6 +1905,7 @@ function drawStock() {
   const byCat = list => [...cats, "その他"].map((c, ci) => { const l = list.filter(s => (cats.includes(s.cat) ? s.cat : "その他") === c).sort((a, b) => (hueKey(a.name) - hueKey(b.name)) || a.name.localeCompare(b.name, "ja")); const own = c !== "その他";
     return l.length || (sorting && own) ? `<div class="cathead"><h3>${esc(c)}（${l.length}）</h3>${sorting && own ? `<button class="chip" data-cup="${ci}" ${ci ? "" : "disabled"}>↑</button><button class="chip" data-cdn="${ci}" ${ci < cats.length - 1 ? "" : "disabled"}>↓</button><button class="chip" data-cren="${ci}">名前</button><button class="chip" data-cdel="${ci}">削除</button>` : ""}</div><ul class="tiles" data-cat="${esc(own ? c : "")}">${l.map(s => tile(s, false, true)).join("")}</ul>` : ""; }).join("");
   $("app").innerHTML = `<div class="h2row"><h2>在庫</h2><div class="btns"><button class="btn ghost" id="ckBtn">📋 在庫確認</button><button class="btn" id="addBtn">＋ 追加</button></div></div>
+    ${expiredCard()}
     ${items.length ? `<section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3><button class="chip" id="copy">コピー</button></div><p class="note">買った物にチェックし、量が違えば直してから「在庫へ」を押すと、まとめて在庫に入ります。</p><ul class="list" id="sbList">${items.map((i, n) => { const s = matchStock(i.name), e = (S.buyEd || {})[i.name] || {}; return `<li class="qrow"><label class="bcck"><input type="checkbox" data-i="${n}" ${e.ck ? "checked" : ""}><span class="nmt">${esc(i.name)}<small>${(lsGet("laterBuy") || {})[i.name] ? `<span class="tag">後で買う</span>` : ""}${s && s.qty !== OUT ? `在庫: ${esc(s.qty)}・` : "在庫なし・"}使う: ${esc([...new Set(i.when)].join("、"))}</small></span></label>${qtyBox(e.q || buyText(i), "q sbq", n, i.name)}</li>`; }).join("")}</ul><div class="grid2" style="margin-top:8px"><button class="btn ghost" id="sbAll">全部選ぶ</button><button class="btn" id="sbGo">在庫へ</button></div></section>` : ""}
     ${(() => { const sk = smallShort(gs), l = S.stock.filter(s => sk[s.id]); return l.length ? `<p class="note">🤏 少しだけ足りない物（買わずに、${l.length > 1 ? "それぞれ" : ""}使う料理の量を少しずつ減らします）: ${l.map(s => `${esc(s.name)} ${Math.round(sk[s.id].short)}${sk[s.id].u}不足・${sk[s.id].n}品で約${Math.round((1 - sk[s.id].f) * 100)}%減`).join("、")}</p>` : ""; })()}
     <section class="card"><div class="secthead"><h3>📌 今週使う在庫（${used.length}品）</h3>${period ? `<small>${period}</small>` : ""}</div>
@@ -1867,6 +1915,7 @@ function drawStock() {
       ${gs.length ? (lackSet.size ? `<div class="fixbox ng"><b>このままだと献立に足りない材料があります: ${esc([...lackSet].join("、"))}</b><button class="btn wide" id="goFix">栄養を考えながら、在庫に合わせて献立を見直す</button></div>` : `<div class="fixbox okk"><b>今の在庫で、予定の献立は全部作れます</b></div>`) : ""}</section>
     <section class="card${sorting ? " sorting" : ""}" id="restSec"><div class="secthead"><h3>今週使わない食材（${restList.length}品）</h3><span class="row" style="gap:6px;flex:none"><button class="chip" id="vegSet">📏 単位（本のとおり）</button><button class="chip" id="catEdit">✎ カテゴリ</button></span></div><p class="note">量はどこも「今ある量」です。カテゴリの中は色の順に並びます。タイルを長押しすると、ほかのカテゴリへ移せます。</p>${byCat(restList) || `<p class="note">ありません</p>`}</section>`;
   $("app").querySelectorAll(".tilebtn").forEach(b => b.onclick = () => { if (S.stockSort || S.lpFired) { S.lpFired = false; return; } openStockItem(b.dataset.id); });
+  expiredBind($("app"), () => drawStock());
   stockSortSetup(cats);
   // 買い物リスト: チェックと量の直しは、画面を描き直しても残す（在庫に入れたら消す）
   const sbl = $("sbList");
@@ -3282,7 +3331,7 @@ const RICE_AM = "c42de0bbb0e641bc", RICE_LD = "rice15go2p000001";   // 白ごは
 const rules = () => RULES.replace("{{BUY_PACK}}", buyPackText() || "決まりなし").replace("{{MONTH}}", String(+today().slice(5, 7)));
 const RULES = `【献立のルール】
 - 旬: 今は{{MONTH}}月。この時期が旬の野菜（または魚・果物）を、1週間に1〜2品くらい使って、季節を感じられるようにする（毎日でなくてよい）。
-- 在庫は、消費期限が近いもの → 生の肉・魚 → 野菜 → 加工品の順に優先して使う。
+- 在庫は、消費期限が近いもの → 生の肉・魚 → 野菜 → 加工品の順に優先して使う。期限が過ぎている物も、在庫に残っている物はまだ使える物として扱い、一番先に使う。
 - 肉・魚・野菜など日持ちしない食材は、この期間の献立で使い切る（在庫にある分も、買い足す分も）。1つの料理で使い切れないときは、ほかの料理にも分けて使い、半端な量が残らないようにする。下の「使い切りたい食材」は必ず全部使う。
 - ねぎは材料名を「長ねぎ」と書く（白ねぎ・長ネギとは書かない）。青い部分・白い部分だけを使うときは「長ねぎ（青い部分）：1本」「長ねぎ（白い部分）：1/2本」のように、使う部分と本数を書く。部分を書かない「長ねぎ：1本」は、白い部分と青い部分の両方を使う意味。
 - 次の食材は、決めた量（1週間で使い切る量）の倍数で使い、買う（{{BUY_PACK}}）。1週間の合計がこの量の倍数になるようにし、半端（1/2缶・1と1/2個など）にしない。使わない週があってもよい。使う週は、買った分を何品かに分けて全部使い切る（例: 玉ねぎ3個なら、3個を何品かに分けて使い切る）。少し余りそうなときは、ほかの料理（炒め物・汁物・煮物・付け合わせなど）の分量を増やして入れてしまってよい。そのときは、その料理の栄養（kcal・P・F・C）も増やした分だけ足す。味の調味料が濃くなりすぎたり、同じ調味料に偏ったりしないように、調味料のバランスは保つ。
@@ -3525,6 +3574,8 @@ ${FORMAT}
   await askAi(ask, { mode: "fix", removeIds, slotKeys: [...slots], picked, ngShop: ngShop || [] });
 }
 async function askAi(prompt, meta) {
+  // 期限が切れた物があれば、先にどうするか聞く（自動の提案・作り直しのときは聞かない）
+  if (!(meta && (meta.auto || meta.retried)) && !(S.jobWait && !S.jobWait.auto) && !(await expiredGate())) return;
   // 二重に頼まない: 作成中なら知らせて止める（終わるのを待つか、上の帯の「中止」を押してから）
   if (S.jobWait && !S.jobWait.auto && !(meta && meta.retried)) { alert("いま、AIが献立を作成中です。\nできあがるまで待つか、上の「中止」を押してから、もう一度お願いします。"); window.scrollTo(0, 0); return; }
   const id = "j" + Date.now();
@@ -4093,7 +4144,7 @@ function leftovers(plans, end) {
   const gs = planGroups(plans), res = reservations(gs), last = end || gs.reduce((m, x) => x.date > m ? x.date : m, today());
   return S.stock.filter(s => PERISH_CAT.test(s.cat || "") && !/^(あり|わずか)$/.test(s.qty) && s.qty !== OUT).map(s => {
     const left = res[s.id] ? availableQty(s, res) : s.qty, p = pqAll(left)[0];
-    if (!p || p.n <= 1e-6 || /^(ml|mL|L|cc)$/.test(p.u) || (s.exp && s.exp < today())) return null;   // 期限が過ぎた物は数えない
+    if (!p || p.n <= 1e-6 || /^(ml|mL|L|cc)$/.test(p.u)) return null;   // 期限が過ぎていても、在庫に残している物は使える物として数える
     if (s.cat === "瞬冷凍") { if (!s.exp || s.exp > shiftDay(today(), 7)) return null; }   // 瞬冷凍は、期限が7日以内になった物だけ
     else if (s.cat !== "野菜室" && s.exp && s.exp > shiftDay(last, 3)) return null;   // 冷蔵・冷凍で期限に余裕がある物（卵・納豆など）は除く
     if (s.cat !== "野菜室" && !s.exp && !RAW_RE.test(normName(s.name))) return null;
@@ -4166,7 +4217,7 @@ async function checkDraftStock(D, used) {
 // 期限の欄の横に「今日」ボタン（押すと今日の日付が入る。日付を選ぶ画面も今日から始まる）。在庫確認の行は、もとから「今日」などのボタンがある
 function todayBtns(root) {
   (root || document).querySelectorAll('input[type=date]:not([data-tdy])').forEach(inp => {
-    inp.dataset.tdy = "1"; if (inp.closest(".exl")) return;
+    inp.dataset.tdy = "1"; if (inp.closest(".exl, .exlist")) return;
     const b = document.createElement("button"); b.type = "button"; b.className = "chip tdy"; b.textContent = "今日";
     // 「消費期限」の見出しの右はしに置く（欄の横だと、となりの欄にはみ出すため）
     if (inp.parentNode.tagName === "LABEL") { inp.parentNode.classList.add("hastdy"); inp.parentNode.insertBefore(b, inp); }
