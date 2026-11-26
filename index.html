@@ -988,7 +988,9 @@ function sumAmounts(list) {
 }
 function matchStock(name, stock, noSub) {
   stock = stock || S.stock; const n = normName(name); if (!n || n === "長ねぎ") return null;
-  return stock.find(s => normName(s.name) === n) || stock.find(s => { const m = normName(s.name); return m.length >= 2 && n.length >= 2 && (n.includes(m) || m.includes(n)); }) || (noSub ? null : (subOf(name, stock) || {}).s) || null;
+  // 名前が違っても、数えかたの一覧で同じ物（トマト水煮 と カットトマト缶、とき卵 と 卵 など）は同じ在庫
+  const vb = vegBase(name), same = vb && stock.find(s => { const b = vegBase(s.name); return b && b.name === vb.name && !/^長ねぎ/.test(normName(s.name)); });
+  return stock.find(s => normName(s.name) === n) || stock.find(s => { const m = normName(s.name); return m.length >= 2 && n.length >= 2 && (n.includes(m) || m.includes(n)); }) || same || (noSub ? null : (subOf(name, stock) || {}).s) || null;
 }
 // 在庫に無い材料の代わりになる在庫（無ければ null）: { s: 在庫, use, amount, note }
 function subOf(name, stock) {
