@@ -3075,7 +3075,14 @@ const PAN_STEP_RE = /なべ|鍋|フライパン|煮立|煮る|煮て|煮込|ゆ�
 // 「簡単」にしてよい料理: コンロ・魚焼きグリル・オーブンを使わない（切る・あえる・のせる・電子レンジ・オーブンレンジ・トースターだけ）
 const NOFIRE_RE = /電子レンジ|レンジ|トースター|炊飯器/, FIRE_TOOL_RE = /フライパン|なべ|鍋|コンロ|魚焼き|オーブン(?!レンジ)|揚げ油|[強中弱]火|ゆで|ゆが|沸か/;
 // 道具を書いた手順で決める。道具を書かない手順（「焼く」だけ）は、レンジ・トースターを使うレシピなら同じ道具の続きとみる
-const isEasyRecipe = r => { if (!r) return false; const ss = stepsOf(r); if (ss.some(t => !NOFIRE_RE.test(t) && FIRE_TOOL_RE.test(t))) return false; return ss.some(t => NOFIRE_RE.test(t)) || !ss.some(t => PAN_STEP_RE.test(t)); };
+const isEasyRecipe = r => { if (!r) return false; const ss = stepsOf(r), sn = ss.flatMap(t => t.split(/。/)).filter(Boolean); if (sn.some(t => !NOFIRE_RE.test(t) && FIRE_TOOL_RE.test(t))) return false; return ss.some(t => NOFIRE_RE.test(t)) || !ss.some(t => PAN_STEP_RE.test(t)); };   // 文ごとに見る（「ゆでる。…レンジで加熱」の「ゆでる」も火とみる）
+// 朝の簡単: 火を使わず、包丁もほぼ使わない（ちぎる・のせる・塗る・混ぜるだけ）。しそ・小ねぎなどの薬味を少し刻むくらいはよい
+const KNIFE_RE = /包丁|まな板|切|刻|みじん|せん切|千切|薄切|小口|輪切|角に|cm幅|へたを除|皮をむ|種を除|筋を(と|除)|斜め|そぎ|おろし金|すりおろ/;
+const HERB_RE = /^(青じそ|しそ|シソ|大葉|小ねぎ|青ねぎ|万能ねぎ|細ねぎ|あさつき|みょうが|焼きのり|刻みのり|のり|海苔|パセリ|イタリアンパセリ|パクチー|香菜|ディル|バジル|三つ葉|みつば|かいわれ|貝割れ|すだち|レモン|ゆず)/;
+const noKnife = r => { const ings = ingsOf(r).map(i => ({ ...i, n: normName(i.name) || i.name }));
+  if (ings.some(i => KNIFE_RE.test(i.name.replace(/\d+枚切り/, "")) && !HERB_RE.test(i.n) && !/適量|少々|好み/.test(i.amount || ""))) return false;
+  return !stepsOf(r).some(t => { if (!KNIFE_RE.test(t)) return false; const hit = ings.filter(i => i.n && t.includes(i.n)); return !hit.length || hit.some(i => !HERB_RE.test(i.n)); }); };
+const isMorningEasy = r => !!r && (!bookOf(r) && ingsOf(r).length <= 1 || isEasyRecipe(r) && noKnife(r));
 function bookFires(steps) {
   const eq = (S.equipment || []).filter(e => panOf(e.name) && !/セパレート/.test(e.name)), dishes = [], used = new Set(), burners = new Set();
   const txtOf = stepTxt;
@@ -3309,9 +3316,10 @@ function catalogText() {
 - 一覧に合う料理が無い枠は、その枠を空けずに、いちばん近い料理を選ぶ（主菜なら主菜）。行事の日も、一覧の中から行事に合いそうな料理を選ぶ。
 - 「本」は料理本のレシピ。朝も本のレシピ（トースト・のっけパン・卵かけごはんなど）から選ぶ。「家」は白ごはん・牛乳・果物などのそのまま食べる物と、手で入れたレシピ。
 - 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
-- 「簡単なもの」の枠は、一覧で「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物などそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
+- 朝の「簡単なもの」の枠は、一覧で「朝向き（火も包丁もほぼ使わない）」の料理と、白ごはん・牛乳・果物などそのまま食べる物だけで組む（朝は包丁もなるべく使わない。しそ・ねぎなどの薬味を少し刻むくらいはよい）。
+- ほかの「簡単なもの」の枠は、一覧で「朝向き」か「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物などそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
 - 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
-${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${stepsOf(r).length ? (isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
 function pickFix(meals) {
