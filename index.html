@@ -1161,7 +1161,7 @@ const BOOK_SLOTS = 5, bookPgCache = {};
 // シートの1つのセルは5万文字までなので、多くなったら「レシピ元の画像2」「レシピ元の画像3」…に分けて入れてある。全部まとめて読む
 let bookMapSrc = [], bookMap = {};
 const bookPageMap = () => {
-  const st = S.settings || {}, ks = Object.keys(st).filter(k => /^(レシピ元の画像\d*|本のページ)$/.test(k)).sort(), vs = ks.map(k => st[k]);
+  const st = S.settings || {}, ks = Object.keys(st).filter(k => /^(レシピ元の画像\d*|本のページ)$/.test(k)).sort((a, b) => (a === "本のページ" ? -1 : b === "本のページ" ? 1 : a.localeCompare(b, "ja", { numeric: true }))), vs = ks.map(k => st[k]);
   if (vs.length !== bookMapSrc.length || vs.some((v, i) => v !== bookMapSrc[i])) { bookMapSrc = vs; bookMap = {}; vs.forEach(v => { try { Object.assign(bookMap, JSON.parse(v || "{}")); } catch (e) {} }); }
   return bookMap;
 };
