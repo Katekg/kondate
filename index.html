@@ -1576,10 +1576,12 @@ function openSlot(d, m) {
   // 材料の合計（同じ材料は量を足す）
   const ings = new Map(); cooks.forEach(c => ingsOf(c.r).forEach(i => { const k = partK(i.name) !== 1 ? i.name : (normName(i.name) || i.name), o = ings.get(k) || { name: i.name, amts: [] }; o.amts.push(scaleAmount(i.amount, c.k * kOf(i.name))); ings.set(k, o); }));
   const done = list.length && list.every(p => p.status === "作った");
+  // レシピ元の画像（作り置きの料理も含める）
+  const bkIds = [...new Set(uniq.map(p => p.recipeId).filter(id => id && bookPageOf(id)))];
   const kc = uniq.reduce((t, p) => t + (isOut(p) ? OUT_EST[m].kcal : +(recipeOf(p.recipeId) || {}).kcal || 0), 0);
   const pr = uniq.reduce((t, p) => t + (isOut(p) ? OUT_EST[m].p : +(recipeOf(p.recipeId) || {}).p || 0), 0);
   openSheet(`<h2>${fmtDay(d)} ${MEAL_LABEL[m]}${(st => st ? ` <small class="mst st-${st}" style="vertical-align:middle">${SLT[st]}</small>` : "")(slotTypeOf(d, m, list))}</h2>
-    <div class="slotacts">${cooks.some(c => stepsOf(c.r).length) ? `<button class="btn alt" id="slCook">🍳 調理開始</button>` : cooks.some(c => ingsOf(c.r).length) && !done ? `<button class="btn alt" id="slCook">📦 在庫から引く</button>` : ""}<button class="btn ghost" id="slPhAdd">📷 ${ph ? "写真変更" : "写真追加"}</button></div>
+    <div class="slotacts">${cooks.some(c => stepsOf(c.r).length) ? `<button class="btn alt" id="slCook">🍳 調理開始</button>` : cooks.some(c => ingsOf(c.r).length) && !done ? `<button class="btn alt" id="slCook">📦 在庫から引く</button>` : ""}<button class="btn ghost" id="slPhAdd">📷 ${ph ? "写真変更" : "写真追加"}</button>${bkIds.length ? `<button class="btn ghost" id="slBook">🖼 元の画像</button>` : ""}</div>
     ${ph ? `<div class="phbox"><img src="${esc(ph.thumb)}" alt="料理の写真" id="slPh"></div><button class="chip" id="slPhDel" style="justify-self:end">写真を消す</button>` : ""}
     ${uniq.length ? `<div class="card"><div class="secthead"><span class="dishes">${uniq.map(p => `<span>${esc(p.title)}${isLo(p) ? `<span class="tag lo">作り置き</span>` : ""}</span>`).join("")}</span>${list.some(p => p.status !== "作った") ? `<button class="chip" id="slDel">外す</button>` : ""}</div><p class="note">${m === SIKOMI ? `仕込みです。ここでは食べず、${uniq.map(p => (o => o ? `「${esc(o.name)}」として在庫に入ります（${o.ready ? `${+shiftDay(d, o.ready).slice(5, 7)}/${+shiftDay(d, o.ready).slice(8)}から使える・` : ""}${o.days}日もつ）` : "後の食事の作り置き（副菜）として食べます")(stockOutOf(recipeOf(p.recipeId)))).join("。")}` : ""}${m === SIKOMI ? "" : `${uniq.some(isOut) ? "外食予定（食後に内容を入力）・" : ""}${(so => [1, 2].map(i => so && so !== i ? `${esc(SET("人" + i))} 外食` : `${esc(SET("人" + i))} 約${Math.round(kc * sh(i))}kcal・P${Math.round(pr * sh(i))}`).join("／"))(soloOf(d, m))}`}</p>${uniq.some(p => !isOut(p)) && m !== SIKOMI ? `<p class="note" style="margin:6px 0 2px">食べる人</p><div class="seg eatrow">${[[0, "2人"], [1, `${esc(SET("人1"))}だけ`], [2, `${esc(SET("人2"))}だけ`]].map(([v, l]) => `<button class="chip" data-eat="${v}" aria-pressed="${soloOf(d, m) === v}">${l}</button>`).join("")}</div>` : ""}${soloOf(d, m) ? `<p class="note">👤 この食事は${esc(soloTag(d, m))}（${soloPeople(soloOf(d, m))}人分の量で作る。もう1人は外食として栄養を数える）</p>` : moriHtml(cooks)}${riceNote(d, m)}${stockState(d, m)}</div>` : `<p class="note">まだ空きです。</p>`}
     ${(() => { const rs = uniq.filter(p => !isOut(p) && p.recipeId && p.recipeId !== RICE_AM && p.recipeId !== RICE_LD && recipeOf(p.recipeId)); if (d > today() || !rs.length) return ""; const Rt = rates();
@@ -1600,6 +1602,7 @@ function openSlot(d, m) {
     busy(true, "仕込みを入れています…"); try { await run("savePlans", ps); await load(); openSlot(d, m); } catch (e) { alert(e.message); } busy(false);
   });
   $("slPhAdd").onclick = () => pickPhoto(d, m);
+  if ($("slBook")) $("slBook").onclick = () => showBookPage(bkIds);
   $("sheetBody").querySelectorAll("[data-eat]").forEach(b => b.onclick = () => setSolo(d, m, +b.dataset.eat));
   $("sheetBody").querySelectorAll("[data-rv]").forEach(b => b.onclick = () => {
     const Rt = rates(), id = b.dataset.rid; if (Rt[id] === b.dataset.rv) delete Rt[id]; else Rt[id] = b.dataset.rv;
