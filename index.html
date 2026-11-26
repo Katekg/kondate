@@ -1155,10 +1155,17 @@ function pickPhoto(d, m) {
   inp.click();
 }
 // 大きく見る: まず縮小版、本体が届いたら差し替える。画面をタップで閉じる
-// レシピ元の画像（本のページ・サイトやインスタのスクショなど）。設定「レシピ元の画像」: レシピid → "ドライブのファイルid" または
+// レシピ元の画像（本のページ・サイトやインスタのスクショなど）。設定「レシピ元の画像」（と「レシピ元の画像2」…）: レシピid → "ドライブのファイルid" または
 // "ファイルid:何枚目"（本のページは1枚の画像に5ページを縦に並べてあるので、その何枚目かを切り出す）
 const BOOK_SLOTS = 5, bookPgCache = {};
-const bookPageOf = rid => { try { const m = JSON.parse(S.settings["レシピ元の画像"] || S.settings["本のページ"] || "{}")[rid]; if (!m) return null; const [file, sl] = String(m).split(":"); return { file, slot: sl === undefined ? -1 : +sl || 0 }; } catch (e) { return null; } };
+// シートの1つのセルは5万文字までなので、多くなったら「レシピ元の画像2」「レシピ元の画像3」…に分けて入れてある。全部まとめて読む
+let bookMapSrc = [], bookMap = {};
+const bookPageMap = () => {
+  const st = S.settings || {}, ks = Object.keys(st).filter(k => /^(レシピ元の画像\d*|本のページ)$/.test(k)).sort(), vs = ks.map(k => st[k]);
+  if (vs.length !== bookMapSrc.length || vs.some((v, i) => v !== bookMapSrc[i])) { bookMapSrc = vs; bookMap = {}; vs.forEach(v => { try { Object.assign(bookMap, JSON.parse(v || "{}")); } catch (e) {} }); }
+  return bookMap;
+};
+const bookPageOf = rid => { try { const m = bookPageMap()[rid]; if (!m) return null; const [file, sl] = String(m).split(":"); return { file, slot: sl === undefined ? -1 : +sl || 0 }; } catch (e) { return null; } };
 // 画像の拡大・縮小（2本指でピンチ、ダブルタップで拡大／元に戻す）。拡大中は指1本でスクロール
 function zoomable(box, img) {
   let s = 1, pin = null, lastTap = 0;
