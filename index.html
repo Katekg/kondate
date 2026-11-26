@@ -3072,6 +3072,10 @@ function sceneAt(i) { const s = CK.steps[i]; if (s.scene) return s.scene; const 
 // 本のレシピ（AIを使わない）: 料理ごとに使う鍋・フライパンを器具一覧から選び、コンロの口に置く
 // 加熱する手順の文から鍋かフライパンかを決め、量（材料のg・ml）で大小を選ぶ。ふたを使うなら、ふた有りの物
 const PAN_STEP_RE = /なべ|鍋|フライパン|煮立|煮る|煮て|煮込|ゆで|ゆが|いため|炒め|からいり|焼|熱し|(?<!さつま|絹|油|厚)揚げ(?!玉)|沸か/;   // 「さつま揚げ」「絹揚げ」は材料の名前なので火を使う合図にしない
+// 「簡単」にしてよい料理: コンロ・魚焼きグリル・オーブンを使わない（切る・あえる・のせる・電子レンジ・オーブンレンジ・トースターだけ）
+const NOFIRE_RE = /電子レンジ|レンジ|トースター|炊飯器/, FIRE_TOOL_RE = /フライパン|なべ|鍋|コンロ|魚焼き|オーブン(?!レンジ)|揚げ油|[強中弱]火|ゆで|ゆが|沸か/;
+// 道具を書いた手順で決める。道具を書かない手順（「焼く」だけ）は、レンジ・トースターを使うレシピなら同じ道具の続きとみる
+const isEasyRecipe = r => { if (!r) return false; const ss = stepsOf(r); if (ss.some(t => !NOFIRE_RE.test(t) && FIRE_TOOL_RE.test(t))) return false; return ss.some(t => NOFIRE_RE.test(t)) || !ss.some(t => PAN_STEP_RE.test(t)); };
 function bookFires(steps) {
   const eq = (S.equipment || []).filter(e => panOf(e.name) && !/セパレート/.test(e.name)), dishes = [], used = new Set(), burners = new Set();
   const txtOf = stepTxt;
@@ -3305,8 +3309,9 @@ function catalogText() {
 - 一覧に合う料理が無い枠は、その枠を空けずに、いちばん近い料理を選ぶ（主菜なら主菜）。行事の日も、一覧の中から行事に合いそうな料理を選ぶ。
 - 「本」は料理本のレシピ。朝も本のレシピ（トースト・のっけパン・卵かけごはんなど）から選ぶ。「家」は白ごはん・牛乳・果物などのそのまま食べる物と、手で入れたレシピ。
 - 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
+- 「簡単なもの」の枠は、一覧で「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物などそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
 - 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
-${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}｜${main(r)}`; }).join("\n")}`;
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${stepsOf(r).length ? (isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
 function pickFix(meals) {
