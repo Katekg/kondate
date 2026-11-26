@@ -131,6 +131,7 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .card { border: 0; box-shadow: 0 1px 0 var(--line); }
 .btn { border-radius: var(--r-md); }
 .daystrip { display: grid; grid-template-columns: auto repeat(7, minmax(0, 1fr)) auto; gap: 4px; align-items: center; }
+.shopline { margin: 6px 0 0; font-size: .72rem; color: var(--muted); text-align: center; }
 .daystrip .nav { border: 0; background: var(--surface); border-radius: 999px; width: 28px; height: 28px; font: inherit; font-weight: 700; color: var(--muted); cursor: pointer; }
 .dbtn { border: 0; background: var(--surface); border-radius: 14px; padding: 4px 0 6px; font: inherit; display: grid; justify-items: center; line-height: 1.2; cursor: pointer; position: relative; }
 .dbtn small { font-size: .66rem; color: var(--muted); }
@@ -847,8 +848,8 @@ const partK = () => 1;   // 長ねぎの青い部分・白い部分は、在庫�
 const NEGI_BASE = /^(長ねぎ|長ネギ|白ねぎ|白ネギ|長葱|ねぎ|ネギ)$/, NEGI_W = "長ねぎ（白い部分）", NEGI_G = "長ねぎ（青い部分）";
 const negiPart = t => /(青い|青|緑の?)部分/.test(String(t || "")) ? "青" : /(白い|白)部分/.test(String(t || "")) ? "白" : "";
 // 材料の名前の読み替え: 本などで名前が違うだけの同じ物（しょうゆ→醤油など）を、在庫の名前にそろえる
-const ING_SAME = {"しょうゆ": "醤油", "うす口しょうゆ": "醤油", "みそ": "味噌", "赤みそ": "味噌", "西京みそ": "味噌", "油": "キャノーラ油", "サラダ油": "キャノーラ油", "揚げ油": "キャノーラ油", "顆粒鶏がらだし": "鶏ガラ顆粒", "鶏がらスープの素": "鶏ガラ顆粒", "顆粒鶏がらスープの素": "鶏ガラ顆粒", "鶏がら顆粒ブイヨン": "鶏ガラ顆粒", "顆粒中国風だし": "鶏ガラ顆粒", "顆粒和風だし": "和風だし顆粒", "顆粒ブイヨン": "コンソメ顆粒", "固形ブイヨン": "コンソメ顆粒", "固形チキンブイヨン": "コンソメ顆粒", "固形ビーフブイヨン": "コンソメ顆粒", "ロリエ": "ローリエ", "ベイリーフ": "ローリエ", "こしょう": "ブラックペッパー", "黒こしょう": "ブラックペッパー", "あらびき黒こしょう": "ブラックペッパー", "あらびきこしょう": "ブラックペッパー", "粒こしょう": "ブラックペッパー", "トマトケチャップ": "ケチャップ", "練りがらし": "からし", "ゆるめのときがらし": "からし", "練りわさび": "わさび", "ゆずこしょう": "ゆず胡椒", "辣油": "ラー油", "酢": "米酢", "削りガツオ": "鰹節", "トマト水煮缶詰め": "カットトマト缶", "カットトマト缶詰め": "カットトマト缶", "トマトの水煮": "カットトマト缶", "ツナ油漬け缶詰め": "ツナ缶", "ツナ水煮缶詰め": "ツナ缶", "じゃが芋": "じゃがいも", "新じゃが芋": "じゃがいも", "鶏胸肉": "鶏むね肉", "豚こま切れ肉": "豚こま肉", "生ザケ": "秋鮭切り身"};
-const normName = t => { const b0 = String(t || "").replace(/[（(].*?[）)]/g, "").replace(/[\s※*＊]/g, ""), b = ING_SAME[b0] || b0; return NEGI_BASE.test(b) ? "長ねぎ" + negiPart(t) : b; };
+const ING_SAME = {"とき卵": "卵", "溶き卵": "卵", "酢またはレモン汁": "米酢", "粗塩": "塩", "塩、こしょう": "塩", "塩、胡椒": "塩", "塩、粗びき黒こしょう、オリーブ油": "塩", "オリーブオイル": "オリーブ油", "万能ねぎ": "小ねぎ", "しょうゆ": "醤油", "うす口しょうゆ": "醤油", "みそ": "味噌", "赤みそ": "味噌", "西京みそ": "味噌", "油": "キャノーラ油", "サラダ油": "キャノーラ油", "揚げ油": "キャノーラ油", "顆粒鶏がらだし": "鶏ガラ顆粒", "鶏がらスープの素": "鶏ガラ顆粒", "顆粒鶏がらスープの素": "鶏ガラ顆粒", "鶏がら顆粒ブイヨン": "鶏ガラ顆粒", "顆粒中国風だし": "鶏ガラ顆粒", "顆粒和風だし": "和風だし顆粒", "顆粒ブイヨン": "コンソメ顆粒", "固形ブイヨン": "コンソメ顆粒", "固形チキンブイヨン": "コンソメ顆粒", "固形ビーフブイヨン": "コンソメ顆粒", "ロリエ": "ローリエ", "ベイリーフ": "ローリエ", "こしょう": "ブラックペッパー", "黒こしょう": "ブラックペッパー", "あらびき黒こしょう": "ブラックペッパー", "あらびきこしょう": "ブラックペッパー", "粒こしょう": "ブラックペッパー", "トマトケチャップ": "ケチャップ", "練りがらし": "からし", "ゆるめのときがらし": "からし", "練りわさび": "わさび", "ゆずこしょう": "ゆず胡椒", "辣油": "ラー油", "酢": "米酢", "削りガツオ": "鰹節", "トマト水煮缶詰め": "カットトマト缶", "カットトマト缶詰め": "カットトマト缶", "トマトの水煮": "カットトマト缶", "ツナ油漬け缶詰め": "ツナ缶", "ツナ水煮缶詰め": "ツナ缶", "じゃが芋": "じゃがいも", "新じゃが芋": "じゃがいも", "鶏胸肉": "鶏むね肉", "豚こま切れ肉": "豚こま肉", "生ザケ": "秋鮭切り身"};
+const normName = t => { const b0 = String(t || "").replace(/^〔[^〕]*〕/, "").replace(/[（(].*?[）)]/g, "").replace(/[\s※*＊]/g, ""), b = ING_SAME[b0] || b0; return NEGI_BASE.test(b) ? "長ねぎ" + negiPart(t) : b; };
 // 代わりに使える材料: 在庫に無いとき、ここに書いた在庫で代用する（献立・買い物・在庫の押さえで使う）。amount は量の目安、note は使い方
 const ING_SUB = {"だし": [{"use": "和風だし顆粒", "amount": "だし1カップ＝水1カップ＋顆粒小さじ1/2", "note": ""}], "めんつゆ": [{"use": "醤油・みりん・和風だし顆粒", "amount": "めんつゆ(2倍)大さじ2＝醤油大さじ1＋みりん大さじ1＋顆粒少量＋水大さじ1", "note": ""}], "豆板醤": [{"use": "コチュジャン", "amount": "同量", "note": "甘みが出るので砂糖を少し減らす"}, {"use": "ラー油", "amount": "小さじ1/2程度", "note": "辛みだけ足す"}], "甜麺醤": [{"use": "味噌", "amount": "同量＋砂糖小さじ1", "note": ""}], "豆豉": [{"use": "味噌", "amount": "半量", "note": ""}], "豆豉醤": [{"use": "味噌", "amount": "半量", "note": ""}], "コチュジャン": [{"use": "味噌", "amount": "同量＋砂糖少量＋ラー油数滴", "note": ""}], "粉とうがらし": [{"use": "ラー油", "amount": "少量", "note": ""}, {"use": "パプリカ粉末", "amount": "同量", "note": "辛みは出ない。色づけ"}], "一味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "七味とうがらし": [{"use": "ラー油", "amount": "数滴", "note": ""}], "赤とうがらし": [{"use": "ラー油", "amount": "数滴", "note": "仕上げに"}], "チリパウダー": [{"use": "パプリカ粉末", "amount": "同量", "note": "辛みが欲しければラー油を足す"}], "チリペッパー": [{"use": "ラー油", "amount": "少量", "note": ""}], "ナツメグ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "クローブ": [{"use": "オールスパイス", "amount": "同量", "note": ""}], "シナモンスティック": [{"use": "オールスパイス", "amount": "少量", "note": ""}], "ガラムマサラ": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミン": [{"use": "カレー粉", "amount": "同量", "note": ""}], "クミンシード": [{"use": "カレー粉", "amount": "同量", "note": ""}], "コリアンダー": [{"use": "カレー粉", "amount": "同量", "note": ""}], "タイム": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "オレガノ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ローズマリー": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "ハーブ": [{"use": "トドメのスパイス", "amount": "少量", "note": "塩けがあるので塩を控える"}], "粉ざんしょう": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "花椒": [{"use": "ブラックペッパー", "amount": "少量", "note": ""}], "白こしょう": [{"use": "ブラックペッパー", "amount": "同量", "note": ""}], "粒入りマスタード": [{"use": "からし", "amount": "1/3量＋マヨネーズ少量", "note": ""}], "マスタード": [{"use": "からし", "amount": "1/3量", "note": ""}], "オイスターソース": [{"use": "醤油・砂糖", "amount": "オイスター大さじ1＝醤油大さじ1/2＋砂糖小さじ1/2", "note": ""}, {"use": "ウスターソース", "amount": "同量", "note": "洋風寄りになる"}], "中濃ソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "とんかつソース": [{"use": "ウスターソース", "amount": "同量＋ケチャップ少量", "note": ""}], "ソース": [{"use": "ウスターソース", "amount": "同量", "note": ""}], "焼き肉のたれ": [{"use": "醤油・砂糖・みりん", "amount": "醤油2：砂糖1：みりん1＋にんにく", "note": ""}], "ポン酢しょうゆ": [{"use": "醤油・米酢", "amount": "醤油1：酢1", "note": ""}], "レモン果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}, {"use": "リンゴ酢", "amount": "同量", "note": ""}], "レモン汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ゆず果汁": [{"use": "リンゴ酢", "amount": "同量", "note": ""}, {"use": "ゆず胡椒", "amount": "少量", "note": ""}], "レモンの搾り汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "ライム果汁": [{"use": "クエン酸（食用）", "amount": "大さじ1＝クエン酸小さじ1/4＋水大さじ1", "note": ""}], "黒酢": [{"use": "米酢", "amount": "同量", "note": ""}], "白ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "赤ワインビネガー": [{"use": "リンゴ酢", "amount": "同量", "note": ""}], "バルサミコ酢": [{"use": "リンゴ酢", "amount": "同量＋砂糖少量", "note": ""}], "白ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "赤ワイン": [{"use": "酒", "amount": "同量", "note": ""}], "紹興酒": [{"use": "酒", "amount": "同量", "note": ""}], "ビール": [{"use": "酒", "amount": "半量＋水", "note": ""}], "黒砂糖": [{"use": "砂糖", "amount": "同量", "note": ""}], "生クリーム": [{"use": "牛乳", "amount": "同量＋バター少量", "note": ""}], "プレーンヨーグルト": [{"use": "牛乳", "amount": "", "note": "風味は変わる"}], "スライスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "プロセスチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "パルメザンチーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "粉チーズ": [{"use": "とろけるチーズ", "amount": "同量", "note": ""}], "カテージチーズ": [{"use": "とろけるチーズ", "amount": "少なめ", "note": ""}], "パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "生パン粉": [{"use": "食パン", "amount": "1枚でパン粉約1カップ（すりおろす）", "note": ""}], "かたくり粉": [{"use": "米粉", "amount": "同量", "note": "とろみ・衣"}, {"use": "強力小麦粉", "amount": "同量", "note": "衣"}], "小ねぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "わけぎ": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "小ねぎの小口切り": [{"use": "長ねぎ（青い部分）", "amount": "同量", "note": ""}], "鶏もも肉": [{"use": "鶏むね肉", "amount": "同量", "note": "焼きすぎない"}], "鶏ささ身": [{"use": "鶏むね肉", "amount": "同量", "note": ""}], "豚薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肩ロース薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚バラ薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "豚肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛こま切れ肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛薄切り肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "牛もも切り落とし肉": [{"use": "豚こま肉", "amount": "同量", "note": ""}], "甘塩ザケ": [{"use": "秋鮭切り身", "amount": "同量", "note": "塩を少し足す"}], "カジキ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "生ダラ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "ブリ": [{"use": "秋鮭切り身", "amount": "同量", "note": ""}], "白菜の軸": [{"use": "白菜", "amount": "同量", "note": ""}], "大豆もやし": [{"use": "もやし", "amount": "同量", "note": ""}], "紫玉ねぎ": [{"use": "玉ねぎ", "amount": "同量", "note": "水にさらす"}], "小玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "おろし玉ねぎ": [{"use": "玉ねぎ", "amount": "", "note": ""}], "調味酢": [{"use": "米酢・砂糖・塩", "amount": "調味酢大さじ1＝米酢大さじ1＋砂糖小さじ1＋塩少量", "note": ""}], "市販の調味酢": [{"use": "米酢・砂糖・塩", "amount": "調味酢大さじ1＝米酢大さじ1＋砂糖小さじ1＋塩少量", "note": ""}], "すし酢": [{"use": "米酢・砂糖・塩", "amount": "すし酢大さじ1＝米酢大さじ1＋砂糖小さじ1＋塩少量", "note": ""}], "ごま油": [{"use": "キャノーラ油", "amount": "同量", "note": "ごまの香りは出ない"}], "オリーブ油": [{"use": "キャノーラ油", "amount": "同量", "note": "オリーブの香りは出ない"}], "エキストラバージンオリーブ油": [{"use": "キャノーラ油", "amount": "同量", "note": "オリーブの香りは出ない"}], "梅酢": [{"use": "米酢・塩", "amount": "梅酢大さじ1＝米酢大さじ1＋塩少量", "note": ""}], "ペッパーソース": [{"use": "ラー油", "amount": "数滴", "note": ""}], "タバスコ": [{"use": "ラー油", "amount": "数滴", "note": ""}], "うま味調味料": [{"use": "味の素", "amount": "同量", "note": ""}], "小麦粉": [{"use": "強力小麦粉", "amount": "同量", "note": "衣・とろみなら問題なし。生地物は食感が変わる"}, {"use": "米粉", "amount": "同量", "note": "衣・とろみ"}]};
 const isNegi = t => /^長ねぎ/.test(normName(t));
@@ -1238,7 +1239,7 @@ function draw() {
   $("app").classList.remove("fill"); document.documentElement.classList.remove("lock");
   if (S.tab === "menu" && S.draft && S.draft.meals) { drawDraft(); return; }
   ({ menu: drawMenu, stock: drawStock, recipes: drawRecipes, tools: drawTools })[S.tab]();
-  jobBanner(); askFab();
+  jobBanner(); { const f = $("aiFab"); if (f) f.remove(); }
 }
 // 横向きから縦に戻したとき、ずれた表示（はみ出し・拡大のまま）を直す
 let lastW = innerWidth;
@@ -1305,7 +1306,23 @@ document.addEventListener("focusin", e => {
   setTimeout(() => { fitSheet(); t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 350);
 });
 $("sheetBg").onclick = closeSheet;
-const weekStartOf = d => shiftDay(d, -new Date(d + "T00:00:00").getDay());
+// 買い物の週: いつものスーパーは火曜がポイント3倍（還元1.5%）、10日・25日が5%オフ。5%オフの方が得なので、
+// 週は火曜はじまりにして、10日・25日が来たらその前日で週を閉じ、10日・25日からまた始める（その次の火曜からはいつもの週）。
+// 5%オフの日の前日・翌日が火曜のときは、1日だけの週にならないように、その火曜は週の始まりにしない（買い物は5%オフの日にまとめる）
+const SHOP_DOW = 2, SALE_DAYS = [10, 25];
+const domOf = d => +d.slice(8, 10);
+const isSaleDay = d => SALE_DAYS.includes(domOf(d));
+const isPtDay = d => new Date(d + "T00:00:00").getDay() === SHOP_DOW;
+function isWeekStart(d) {
+  if (isSaleDay(d)) return true;
+  if (!isPtDay(d)) return false;
+  return !isSaleDay(shiftDay(d, 1)) && !isSaleDay(shiftDay(d, -1));
+}
+const weekStartOf = d => { for (let i = 0; i < 14; i++, d = shiftDay(d, -1)) if (isWeekStart(d)) return d; return d; };
+const weekEndOf = ws => { let d = shiftDay(ws, 1); for (let i = 0; i < 14 && !isWeekStart(d); i++) d = shiftDay(d, 1); return shiftDay(d, -1); };
+const nextWeekOf = ws => shiftDay(weekEndOf(ws), 1);
+const weekDays = ws => { const out = [], we = weekEndOf(ws); for (let d = ws; d <= we; d = shiftDay(d, 1)) out.push(d); return out; };
+const shopDayTag = d => isSaleDay(d) ? "5%オフ" : isPtDay(d) ? "P3倍" : "";
 const uniqPlans = list => { const u = []; list.forEach(p => { if (!u.some(x => x.title === p.title)) u.push(p); }); return u; };
 
 // --- 栄養: 1人分の合計（外食予定は標準的な1食分） ---
@@ -1342,24 +1359,24 @@ const shPct = i => Math.round(sh(i) * 50);
 const target = i => { const a = SET("目標" + i).split("/").map(Number); return { kcal: a[0] || 0, p: a[1] || 0, f: a[2] || 0, c: a[3] || 0 }; };
 const bar = (v, t) => { const pct = t ? Math.min(100, Math.round(v / t * 100)) : 0; return `<span class="nbar"><i style="width:${pct}%" class="${t && v > t * 1.1 ? "over" : ""}"></i></span>`; };
 function openNutri(d) {
-  const ws = weekStartOf(d), days = [...Array(7)].map((_, i) => shiftDay(ws, i)), dn = i => nutP(d, i);
+  const ws = weekStartOf(d), days = weekDays(ws), dn = i => nutP(d, i);
   const wn = i => days.reduce((t, x) => { const n = nutP(x, i); ["kcal", "p", "f", "c"].forEach(k => { t[k] += n[k]; }); return t; }, { kcal: 0, p: 0, f: 0, c: 0 });
   const L = { kcal: "カロリー", p: "P たんぱく質", f: "F 脂質", c: "C 炭水化物" }, U = { kcal: "kcal", p: "g", f: "g", c: "g" };
   const block = (title, n, mul) => `<div class="card"><h3>${title}</h3>${[1, 2].map(i => { const t = target(i), ni = n(i); return `<div class="nperson"><b>${esc(SET("人" + i))}</b>${["kcal", "p", "f", "c"].map(k => `<div class="nrow"><span>${L[k]}</span>${bar(ni[k], t[k] * mul)}<small>${Math.round(ni[k])} / ${Math.round(t[k] * mul)}${U[k]}</small></div>`).join("")}</div>`; }).join("")}</div>`;
-  openSheet(`<h2>栄養</h2>${block(`${fmtDay(d)}（予定込み）`, dn, 1)}${block(`この週（${fmtDay(ws)}〜）`, wn, 7)}<p class="note">2人の量は目標カロリーの比（${esc(SET("人1"))} ${shPct(1)}%・${esc(SET("人2"))} ${shPct(2)}%）で盛り分けた計算です。外食予定と、1人だけの食事で食べない側は、標準的な1食分（朝500・昼800・夜900kcal）で数えています。</p><button class="btn ghost wide" id="nClose">閉じる</button>`);
+  openSheet(`<h2>栄養</h2>${block(`${fmtDay(d)}（予定込み）`, dn, 1)}${block(`この週（${fmtDay(ws)}〜${fmtDay(days[days.length - 1])}）`, wn, days.length)}<p class="note">2人の量は目標カロリーの比（${esc(SET("人1"))} ${shPct(1)}%・${esc(SET("人2"))} ${shPct(2)}%）で盛り分けた計算です。外食予定と、1人だけの食事で食べない側は、標準的な1食分（朝500・昼800・夜900kcal）で数えています。</p><button class="btn ghost wide" id="nClose">閉じる</button>`);
   $("nClose").onclick = closeSheet;
 }
 
 // --- 献立 ---
 function drawMenu() {
   S.day = S.day || today();
-  const ws = weekStartOf(S.day), days = [...Array(7)].map((_, i) => shiftDay(ws, i)), curWs = weekStartOf(today());
+  const ws = weekStartOf(S.day), days = weekDays(ws), we = days[days.length - 1], curWs = weekStartOf(today());
   const gs = planGroups(), ps = S.plans.filter(p => p.date === S.day), dn = dayNut(S.day), t1 = target(1), t2 = target(2);
-  const noPlan = !S.plans.some(p => p.date >= ws && p.date <= shiftDay(ws, 6)) && shiftDay(ws, 6) >= today() && !S.draft;
+  const noPlan = !S.plans.some(p => p.date >= ws && p.date <= we) && we >= today() && !S.draft;
   const future = ws > curWs || noPlan, mon = new Date(S.day + "T00:00:00").getMonth() + 1;
   $("app").classList.toggle("fill", !future && ws <= curWs);
   document.documentElement.classList.toggle("lock", !future && ws <= curWs); if (!future && ws <= curWs) window.scrollTo(0, 0);
-  $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => `<button class="dbtn${d === today() ? " today" : ""}${i === 0 ? " sun" : i === 6 ? " sat" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}><small>${"日月火水木金土"[i]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`).join("")}<button class="nav" id="wNext">›</button></div></section>
+  $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip" style="grid-template-columns:auto repeat(${days.length}, minmax(0, 1fr)) auto"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => { const w = new Date(d + "T00:00:00").getDay(); return `<button class="dbtn${d === today() ? " today" : ""}${w === 0 ? " sun" : w === 6 ? " sat" : ""}${i === 0 ? " shop" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}${i === 0 ? ` title="買い物の日${shopDayTag(d) ? "（" + shopDayTag(d) + "）" : ""}"` : ""}><small>${i === 0 ? "🛒" : ""}${"日月火水木金土"[w]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`; }).join("")}<button class="nav" id="wNext">›</button></div><p class="shopline">🛒 買い物の日 ${+ws.slice(5, 7)}/${+ws.slice(8)}（${"日月火水木金土"[new Date(ws + "T00:00:00").getDay()]}）${shopDayTag(ws) ? `・${shopDayTag(ws)}` : ""} 〜 ${+we.slice(5, 7)}/${+we.slice(8)}（${days.length}日）</p></section>
     ${lsGet("buyChk") ? `<section class="card jobbn"><b>🧾 買った物の確認がまだです</b><small>量の直しと、合計金額の入力（相場合わせ）ができます。</small><button class="chip" id="bcOpen">開く</button></section>` : ""}
     ${future ? planCardHtml(ws) : ""}
     <section class="card daycard">
@@ -1372,10 +1389,10 @@ function drawMenu() {
         return `<button class="mcard s-${m}${list.length ? "" : " empty"}${done ? " done" : ""}${ph ? " hasph" : ""}" data-m="${m}"${ph ? ` style="--ph:url('${ph.thumb}')"` : ""}><span class="slcol"><span class="slabel">${MEAL_LABEL[m]}</span>${(st => st ? `<small class="mst st-${st}">${SLT[st]}</small>` : "")(slotTypeOf(S.day, m, list))}${soloOf(S.day, m) && list.length ? `<small class="mst st-solo">${esc(soloTag(S.day, m))}</small>` : ""}${kc ? (so => `<small class="mkc">${uniq.some(isOut) ? "想定" : "約"}${so === 2 ? "外食" : Math.round(kc * sh(1))}/${so === 1 ? "外食" : Math.round(kc * sh(2))}kcal</small>`)(soloOf(S.day, m)) : ""}</span><span class="mcbody">${uniq.length ? uniq.map(p => `<span>${esc(p.title)}${isOut(p) ? `<span class="tag">食後に内容を入力</span>` : ""}</span>`).join("") : `<span class="mcempty">まだ空き</span>`}${lk ? `<span class="tag lack" style="justify-self:start">足りない材料あり</span>` : ""}</span><span class="mcgo">›</span></button>`;
       }).join("")}</div>
       ${!ps.some(isSik) && S.day >= today() ? `<button class="chip" id="sikAdd" style="margin-top:8px">🥒 仕込みを追加（浅漬け・塩麹など）</button>` : ""}
-      ${!future && days[6] >= today() ? `<button class="btn ghost wide" id="reb" style="margin-top:8px">🗓 作る日変更</button>` : ""}</section>`;
+      ${!future && we >= today() ? `<button class="btn ghost wide" id="reb" style="margin-top:8px">🗓 作る日変更</button>` : ""}</section>`;
   $("app").querySelectorAll(".dbtn").forEach(b => b.onclick = () => { S.day = b.dataset.d; drawMenu(); });
-  $("wPrev").onclick = () => { S.day = shiftDay(S.day, -7); drawMenu(); };
-  $("wNext").onclick = () => { S.day = shiftDay(S.day, 7); drawMenu(); };
+  $("wPrev").onclick = () => { S.day = weekStartOf(shiftDay(ws, -1)); drawMenu(); };
+  $("wNext").onclick = () => { S.day = nextWeekOf(ws); drawMenu(); };
   $("mCal").onclick = () => openCalendar(S.day.slice(0, 7));
   $("mSrch").onclick = openSearch;
   if ($("bcOpen")) $("bcOpen").onclick = openBuyCheck;
@@ -1417,18 +1434,18 @@ function openToday(d) {
   openSheet(`<h2>📋 料理のほかにやること</h2><p class="note">献立のカードに無い作業だけです。左の丸をタップで済みにできます。</p><ul class="todol">${ts.map(t => `<li class="${dn.includes(t.k) ? "dn" : ""}"><button class="tck" data-k="${esc(t.k)}" aria-label="済みにする">${dn.includes(t.k) ? "✓" : ""}</button><button class="tgo" data-k="${esc(t.k)}"><span class="tic">${t.ic}</span><span><b>${esc(t.t)}</b>${t.s ? `<small>${esc(t.s)}</small>` : ""}</span></button></li>`).join("")}</ul><button class="btn ghost wide" id="tdClose">閉じる</button>`);
   $("tdClose").onclick = () => { closeSheet(); drawMenu(); };
   document.querySelectorAll("#sheetBody .tck").forEach(b => b.onclick = () => { const all = lsGet("todayDone") || {}, l = all[d] || []; const k = b.dataset.k; all[d] = l.includes(k) ? l.filter(x => x !== k) : [...l, k]; Object.keys(all).forEach(x => { if (x < shiftDay(today(), -3)) delete all[x]; }); lsSet("todayDone", all); openToday(d); });
-  document.querySelectorAll("#sheetBody .tgo").forEach(b => b.onclick = () => { const t = ts.find(x => x.k === b.dataset.k); if (!t) return; if (t.m) openSlot(d, t.m); else if (t.lo) { closeSheet(); if (S.autoDraft) { S.draft = S.autoDraft; S.autoDraft = null; draw(); } else if (!(S.jobWait && S.jobWait.auto)) { const it = leftovers(S.plans).filter(x => x.s.exp && x.s.exp <= shiftDay(today(), 3)); if (it.length) useLeftovers(it, "期限が近い物を優先して使い切る。余りそうな野菜は仕込み（浅漬けなど）にしてもよい"); else openAskAi("期限が近い物の使い道を考えてほしい"); } } else if (t.ask) openAskAi(t.ask); else if (t.tab) { closeSheet(); S.tab = t.tab; draw(); window.scrollTo(0, 0); } });
+  document.querySelectorAll("#sheetBody .tgo").forEach(b => b.onclick = () => { const t = ts.find(x => x.k === b.dataset.k); if (!t) return; if (t.m) openSlot(d, t.m); else if (t.lo) { closeSheet(); if (S.autoDraft) { S.draft = S.autoDraft; S.autoDraft = null; draw(); } else if (!(S.jobWait && S.jobWait.auto)) { const it = leftovers(S.plans).filter(x => x.s.exp && x.s.exp <= shiftDay(today(), 3)); if (it.length) useLeftovers(it, "期限が近い物を優先して使い切る。余りそうな野菜は仕込み（浅漬けなど）にしてもよい"); else { S.tab = "stock"; draw(); } } } else if (t.ask) openAskAi(t.ask); else if (t.tab) { closeSheet(); S.tab = t.tab; draw(); window.scrollTo(0, 0); } });
 }
 // 献立の画面の左上の小さなボタン（✨提案・📋やること・🗓来週）。カードは出さず、押すと中身を開く
 function topChips(ws) {
   const t = today(), ts = todayTasks(t), dn = (lsGet("todayDone") || {})[t] || [], left = ts.filter(x => !dn.includes(x.k)).length;
-  const nws = shiftDay(ws, 7), dow = new Date(t + "T00:00:00").getDay(), nw = ws === weekStartOf(t) && dow >= 4 && !S.plans.some(p => p.date >= nws && p.date <= shiftDay(nws, 6));
-  const cs = [S.autoDraft ? `<button class="tchip hot" id="tcSug" aria-label="AIからの提案">✨提案</button>` : "", left ? `<button class="tchip" id="tcDo" aria-label="料理のほかにやること">📋${left}</button>` : "", nw ? `<button class="tchip" id="tcNw" aria-label="来週の献立を作る">🗓来週</button>` : ""].join("");
+  const nws = nextWeekOf(ws), nw = ws === weekStartOf(t) && t >= shiftDay(weekEndOf(ws), -2) && !S.plans.some(p => p.date >= nws && p.date <= weekEndOf(nws));
+  const cs = [S.autoDraft ? `<button class="tchip hot" id="tcSug" aria-label="AIからの提案">✨提案</button>` : "", left ? `<button class="tchip" id="tcDo" aria-label="料理のほかにやること">📋${left}</button>` : "", nw ? `<button class="tchip" id="tcNw" aria-label="次の買い物の週の献立を作る">🗓次の週</button>` : ""].join("");
   return cs ? `<span class="tchips">${cs}</span>` : "";
 }
 function bindTopChips(ws) {
   if ($("tcDo")) $("tcDo").onclick = () => openToday(today());
-  if ($("tcNw")) $("tcNw").onclick = () => { S.day = shiftDay(ws, 7); drawMenu(); window.scrollTo(0, 0); };
+  if ($("tcNw")) $("tcNw").onclick = () => { S.day = nextWeekOf(ws); drawMenu(); window.scrollTo(0, 0); };
   if ($("tcSug")) $("tcSug").onclick = () => {
     const D = S.autoDraft, names = ((D && D.loItems) || []).map(x => (S.stock.find(s => s.id === x.id) || {}).name).filter(Boolean);
     openSheet(`<h2>✨ AIからの提案</h2><p class="note">${names.length ? `期限が近い ${esc(names.join("、"))} を使い切る献立の案です。` : "献立の直しの案です。"}</p>${D && D.note ? `<div class="ok">${esc(D.note)}</div>` : ""}<div class="grid2"><button class="btn" id="sgOpen">案を見る</button><button class="btn ghost" id="sgNo">今回はいい</button></div><button class="btn ghost wide" id="sgClose">閉じる</button>`);
@@ -2140,11 +2157,15 @@ const kindOf = r => {
   if (/肉|鶏|豚|牛|鮭|さば|ぶり|アジ|魚|エビ|イカ|卵|豆腐|麻婆|つくね|ハンバーグ/.test(t)) return "主菜";
   return "副菜";
 };
-// AIのレシピは同じ料理名の写しが多いので、料理名ごとに一番新しい1つだけ出す
+// 献立に使ってよいレシピ: 本のレシピ、手で入れたレシピ（メモが【自分】で始まる）、白ごはん、牛乳・バナナのような材料1つのそのまま食べる物。
+// AIが考えたレシピは、2026-11-26から献立にもレシピ帳の検索にも出さない（前の献立の記録からは開ける）
+const isOwnR = r => /^【自分】/.test(String((r && r.memo) || ""));
+const okRecipe = r => !!r && (!!bookOf(r) || isOwnR(r) || r.id === RICE_AM || r.id === RICE_LD || ingsOf(r).length === 1);
+// 同じ料理名の写しは、料理名ごとに一番新しい1つだけ出す
 function recipeBook() {
   const seen = new Map();
   (S.recipes || []).forEach(r => { if (!r || !r.title) return; const k = r.title; if (!bookOf(r) && seen.has(k) && !bookOf(seen.get(k))) seen.delete(k); if (!seen.has(k) || !bookOf(seen.get(k))) seen.set(k, r); });
-  return [...seen.values()];
+  return [...seen.values()].filter(okRecipe);
 }
 function drawRecipes() {
   const F = S.rf || (S.rf = { q: "", kind: "", src: "" });
@@ -2153,19 +2174,19 @@ function drawRecipes() {
   const hit = r => {
     if (F.kind && kindOf(r) !== F.kind) return false;
     const b = bookOf(r);
-    if (F.src === "ai" && b) return false; if (F.src && F.src !== "ai" && (!b || b.book !== F.src)) return false;
+    if (F.src === "own" && b) return false; if (F.src && F.src !== "own" && (!b || b.book !== F.src)) return false;
     if (F.q) { const q = F.q.replace(/\s+/g, ""); const txt = (r.title + "\n" + (r.ingredients || "") + "\n" + (b ? b.food : "")).replace(/\s+/g, ""); if (!q.split(/[、,]/).every(w => !w || txt.includes(w))) return false; }
     return true;
   };
   const list = all.filter(hit).sort((a, b) => { const x = bookOf(a), y = bookOf(b); if (!!x !== !!y) return x ? -1 : 1; if (x && y) return x.book === y.book ? (+x.page || 0) - (+y.page || 0) : x.book.localeCompare(y.book); return String(a.title).localeCompare(String(b.title), "ja"); });
   const chip = (k, v, l) => `<button class="chip${F[k] === v ? " on" : ""}" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`;
   const shown = list.slice(0, S.rMore || 60);
-  $("app").innerHTML = `<div class="card"><h2>レシピ帳</h2><p class="note">本から入れたレシピと、AIが考えたレシピ（同じ料理名は新しい1つだけ）です。料理名・材料で探せます。「、」で区切ると両方を含むレシピだけ出ます。</p>
+  $("app").innerHTML = `<div class="card"><h2>レシピ帳</h2><p class="note">本から入れたレシピと、手で入れたレシピです（AIが考えたレシピは出しません）。料理名・材料で探せます。「、」で区切ると両方を含むレシピだけ出ます。</p>
     <input id="rQ" type="search" placeholder="例: 鶏肉、キャベツ" value="${esc(F.q)}">
     <div class="rfilter">${chip("kind", "", "すべて")}${R_KINDS.map(k => chip("kind", k, k)).join("")}</div>
-    <div class="rfilter">${chip("src", "", "本もAIも")}${books.map(b => chip("src", b, "📖 " + b)).join("")}${chip("src", "ai", "AIのレシピ")}</div>
+    <div class="rfilter">${chip("src", "", "すべて")}${books.map(b => chip("src", b, "📖 " + b)).join("")}${chip("src", "own", "本以外（手で入れた物など）")}</div>
     <p class="note">${list.length}品</p></div>
-    <div class="rlist">${shown.map(r => { const b = bookOf(r), rt = Rt[r.id]; return `<button class="card rcard" data-id="${esc(r.id)}"><b>${esc(r.title)}${rt === "good" ? " 👍" : rt === "bad" ? " 👎" : ""}</b><span class="rk">${esc(kindOf(r))}</span><small>${b ? `📖 ${esc(b.book)} ${b.page ? "p." + esc(b.page) : ""}${b.food ? "・" + esc(b.food) : ""}` : "AIのレシピ"}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal` : ""}${r.servings ? `・${esc(r.servings)}人分` : ""}</small></button>`; }).join("")}</div>
+    <div class="rlist">${shown.map(r => { const b = bookOf(r), rt = Rt[r.id]; return `<button class="card rcard" data-id="${esc(r.id)}"><b>${esc(r.title)}${rt === "good" ? " 👍" : rt === "bad" ? " 👎" : ""}</b><span class="rk">${esc(kindOf(r))}</span><small>${b ? `📖 ${esc(b.book)} ${b.page ? "p." + esc(b.page) : ""}${b.food ? "・" + esc(b.food) : ""}` : isOwnR(r) ? "手で入れたレシピ" : "そのまま食べる物"}${+r.kcal ? `・1人分 ${Math.round(+r.kcal)}kcal` : ""}${r.servings ? `・${esc(r.servings)}人分` : ""}</small></button>`; }).join("")}</div>
     ${list.length > shown.length ? `<button class="btn ghost wide" id="rMore" style="margin-top:8px">もっと見る（あと${list.length - shown.length}品）</button>` : ""}
     <button class="btn wide" id="rAdd" style="margin-top:10px">＋ レシピを手で入れる</button>
     <label class="btn ghost wide" style="margin-top:8px;text-align:center;display:block">📥 ファイルからまとめて取り込む<input id="rFile" type="file" accept=".json,application/json" hidden></label>`;
@@ -2227,6 +2248,7 @@ function editRecipe(id) {
     const title = v("title"); if (!title) { alert("料理名を入れてください"); return; }
     const ings = v("ings").split("\n").map(l => l.trim()).filter(Boolean).map(l => /：/.test(l) ? l : l.replace(/:/, "：")).join("\n");
     const o = { ...clean(r), title, servings: v("servings"), kcal: v("kcal"), keepDays: v("keepDays"), ingredients: ings, steps: v("steps"), memo: v("memo") };
+    if (!id && !bookOf(o) && !isOwnR(o)) o.memo = "【自分】" + o.memo;
     if (id && o.kcal !== String(r.kcal || "")) { o.p = ""; o.f = ""; o.c = ""; }
     try { const nid = (await run("saveRecipes", [o]))[0]; closeSheet(); draw(); if (nid) openRecipe(nid); } catch (e) { alert(e.message); }
   };
@@ -2238,7 +2260,6 @@ const T_KEYS = [["目標1", "人1"], ["目標2", "人2"]];
 function openPref() {
   const tg = k => String(SET(k)).split("/");
   openSheet(`<h2>好み・予算</h2><p class="note">ここに書いた内容を、AIが献立やレシピを考えるたびに読み込みます。書き換えると、次の提案から反映されます。</p>
-    <label>AIの役割<select data-k="AIの役割"><option value="選ぶ"${SET("AIの役割") !== "考える" ? " selected" : ""}>レシピ帳から選ぶだけ（新しい料理は作らない）</option><option value="考える"${SET("AIの役割") === "考える" ? " selected" : ""}>新しい料理も考える</option></select></label>
     ${PREF.map(([k, l, ph]) => `<label>${esc(l)}<textarea data-k="${k}" rows="3" placeholder="${esc(ph)}">${esc(SET(k))}</textarea></label>`).join("")}
     <h3 style="margin-top:6px">1か月の予算（円）</h3>
     <div class="grid3">${BUDGET.map(([k, l]) => `<label>${esc(l)}<input data-k="${k}" type="number" inputmode="numeric" value="${esc(SET(k))}"></label>`).join("")}</div>
@@ -3179,8 +3200,8 @@ ${pickOnly() ? catalogText() : `■これまでのレシピ（同じ料理を使
 ${S.recipes.slice(-70).map(r => `- id=${r.id}｜${r.title}（${r.servings}人分・日持ち${r.keepDays || "?"}日）`).join("\n")}`}
 ${rateText()}`;
 }
-// AIは「レシピ帳から選ぶだけ」（設定「AIの役割」が「考える」でなく、本などのレシピが入っているとき）
-const pickOnly = () => SET("AIの役割") !== "考える" && (S.recipes || []).some(r => bookOf(r));
+// AIは「レシピ帳から選ぶだけ」。新しい料理は作らせない（2026-11-26から「新しい料理も考える」はやめた）
+const pickOnly = () => true;
 // レシピ帳の一覧（AIに渡す）: 料理ごとに id・種類・人数・1人分kcal・主な材料と量
 function catalogText() {
   const Rt = rates(), list = recipeBook().filter(r => Rt[r.id] !== "bad" && ingsOf(r).length);
@@ -3191,18 +3212,19 @@ function catalogText() {
 - 料理は必ず下の一覧から選び、meals に recipe_id を書く。recipe は書かない（材料・手順・栄養はレシピ帳のものを使う）。
 - dish はレシピ帳の料理名をそのまま書く（料理名を短くする決まりより優先）。量は people（食べる人数）で調整される。作り置きの分は、作り置きを食べる枠を leftover:true で入れれば足される。
 - 一覧に合う料理が無い枠は、その枠を空けずに、いちばん近い料理を選ぶ（主菜なら主菜）。行事の日も、一覧の中から行事に合いそうな料理を選ぶ。
-- 「本」は料理本のレシピ。なるべく本のレシピを使い、朝の手軽な物などは「家」のレシピも使ってよい。
+- 「本」は料理本のレシピ。朝も本のレシピ（トースト・のっけパン・卵かけごはんなど）から選ぶ。「家」は白ごはん・牛乳・果物などのそのまま食べる物と、手で入れたレシピ。
 - 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
 - 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
 ${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
 function pickFix(meals) {
-  const byTitle = new Map(); (S.recipes || []).forEach(r => { if (r && r.title && (!byTitle.has(r.title) || bookOf(r))) byTitle.set(r.title, r); });
+  const byTitle = new Map(); (S.recipes || []).filter(okRecipe).forEach(r => { if (r && r.title && (!byTitle.has(r.title) || bookOf(r))) byTitle.set(r.title, r); });
   const bad = [], out = [];
   meals.forEach(m => {
     if (m.leftover) { out.push(m); return; }
     let r = m.recipe_id && recipeOf(m.recipe_id);
+    if (r && !okRecipe(r)) r = null;
     if (!r) r = byTitle.get(m.dish) || (m.recipe && byTitle.get(m.recipe.title)) || (/^白ごはん|^ごはん$|^ご飯$/.test(m.dish) ? recipeOf(m.meal === "朝" ? RICE_AM : RICE_LD) : null);
     if (!r) { bad.push(m.dish); return; }
     const { recipe, ...o } = m; out.push({ ...o, recipe_id: r.id });
@@ -3216,7 +3238,7 @@ const rates = () => { try { return JSON.parse(SET("レシピ評価") || "{}") ||
 // 「いまいち」は、そのレシピの作り方だけを避ける（同じ食材・似た料理は避けない）
 function rateText() {
   const Rt = rates(), recent = new Set(S.plans.filter(p => p.date >= shiftDay(today(), -14)).map(p => p.recipeId));
-  const good = Object.keys(Rt).filter(id => Rt[id] === "good" && !recent.has(id)).map(recipeOf).filter(Boolean).sort(() => Math.random() - .5).slice(0, 6);
+  const good = Object.keys(Rt).filter(id => Rt[id] === "good" && !recent.has(id)).map(recipeOf).filter(okRecipe).sort(() => Math.random() - .5).slice(0, 6);
   const bad = Object.keys(Rt).filter(id => Rt[id] === "bad").map(recipeOf).filter(Boolean);
   return (good.length ? `■家族が「また食べたい」と言ったレシピ（使ってもよい候補の一部。使うときは recipe_id を書く。この中から使うのは期間全体で2品くらいまでにし、ほかは新しい料理やほかのレシピにする。同じ料理ばかりにしない）\n${good.map(r => `- id=${r.id}｜${r.title}`).join("\n")}\n` : "")
     + (bad.length ? `■「いまいち」だったレシピ（この recipe_id の作り方だけは使わない。同じ食材・同じ種類の料理・似た料理は、ふつうに使ってよい）\n${bad.map(r => `- id=${r.id}｜${r.title}`).join("\n")}\n` : "");
@@ -3271,7 +3293,7 @@ function slotTypeOf(d, m, list) {
   return list.some(isOut) ? "out" : list.every(isLo) ? "lo" : "";
 }
 const NEXT_ST = { new: "easy", easy: "lo", lo: "out", out: "skip", skip: "new" };
-function slotRange(ws) { const from = ws > today() ? ws : today(), out = []; for (let d = from; d <= shiftDay(ws, 6); d = shiftDay(d, 1)) MEALS.forEach(m => { const l = S.plans.filter(p => p.date === d && p.meal === m); if (!(l.length && l.every(p => p.status === "作った"))) out.push({ d, m }); }); return out; }
+function slotRange(ws) { const from = ws > today() ? ws : today(), out = []; for (let d = from, we = weekEndOf(ws); d <= we; d = shiftDay(d, 1)) MEALS.forEach(m => { const l = S.plans.filter(p => p.date === d && p.meal === m); if (!(l.length && l.every(p => p.status === "作った"))) out.push({ d, m }); }); return out; }
 // 次の週以降: 献立を作る枠（予定が入っている枠は「なし」＝今のまま）
 const slotPat = () => { try { return JSON.parse(SET("枠のいつもの形") || "{}") || {}; } catch (e) { return {}; } };
 const dowOf = d => new Date(d + "T00:00:00").getDay();
@@ -3287,9 +3309,9 @@ function weekSel(ws) {
 const slotGridHtml = sl => { const days = [...new Set(sl.list.map(x => x.d))]; return `<div class="slotgrid">${days.map(d => `<div class="slotday"><b>${+d.slice(5, 7)}/${+d.slice(8)}</b>${MEALS.map(m => { const x = sl.list.find(y => y.d === d && y.m === m); const so = soloOf(d, m); return x ? `<button class="slot st-${x.st}${so ? " one" : ""}" data-k="${d}|${m}"><b>${m}</b>${SLT[x.st]}${so ? `<i class="sl1">${esc(SET("人" + so))}だけ</i>` : ""}</button>` : `<span></span>`; }).join("")}</div>`).join("")}</div>`; };
 // 来週の献立がまだ無いとき（木曜から）、今日の画面に案内を出す
 function nextWeekNudge(ws) {
-  const nws = shiftDay(ws, 7), dow = new Date(today() + "T00:00:00").getDay();
-  if (ws !== weekStartOf(today()) || dow < 4 || S.plans.some(p => p.date >= nws && p.date <= shiftDay(nws, 6))) return "";
-  return `<section class="card nudge"><b>🗓 来週の献立を作りましょう</b><small>在庫を確かめる → 予定を選ぶ → AIが献立と買い物リストを作る（約3分）</small><button class="btn" id="nwGo">はじめる</button></section>`;
+  const nws = nextWeekOf(ws);
+  if (ws !== weekStartOf(today()) || today() < shiftDay(weekEndOf(ws), -2) || S.plans.some(p => p.date >= nws && p.date <= weekEndOf(nws))) return "";
+  return `<section class="card nudge"><b>🗓 次の買い物の日（${+nws.slice(5, 7)}/${+nws.slice(8)}${shopDayTag(nws) ? "・" + shopDayTag(nws) : ""}）からの献立を作りましょう</b><small>在庫を確かめる → 予定を選ぶ → AIが献立と買い物リストを作る（約3分）</small><button class="btn" id="nwGo">はじめる</button></section>`;
 }
 // 週はじめに確かめたい在庫: 「あり・わずか」の物、生ものの置き場所の物、2週間確かめていない物（調味料は「あり・わずか」のときだけ）
 function checkFocus() {
@@ -3375,7 +3397,7 @@ function openRebuild(ws) {
   };
   // ② 今週使う予定だった在庫を確かめてから、組み直す
   const drawCheck = () => {
-    const use = weekUse(planGroups().filter(x => x.date <= shiftDay(ws, 6))), items = S.stock.filter(s => use[s.id]).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    const use = weekUse(planGroups().filter(x => x.date <= weekEndOf(ws))), items = S.stock.filter(s => use[s.id]).sort((a, b) => a.name.localeCompare(b.name, "ja"));
     openSheet(`<h2>🗓 作る日変更</h2><p class="note">② 在庫を確かめてください。今週の献立で使う予定だった食材です。量が違うものは直してください（空欄にすると「なくなった」）。</p>
       ${items.length ? `<ul class="list">${items.map((s, i) => `<li class="qrow"><span class="nm">${esc(s.name)}<small>使う予定: ${esc(use[s.id].map(x => fmtQ(x.amount)).join("＋"))}</small></span>${qtyBox(s.qty, "q", i, s.name)}</li>`).join("")}</ul>` : `<p class="note">使う予定の在庫はありません。</p>`}
       <div class="grid2"><button class="btn" id="rcGo">献立を見直す</button><button class="btn ghost" id="rcNo">やめる</button></div><button class="btn ghost wide" id="rcBack">← 作る日の選択に戻る</button>`);
@@ -3681,9 +3703,8 @@ async function applyAsk(res, meta) {
     ${lines.length ? `<ul class="list">${lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
     ${res.replan ? `<div class="msg">献立の組み直しが必要です: ${esc(res.replan)}</div><button class="btn wide" id="askRe">🗓 献立をAIで組み直す</button>` : ""}
     <div class="grid2">${lines.length ? `<button class="btn ghost" id="askUndo">↩︎ 取り消す</button>` : `<span></span>`}<button class="btn" id="askOk">OK</button></div>
-    <button class="chip" id="askMore" style="justify-self:start">✨ 続けて頼む</button>`);
+`);
   $("askOk").onclick = closeSheet;
-  $("askMore").onclick = () => openAskAi();
   if ($("askRe")) $("askRe").onclick = () => { openRebuild(weekStartOf(today())); S.rbWish = res.replan; const w = $("rbWish"); if (w) w.value = res.replan; };
   if ($("askUndo")) $("askUndo").onclick = async () => {
     if (undo.prevStock.length) await run("saveStock", undo.prevStock);
@@ -3694,11 +3715,7 @@ async function applyAsk(res, meta) {
     closeSheet(); draw(); alert("元に戻しました");
   };
 }
-// 右下の「✨ AIに頼む」ボタン（献立・在庫の画面）
-function askFab() {
-  let b = $("aiFab"); if (!b) { b = document.createElement("button"); b.id = "aiFab"; b.innerHTML = "✨ <span>AIに頼む</span>"; b.onclick = () => openAskAi(); document.body.appendChild(b); }
-  b.hidden = !(S.tab === "menu" || S.tab === "stock") || !!(S.draft && S.draft.meals);
-}
+// 2026-11-26: 右下の「✨ AIに頼む」ボタンはやめた（献立・在庫の直しは各画面のボタンで行う）
 // ===== 自動の提案: 期限が近いのに献立で使い切れない物があれば、開いたときにAIが使い道（料理の入れ替え・仕込み）を考えておく（1日1回） =====
 function autoItems() {
   const lim = shiftDay(today(), 3);
