@@ -3105,6 +3105,27 @@ const MEAL_W = { 朝: .2, 昼: .4, 夜: .4 };
 const dayShare = (d, isOff) => Math.max(0, 1 - Object.keys(MEAL_W).reduce((s, m) => s + (isOff(d, m) ? MEAL_W[m] : soloOf(d, m) ? MEAL_W[m] / 2 : 0), 0));
 const budgetFor = (days, isOff) => Math.round(days.reduce((s, d) => s + perDayOf(d) * (isOff ? dayShare(d, isOff) : 1), 0));
 const budgetNote = () => { const a = budgetAdj(); if (!a) return ""; return `<p class="note">${a.rest >= 0 ? `今月の予算の残り 約${a.rest.toLocaleString()}円・あと${a.left}日` : `今月の予算を約${(-a.rest).toLocaleString()}円こえています`} → 材料費の目安 1日 約${a.perDay.toLocaleString()}円（ふだんは約${budget().perDay.toLocaleString()}円）</p>`; };
+// 今月の食費の入力欄（週の献立を作るとき・作り直すとき・案を考え直すとき）。id を変えて使う
+const spentHtml = id => `<label>今月使った食費（円）<input id="${id}" inputmode="numeric" value="${spentNow() ?? ""}" placeholder="例: 12000（家計簿の今月の食費）"></label><div class="spNote">${budgetNote()}</div><p class="note" style="font-size:.78rem">買い物リストにあって、まだ買っていない物は、これから払う分としてAIが差し引いて考えます。</p>`;
+// 入れた食費を保存する（変わったときだけ）。true: 変わった
+function saveSpent(raw) {
+  if (raw == null) return false;
+  const v = String(raw).normalize("NFKC").replace(/[^\d]/g, ""), val = v ? `${ymKey()} ${+v}` : "";
+  if (val === String(SET("今月の食費"))) return false;
+  S.settings["今月の食費"] = val; run("saveSetting", "今月の食費", val).catch(e => alert(e.message)); return true;
+}
+const bindSpent = id => { const el = $(id); if (!el) return; el.onchange = () => { saveSpent(el.value); const n = el.closest("label") && el.closest("label").nextElementSibling; if (n && n.classList.contains("spNote")) n.innerHTML = budgetNote(); }; };
+// 今月の食費の状況をAIに伝える: 家計簿の使った額には、買い物リストのまだ買っていない物（今回作り直さない料理の分）が入っていないので、それもこれから払う分として差し引いてもらう
+function cashNote(keepPlans) {
+  const a = budgetAdj(); if (!a) return "";
+  const pend = shopItems(keepPlans), later = lsGet("laterBuy") || {};
+  return `- 今月の食費の状況: 1か月の予算（材料・米・調味料）合計約${a.all}円。家計簿で今月これまでに使った額は${a.sp}円 → ${a.rest >= 0 ? `残り約${a.rest}円` : `すでに約${-a.rest}円こえている`}・月末まであと${a.left}日（今日を含む）。
+${pend.length ? `  - 使った額には、まだ買っていない物は入っていない。買い物リストにあって、まだ買っていない次の物（今回は作り直さない料理の分）は、これから払うお金: ${pend.map(i => `${i.name} ${buyText(i)}${later[i.name] ? "（後で買う）" : ""}`).join("、")}
+  - この未購入の物の値段を相場で見積もって、今月の残りから差し引く。差し引いた残りで、この期間と月末までのほかの日の食事をまかなえるように、この期間の買い足す分（buy_cost）を抑える。上の期間の材料費の目安より厳しくなるときは、こちらを優先する。
+  - JSON に "pending_cost":未購入の物の見積もりの合計の円 を加える。
+` : `  - 今回作り直さない料理の分で、買い物リストにあってまだ買っていない物は無い。今月の残りで、この期間と月末までのほかの日の食事をまかなえるように、この期間の買い足す分（buy_cost）を抑える（上の期間の材料費の目安より厳しくなるときは、こちらを優先する）。
+`}`;
+}
 // 買い物の実績（買った物の確認で入れた、見積もりと実際の金額）。AIの値段の見積もりを合わせるために渡す
 function priceHist() {
   const l = String(SET("相場記録") || "").split("\n").filter(Boolean).slice(0, 6); if (!l.length) return "";
@@ -3304,7 +3325,7 @@ function planCardHtml(ws) {
       <button class="chip${S.soloMode ? " on" : ""}" id="soloMode" style="justify-self:start">${S.soloMode ? "✓ 1人の枠を選び終わった" : "👤 1人の時がある"}</button>
       ${slotGridHtml(sl)}`)}
     ${head(3, "今月の食費を入れる")}
-    ${pane(3, `<label>今月使った食費（円）<input id="spent" inputmode="numeric" value="${sp ?? ""}" placeholder="例: 12000（家計簿の今月の食費）"></label>${budgetNote()}`)}
+    ${pane(3, spentHtml("spent"))}
     ${head(4, "お店で買う物・希望")}
     ${pane(4, `<label>カゴに入れたもの<textarea id="deals" placeholder="例: 鶏むね肉 600g 348円、白菜1/4 98円、ぶり切り身 2切れ">${esc(S.dealText || "")}</textarea></label>
       <p class="note">ここに書いた物は必ず使う献立にし、買い物リストでもカゴに入れた印を付けます。</p>
@@ -3325,11 +3346,7 @@ function bindPlanCard(ws) {
     S.wizSeen = S.wizSeen || {}; if (S.wizOpen === n) { S.wizSeen[n] = true; S.wizOpen = ""; } else { if (S.wizOpen) S.wizSeen[S.wizOpen] = true; S.wizOpen = n; }
     drawMenu();
   });
-  $("spent").onchange = () => {
-    const v = $("spent").value.normalize("NFKC").replace(/[^\d]/g, ""), val = v ? `${ymKey()} ${+v}` : "";
-    keep(); S.settings["今月の食費"] = val; drawMenu();
-    run("saveSetting", "今月の食費", val).catch(e => alert(e.message));
-  };
+  $("spent").onchange = () => { keep(); saveSpent($("spent").value); drawMenu(); };
 }
 // 作る日変更（今週）: 今の状態（レシピ・作り置き・外食・なし）を出し、変えて「変更する」で組み直す
 function openRebuild(ws) {
@@ -3341,8 +3358,10 @@ function openRebuild(ws) {
     openSheet(`<h2>🗓 作る日変更</h2><p class="note">① 今の献立の状態です。タップで レシピ → 簡単 → 作り置き → 外食 → なし と変えられます（変えていない枠は、なるべく今の料理のまま）。外食の枠は、標準的な1食分の栄養として計算します。</p>
       ${slotGridHtml(S.slotSel)}
       <label>希望（任意）<input id="rbWish" value="${esc(S.rbWish)}" placeholder="例: 木曜は簡単なものに"></label>
+      ${spentHtml("rbSpent")}
       <div class="grid2"><button class="btn" id="rbGo">次へ（在庫の確認）</button><button class="btn ghost" id="rbNo">やめる</button></div>`);
-    const keep = () => { S.rbWish = $("rbWish").value.trim(); };
+    const keep = () => { S.rbWish = $("rbWish").value.trim(); saveSpent($("rbSpent").value); };
+    bindSpent("rbSpent");
     $("sheetBody").querySelectorAll(".slot").forEach(b => b.onclick = () => { keep(); const x = S.slotSel.list.find(y => y.d + "|" + y.m === b.dataset.k); x.st = NEXT_ST[x.st]; drawR(); });
     $("rbNo").onclick = () => { S.slotSel = null; closeSheet(); };
     $("rbGo").onclick = () => { keep(); drawCheck(); };
@@ -3398,7 +3417,7 @@ ${(l => l.length ? `- 調味料はまんべんなく使い、同じ物に偏ら�
 - 外食の枠（何も入れない。標準的な1食分の栄養（朝500・昼800・夜900kcal）を食べるものとして、その日の栄養を考える）: ${tg.filter(x => x.st === "out").map(x => `${x.d} ${x.m}`).join("、") || "なし"}
 ${rb ? `- これは今週の献立の組み直し。状態を変えていない枠は、今の料理をなるべくそのまま使う（recipe_id を書く）。状態を変えた枠と、それに関わる作り置きだけを作り直す。\n${curTxt}\n` : ""}${lackTxt ? `- 次の料理は在庫が足りない。状態を変えていない枠でも、なるべく今の在庫で作れる料理に作り直す（1日の栄養を考える）: ${lackTxt}\n` : ""}
 - 期間の材料費は、在庫から使う分（相場で数える）と買い足す分を合わせて、合計約${budgetFor([...new Set(tg.map(x => x.d))], (d, m) => { const x = sl.list.find(y => y.d === d && y.m === m); return !!x && (x.st === "out" || x.st === "skip"); })}円まで（外食・なしの枠の分は除いた金額）。
-${(ev => ev.length ? `- 行事・記念日: ${ev.map(e => `${e.d}（${e.name}${e.hint ? `。例: ${e.hint}` : ""}）`).join("、")} → その日の夕食（またはおやつ）は、行事にちなんだイベント感のある料理にする（予算の中で、手間がかかりすぎない物）\n` : "")(eventsIn([...new Set(tg.map(x => x.d))]))}${wish ? `- 希望: ${wish}\n` : ""}${prev && fixText ? `- 前回の案: ${prev.meals.map(m => `${m.date} ${m.meal} ${m.dish}`).join("／")}\n- 変えてほしいこと: ${fixText}${opts.stockOnly || (opts.mustUse || []).length ? "（そのために必要な料理は作り直してよい）" : "（関係ない料理は前回のまま）"}\n` : ""}
+${cashNote(keepPlans)}${(ev => ev.length ? `- 行事・記念日: ${ev.map(e => `${e.d}（${e.name}${e.hint ? `。例: ${e.hint}` : ""}）`).join("、")} → その日の夕食（またはおやつ）は、行事にちなんだイベント感のある料理にする（予算の中で、手間がかかりすぎない物）\n` : "")(eventsIn([...new Set(tg.map(x => x.d))]))}${wish ? `- 希望: ${wish}\n` : ""}${prev && fixText ? `- 前回の案: ${prev.meals.map(m => `${m.date} ${m.meal} ${m.dish}`).join("／")}\n- 変えてほしいこと: ${fixText}${opts.stockOnly || (opts.mustUse || []).length ? "（そのために必要な料理は作り直してよい）" : "（関係ない料理は前回のまま）"}\n` : ""}
 ${FORMAT}`;
   const slotTypesNew = Object.fromEntries(sl.list.filter(x => x.st !== "skip" || !S.plans.some(p => p.date === x.d && p.meal === x.m && p.status !== "作った")).map(x => [x.d + "|" + x.m, x.st]));
   await askAi(ask, { mode: "week", slotTypes: slotTypesNew, removeIds, slotKeys: [...keys], outKeys: tg.filter(x => x.st === "out").map(x => x.d + "|" + x.m), clearKeys, stockOnly: !!opts.stockOnly, buyOnly: opts.buyOnly || null, mustUse: opts.mustUse || [] });
@@ -3412,9 +3431,10 @@ async function startFix(extra, picked, all, ngShop) {
   if (!picked) {
     openSheet(`<h2>作り直す料理を選ぶ</h2><p class="note">足りない材料がある料理です。これから買う予定の物なら、チェックを外してください。</p>
       <ul class="list">${bad0.map((x, i) => `<li><label class="row" style="font-weight:400;color:inherit"><input type="checkbox" data-i="${i}" checked style="width:auto"><span>${fmtDay(x.date)} ${MEAL_LABEL[x.meal]}: ${esc(x.title)}<br><small class="red">足りない: ${esc(lacksOf(x, null, true).map(o => normName(o.it.name)).join("、"))}</small></span></label></li>`).join("")}</ul>
+      ${spentHtml("fxSpent")}
       <div class="grid2"><button class="btn" id="fxGo">選んだ料理を作り直す</button><button class="btn ghost" id="fxNo">やめる</button></div>`);
-    $("fxNo").onclick = closeSheet;
-    $("fxGo").onclick = () => { const keys = [...document.querySelectorAll("#sheetBody input:checked")].map(c => bad0[+c.dataset.i].key); closeSheet(); if (keys.length) startFix(extra, keys); };
+    $("fxNo").onclick = closeSheet; bindSpent("fxSpent");
+    $("fxGo").onclick = () => { saveSpent($("fxSpent").value); const keys = [...document.querySelectorAll("#sheetBody input:checked")].map(c => bad0[+c.dataset.i].key); closeSheet(); if (keys.length) startFix(extra, keys); };
     return;
   }
   const bad = bad0.filter(x => picked.includes(x.key));
@@ -3434,7 +3454,7 @@ ${[...slots].sort().map(k => { const [d, m] = k.split("|"), l = S.plans.filter(p
 - 作り直す料理1品につき、代わりの料理を1品ずつ入れる（主菜なら主菜、副菜なら副菜）。
 - 足りない材料: ${[...new Set(bad.flatMap(x => lacksOf(x, null, true).map(o => normName(o.it.name))))].join("、")}
 - これから買う予定の物（使ってよい）: ${[...new Set(gs.filter(x => !picked.includes(x.key)).flatMap(x => lacksOf(x, null, true).map(o => normName(o.it.name))))].join("、") || "なし"}
-- 同じ食事の種類（朝・昼・夜・おやつ）のまま作り直す。作り置きの枠は、作る枠の料理の作り置きにする。
+${cashNote(keepPlans)}- 同じ食事の種類（朝・昼・夜・おやつ）のまま作り直す。作り置きの枠は、作る枠の料理の作り置きにする。
 ${S.rbWish ? `- 希望: ${S.rbWish}\n` : ""}${extra ? `- 前の案では、まだ足りない材料があった: ${extra}。この材料は使わない。\n` : ""}${ngShop && ngShop.length ? `- 次の物は買えない（使わない）: ${ngShop.join("、")}\n` : ""}
 ${FORMAT}
 - shopping: [{"name":"食材名","amount":"買う量","reason":"なぜ必要か（栄養など）短く"}]（無ければ []）`;
@@ -3485,7 +3505,7 @@ async function applyAi(res, meta, prompt, id) {
     if (fx.bad.length && !meta.retried) { await askAi(prompt + `\n【前の案の問題】次の料理はレシピ帳に無い: ${fx.bad.join("、")}。必ずレシピ帳の一覧から選び、recipe_id を書く（新しい料理を作らない）。`, { ...m0, retried: true }); return; }
     meals = fx.meals; pickDrop = fx.bad;
   }
-  S.draft = { ...m0, ctx0: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
+  S.draft = { ...m0, ctx0: { slotSel: S.slotSel, rbWish: S.rbWish || "", dealText: S.dealText || "" }, jobId: id, meals, shop, cost: +res.cost || 0, buyCost: +res.buy_cost || 0, pendingCost: +res.pending_cost || 0, prices: res.prices && typeof res.prices === "object" ? res.prices : {}, note: String(res.note || "") + (res._model && res._model !== (SET("AIモデル") || "gemini-3.8-flash") ? `（AIが混み合っていたため、予備のモデル ${res._model} で作りました）` : "") };
   if (pickDrop.length) S.draft.note = (S.draft.note || "") + `（レシピ帳に無い料理だったので外しました: ${pickDrop.join("、")}）`;
   absorbRest(S.draft); S.draft.absorbed = true;
   // 「在庫だけで」なのに買い物が出た／「使い切る」と選んだ食材がまだ残る → 問題を伝えて1回だけ考え直す
@@ -3845,7 +3865,7 @@ function drawDraft() {
         : ngProp ? `<button class="btn alt wide" id="dfNg">買えない物を除いて、献立を考え直す</button>`
         : !items.length || allIn ? `<button class="btn wide" id="dfGo">${!items.length ? "この内容で献立を決める" : "🧾 献立を確定して、レジへ"}</button>`
         : `<button class="btn alt wide" id="dfNg2">${ngs.length ? `NGの${ngs.length}品を除いて` : "今の単位で"}、献立を考え直す</button>${D.mode === "week" && inCart ? `<button class="btn ghost wide" id="dfBuyOnly">✓した${inCart}品と量だけで、献立を組み直す（もう買わない）</button>` : ""}<p class="note">全部 ✓ を付けると「献立を確定して、レジへ」が出ます。${unchecked.length ? `✓もNGも無い${unchecked.length}品は、今の「1週間の量」で組み直します。` : ""}</p>`}
-      ${D.kind === "boost" ? `<p class="note">予算の余り 約${(+D.yen || 0).toLocaleString()}円${D.buyCost ? `／この案の買い足し 約${D.buyCost.toLocaleString()}円` : ""}</p>` : D.cost ? `<p class="note">材料費の目安 約${D.cost.toLocaleString()}円（在庫から使う分も含む${D.buyCost ? `・うち買い足し 約${D.buyCost.toLocaleString()}円` : ""}）／予算の目安 ${days.length}日分 約${lim.toLocaleString()}円</p>` : ""}</section>
+      ${D.kind === "boost" ? `<p class="note">予算の余り 約${(+D.yen || 0).toLocaleString()}円${D.buyCost ? `／この案の買い足し 約${D.buyCost.toLocaleString()}円` : ""}</p>` : D.cost ? `<p class="note">材料費の目安 約${D.cost.toLocaleString()}円（在庫から使う分も含む${D.buyCost ? `・うち買い足し 約${D.buyCost.toLocaleString()}円` : ""}）／予算の目安 ${days.length}日分 約${lim.toLocaleString()}円${D.pendingCost ? `／ほかの献立の分で、買い物リストにあってまだ買っていない物の見込み 約${D.pendingCost.toLocaleString()}円` : ""}</p>` : ""}</section>
     ${lo.length || extra.length ? `<section class="card"><div class="secthead"><h3>🥕 週の終わりに残る見込み（${lo.length + extra.length}品）</h3><button class="chip${pick.size ? " on" : ""}" id="loBtn">${pick.size ? `${pick.size}品を使い切って再検討` : D.loMode ? "選ぶのをやめる" : "使い切りたい食材がある"}</button></div>
       ${D.loMode ? `<p class="note">使い切りたい物をタップして選び、上のボタンを押してください。</p>` : ""}
       <ul class="list${D.loMode ? " cart" : ""}">${lo.map(x => { const on = pick.has(x.s.id), sub = `${x.s.exp ? `期限 ${esc(x.s.exp.slice(5).replace("-", "/"))}` : ""}${x.used ? "" : "・使う予定なし"}`; return D.loMode ? `<li class="${on ? "incart" : ""}"><button class="cartbtn" data-lp="${esc(x.s.id)}"><span class="ck">${on ? "✓" : ""}</span><span class="nm">${esc(x.s.name)}<small>${sub}</small></span><b>${esc(x.left)}</b></button></li>` : `<li><span class="nm">${esc(x.s.name)}<small>${sub}</small></span><b>${esc(x.left)}</b></li>`; }).join("")}${extra.map(i => `<li><span class="nm">${esc(i.name)}<small>買う分（${esc(buyText(i))}）の残り</small></span><b>${esc(i.rest)}</b></li>`).join("")}</ul>
@@ -3855,6 +3875,7 @@ function drawDraft() {
     ${days.map(d => { const x = nutOf(d); return `<section class="card"><h3>${fmtDay(d)} <small class="${x.pc < 85 || x.pp < 80 ? "red" : "note"}" style="font-weight:400">1人 約${Math.round(x.n.kcal)}kcal・P${Math.round(x.n.p)}（目標の${x.pc}%）</small></h3>${MEALS_ALL.map(m => { const l = D.meals.filter(x => x.date === d && x.meal === m); return l.length ? `<div class="meal"><b>${MEAL_LABEL[m]}</b><div>${l.map(x => `<button class="dish" data-dish="${esc(x.dish)}">${esc(x.dish)}${x.leftover ? `<span class="tag lo">作り置き</span>` : ""}</button>`).join("")}</div></div>` : ""; }).join("")}</section>`; }).join("")}
     ${D.mode === "fix" && D.shop && D.shop.length ? `<section class="card"><h3>栄養のための買い足しの提案</h3><p class="note">在庫だけでは栄養が足りないため、AIが買い足しを提案しています。それぞれ「買える」「買えない」を選んでください。</p>
       <ul class="list shopprop">${D.shop.map((x, i) => `<li><div class="row" style="justify-content:space-between"><span class="nm"><b>${esc(x.name)}</b> ${esc(x.amount)}<small>${esc(x.reason)}</small></span><span class="seg"><button data-i="${i}" data-v="ok" aria-pressed="${x.mark === "ok"}">買える</button><button data-i="${i}" data-v="ng" aria-pressed="${x.mark === "ng"}">買えない</button></span></div></li>`).join("")}</ul></section>` : ""}
+    ${D.kind === "boost" ? "" : `<section class="card"><h3>💴 今月の食費</h3><p class="note">考え直してもらう前に、家計簿の今の金額に直せます。</p>${spentHtml("dfSpent")}</section>`}
     <label>変えてほしいこと<textarea id="fixText" placeholder="例: 水曜の夜を魚にしたい、なすを使ってほしい"></textarea></label>
     <button class="btn ghost wide" id="dfFix" hidden>🔄 この希望で考え直す</button>
     <button class="btn ghost wide" id="dfDrop">この案を捨てる</button>`;
@@ -3865,11 +3886,12 @@ function drawDraft() {
     $("x").onclick = closeSheet;
   });
   $("app").querySelectorAll(".shopprop .seg button").forEach(b => b.onclick = () => { const x = D.shop[+b.dataset.i]; x.mark = x.mark === b.dataset.v ? "" : b.dataset.v; drawDraft(); });
-  const ngb = $("dfNg"); if (ngb) ngb.onclick = () => { const ng = [...(D.ngShop || []), ...D.shop.filter(x => x.mark === "ng").map(x => x.name)]; D.kind === "boost" ? boostPlan(D.yen, D.short, ng) : startFix("", D.picked, false, ng); };
+  bindSpent("dfSpent"); const takeSpent = () => { const el = $("dfSpent"); if (el) saveSpent(el.value); };
+  const ngb = $("dfNg"); if (ngb) ngb.onclick = () => { takeSpent(); const ng = [...(D.ngShop || []), ...D.shop.filter(x => x.mark === "ng").map(x => x.name)]; D.kind === "boost" ? boostPlan(D.yen, D.short, ng) : startFix("", D.picked, false, ng); };
   $("dfDrop").onclick = () => { if (confirm("この案を捨てますか？")) { if (D.jobId) run("aiJobClear", D.jobId).catch(() => {}); S.draft = null; keepDraft(); draw(); } };
   const loLeft = () => leftoverText(leftovers(st.plans).filter(x => pick.has(x.s.id)));
   // 考え直す: 案の種類ごとに、同じ頼み方で頼み直す
-  const redo = (t, opts) => { const mu = { mustUse: [...pick], ...(opts || {}) }; D.kind === "boost" ? boostPlan(D.yen, D.short, [...(D.ngShop || []), ...(mu.ng || [])], t) : D.kind === "lo" ? useLeftovers(pick.size ? leftovers(S.plans).filter(x => pick.has(x.s.id)) : leftovers(S.plans), t, mu) : D.mode === "week" ? startWeek("", t, mu) : startFix(t, D.picked, false, [...(D.ngShop || []), ...(mu.ng || [])]); };
+  const redo = (t, opts) => { takeSpent(); const mu = { mustUse: [...pick], ...(opts || {}) }; D.kind === "boost" ? boostPlan(D.yen, D.short, [...(D.ngShop || []), ...(mu.ng || [])], t) : D.kind === "lo" ? useLeftovers(pick.size ? leftovers(S.plans).filter(x => pick.has(x.s.id)) : leftovers(S.plans), t, mu) : D.mode === "week" ? startWeek("", t, mu) : startFix(t, D.picked, false, [...(D.ngShop || []), ...(mu.ng || [])]); };
   const wish = () => $("fixText").value.trim();
   $("app").querySelectorAll("[data-lp]").forEach(b => b.onclick = () => { const id = b.dataset.lp; pick.has(id) ? pick.delete(id) : pick.add(id); drawDraft(); });
   const lb = $("loBtn"); if (lb) lb.onclick = () => {
