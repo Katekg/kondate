@@ -749,6 +749,38 @@ document.addEventListener("pointerdown", () => { try { if (navigator.audioSessio
 function tone(seq) { const a = audioCtx(); if (!a) return; const t = a.currentTime + .05; seq.forEach(([f, d, len]) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = f; o.connect(g); g.connect(a.destination); g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.35, t + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t + d + len); o.start(t + d); o.stop(t + d + len + .05); }); }
 const buzz = pat => { try { navigator.vibrate && navigator.vibrate(pat); } catch (e) {} };
 const chime = () => { tone([[660, 0, .25], [880, .22, .4]]); buzz([150, 80, 150]); };
+// タイマーの「時間です」の音: 音のファイル（WAV）を作って <audio> で鳴らす。
+// iPhoneは、タイマーを始めたタップで一度再生しておくと、あとから自動で鳴らせる。<audio> はマナーモードでも鳴る。
+// Web Audio が画面ロックや別アプリのあとで止まっていても鳴るようにするため（鳴らせないときは Web Audio で鳴らす）
+let alarmEl = null;
+function alarmWav() {
+  const sr = 22050, n = Math.floor(sr * 3.1), b = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); b.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, sr, true); b.setUint32(28, sr * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, "data"); b.setUint32(40, n * 2, true);
+  const on = [.3, .65, 1, 1.7, 2.05, 2.4];   // 最初に0.3秒の無音、そのあと ピピピッ ピピピッ
+  for (let i = 0; i < n; i++) { const t = i / sr, k = on.find(x => t >= x && t < x + .22), e = k == null ? 0 : Math.min(1, (t - k) / .005, (k + .22 - t) / .02);
+    const v = e ? Math.max(-1, Math.min(1, 1.6 * Math.sin(2 * Math.PI * 1760 * t) + .5 * Math.sin(2 * Math.PI * 3520 * t))) * .9 * e : 0; b.setInt16(44 + i * 2, v * 32767, true); }
+  return URL.createObjectURL(new Blob([b], { type: "audio/wav" }));
+}
+// タップの中で呼ぶ: 音を出せる状態にしておく（最初の無音のところだけ再生して止める）
+function unlockAlarm() {
+  audioCtx();
+  try { if (!alarmEl) { alarmEl = new Audio(alarmWav()); alarmEl.preload = "auto"; alarmEl.setAttribute("playsinline", ""); }
+    if (alarmEl.dataset.ok) return;
+    const p = alarmEl.play(); const done = () => { alarmEl.pause(); alarmEl.currentTime = 0; };
+    if (p && p.then) p.then(() => { alarmEl.dataset.ok = "1"; done(); }, done); else done();
+  } catch (e) {}
+}
+function beep() {
+  buzz([300, 150, 300, 150, 300, 400, 300, 150, 300, 150, 300]);
+  const fb = () => tone([[1760, 0, .22], [1760, .35, .22], [1760, .7, .22], [1760, 1.4, .22], [1760, 1.75, .22], [1760, 2.1, .22]]);
+  if (!alarmEl) return fb();
+  try { alarmEl.currentTime = 0; const p = alarmEl.play(); if (p && p.catch) p.catch(fb); } catch (e) { fb(); }
+}
+function hushAlarm() { try { if (alarmEl && !alarmEl.paused) { alarmEl.pause(); alarmEl.currentTime = 0; } } catch (e) {} buzz(0); }
+// 画面に戻ったとき: 止まった音を戻す（鳴っているタイマーはすぐに鳴らし直す）
+document.addEventListener("visibilitychange", () => { if (document.visibilityState !== "visible") return; const a = audio; if (a && a.state !== "running") try { a.resume(); } catch (e) {}
+  if (typeof CK !== "undefined" && CK) (CK.alarms || []).forEach(x => { x.last = 0; }); });
 
 // ===== 日付 =====
 const pad = n => String(n).padStart(2, "0");
@@ -2632,6 +2664,8 @@ async function startCook(cooks, d, m) {
     <div class="ctbar" id="cTbar"><span class="tbox"><span class="tv" id="tV">0:00</span><span class="tl" id="tL"></span></span><button class="chip" id="tGo">▶ スタート</button><button class="chip" id="tRe">リセット</button><button class="chip" id="tAlm" aria-label="タイマー">⏰</button><div class="calms" id="cAlms"></div></div>
     <p class="note chint">◀ 左半分をタップで戻る　右半分をタップで次へ ▶</p><div class="cpeek" id="cPeek" hidden></div><div class="cpeek cask" id="cAsk" hidden></div><div class="cpeek calm" id="cAlm" hidden></div>`;
   ov.hidden = false;
+  // 目安の時間で鳴っている音は、画面のどこかをさわれば止まる
+  ov.onpointerdown = () => { if (CK && CK.sw.ring) { CK.sw.ring = 0; hushAlarm(); } };
   $("tGo").onclick = e => { e.stopPropagation(); timerGo(); };
   $("tRe").onclick = e => { e.stopPropagation(); timerReset(); };
   $("tAlm").onclick = e => { e.stopPropagation(); openAlarm(); };
@@ -2846,10 +2880,12 @@ const swSec = w => Math.floor((w.acc + (w.start ? Date.now() - w.start : 0)) / 1
 function timerGo() {
   const w = CK.sw;
   if (w.start) { w.acc += Date.now() - w.start; w.start = 0; }
-  else { if (!w.acc) { w.goal = stepSec(CK.idx); w.from = CK.idx; w.rung = false; } w.start = Date.now(); }
+  else { if (!w.acc) { w.goal = stepSec(CK.idx); w.from = CK.idx; w.rung = false; } w.start = Date.now(); unlockAlarm(); }
   if (w.start && !CK.tick) CK.tick = setInterval(() => {
     if (!CK) return; const x = CK.sw;
-    if (x.goal && !x.rung && swSec(x) >= x.goal) { x.rung = true; beep(); }
+    // 目安の時間になったら、画面をさわるまで3秒ごとに鳴らす（長くても1分）
+    if (x.goal && !x.rung && swSec(x) >= x.goal) { x.rung = true; x.ring = Date.now(); x.last = 0; }
+    if (x.ring && x.start) { const now = Date.now(); if (now - x.ring > 60000) x.ring = 0; else if (now - (x.last || 0) > 3000) { x.last = now; beep(); } }
     if (!x.start) { clearInterval(CK.tick); CK.tick = null; }
     paintTimers();
   }, 250);
@@ -2872,7 +2908,7 @@ function openAlarm() {
 }
 function addAlarm(sec, label) {
   const al = CK.alarms || (CK.alarms = []); al.push({ id: Date.now() + Math.random(), label, end: Date.now() + sec * 1000, rung: false });
-  chime();   // 音を出せるようにしておく（iPhoneはタップのときに音を許可する）
+  unlockAlarm(); chime();   // 音を出せるようにしておく（iPhoneはタップのときに音を許可する）
   if (!CK.atick) CK.atick = setInterval(() => {
     if (!CK) return; const now = Date.now();
     (CK.alarms || []).forEach(a => { if (!a.rung && now >= a.end) { a.rung = true; a.last = 0; } if (a.rung && now - (a.last || 0) > 3000) { a.last = now; beep(); } });
@@ -2885,9 +2921,9 @@ function paintAlarms() {
   const box = $("cAlms"); if (!box || !CK) return; const now = Date.now(), al = CK.alarms || [];
   box.innerHTML = al.map(a => `<button class="chip alm${a.rung ? " ring" : ""}" data-alid="${a.id}">${a.rung ? "🔔 止める" : "⏰"} ${esc(a.label)} ${a.rung ? "" : fmtSec(Math.max(0, Math.ceil((a.end - now) / 1000)))}${a.rung ? "" : " ✕"}</button>`).join("");
   box.hidden = !al.length; $("cTbar").classList.toggle("ring", al.some(a => a.rung));
-  box.querySelectorAll("[data-alid]").forEach(b => b.onclick = e => { e.stopPropagation(); CK.alarms = (CK.alarms || []).filter(a => String(a.id) !== b.dataset.alid); paintAlarms(); });
+  box.querySelectorAll("[data-alid]").forEach(b => b.onclick = e => { e.stopPropagation(); CK.alarms = (CK.alarms || []).filter(a => String(a.id) !== b.dataset.alid); if (!CK.alarms.some(a => a.rung)) hushAlarm(); paintAlarms(); });
 }
-function timerReset() { Object.assign(CK.sw, { acc: 0, start: 0, goal: 0, from: -1, rung: false }); paintTimers(); }
+function timerReset() { Object.assign(CK.sw, { acc: 0, start: 0, goal: 0, from: -1, rung: false, ring: 0 }); hushAlarm(); paintTimers(); }
 function paintTimers() {
   if (!CK || !$("cTbar")) return;
   const w = CK.sw, el = swSec(w), from = CK.steps[w.from], idle = !w.start && !w.acc, sec = stepSec(CK.idx);
@@ -3016,8 +3052,7 @@ JSONだけで答える: {"answer":"答え"}`;
   };
   paint(); setTimeout(() => { const i = $("akIn"); if (i) i.focus(); }, 50);
 }
-function beep() { tone([[880, 0, .25], [880, .4, .25], [880, .8, .25], [880, 1.6, .25], [880, 2, .25], [880, 2.4, .25]]); buzz([300, 150, 300, 150, 300]); }
-function endCook() { if (CK) run("setCooking", false).catch(() => {}); if (CK && CK.tick) clearInterval(CK.tick); if (CK && CK.atick) clearInterval(CK.atick); if (CK) CK.tick = null; CK = null; const ov = $("cook"); ov.hidden = true; ov.innerHTML = ""; ov.style.background = ""; keepAwake("cook", false); }
+function endCook() { hushAlarm(); if (CK) run("setCooking", false).catch(() => {}); if (CK && CK.tick) clearInterval(CK.tick); if (CK && CK.atick) clearInterval(CK.atick); if (CK) CK.tick = null; CK = null; const ov = $("cook"); ov.hidden = true; ov.innerHTML = ""; ov.style.background = ""; keepAwake("cook", false); }
 const PLAN_RULES = `あなたは家庭料理の段取り係です。レシピ（1品または複数）を作るときの手順の順番を、全体が早く終わり、できあがりの時間がそろうように組み直してください。
 - 各レシピの手順の文章は書き換えない・省略しない・統合しない。順番は基本そのレシピのとおりにする。
 - 衛生のため、生の肉・魚を切る・触る・下味をつける手順は、すべてのレシピの野菜を洗う・切る、計量、合わせ調味料づくりなどの下ごしらえが終わった後にまとめる。そのためなら、同じレシピの中でも「加熱する前の下ごしらえの手順（洗う・切る・計量・合わせる・ゆでる湯を沸かす）」だけは前へ移してよい。加熱・味付け・盛り付けの順番は変えない。
