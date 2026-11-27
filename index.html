@@ -2981,7 +2981,18 @@ function ingState(name, amount, k) {
   return { st: "none" };
 }
 // だしを和風だし顆粒で代用するときは、その分量の水と顆粒のグラム数で出す（水200mlに顆粒小さじ1/2＝約1.5g）
+// 2026-11-27: 「オイスター大さじ1＝醤油大さじ1/2＋砂糖小さじ1/2」のような換算は、この料理で使う量に直して出す（例: 小さじ1なら 醤油小さじ1/2＋砂糖ひとつまみ）
+const TSP = { 大さじ: 3, 小さじ: 1, カップ: 40 };
+const fmtTsp = t => { if (t < 0.15) return "少々"; if (t < 0.3) return "ひとつまみ"; const big = t >= 3 && Math.abs(t / 3 * 2 - Math.round(t / 3 * 2)) < 0.05; return big ? `大さじ${fmtUnitNum(t / 3, "大さじ")}` : `小さじ${fmtUnitNum(Math.round(t * 4) / 4, "小さじ")}`; };
+function scaleSubText(text, a) {
+  const m = String(text || "").match(/^([^＝]*?)(大さじ|小さじ|カップ)\s*(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)＝(.+)$/), q = String(a || "").match(/(大さじ|小さじ|カップ)\s*(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)/);
+  if (!m || !q) return "";
+  const base = numOf(m[3]) * TSP[m[2]], need = numOf(q[2]) * TSP[q[1]]; if (!base || !need) return "";
+  const r = need / base; if (Math.abs(r - 1) < 1e-6) return text;
+  return `${q[1]}${q[2]}＝` + m[4].replace(/(大さじ|小さじ|カップ)\s*(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)/g, (_, u, n) => fmtTsp(numOf(n) * TSP[u] * r));
+}
 function dashiSub(n0, sb, a) {
+  { const t = scaleSubText(sb.amount, a); if (t && !(n0 === "だし" && /和風だし顆粒/.test(sb.use))) return t; }
   // 2026-11-27: 固形ブイヨン・固形コンソメは1個＝顆粒約5gとして、顆粒のg数で出す
   if (/ブイヨン|固形コンソメ|固形スープの素/.test(n0) && /顆粒/.test(sb.use)) { const m = String(a || "").match(/(\d+と\d+\/\d+|\d+(?:\.\d+)?(?:\/\d+)?)\s*個/); if (!m) return ""; const g = Math.round(numOf(m[1]) * 5 * 2) / 2; return `${a}＝${sb.use.split("・")[0]} 約${g}g（小さじ${fmtUnitNum(g / 2.5, "小さじ")}くらい）`; }
   if (n0 !== "だし" || !/和風だし顆粒/.test(sb.use)) return "";
