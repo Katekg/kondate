@@ -2028,13 +2028,18 @@ let SF_ = null;
 function stockFit() {
   const key = S.stock.map(s => s.id + s.qty).join(",") + "|" + (S.recipes || []).length; if (SF_ && SF_.key === key) return SF_.v;
   const book = recipeBook().filter(bookOf), daily = new Set(dailyItems().map(it => normName(it.name))), v = { none: [], small: [] };
-  const subHit = (n, id) => (ING_SUB[normName(n)] || []).some(o => { const m = matchStock(o.use.split("・")[0], S.stock, true); return m && m.id === id; });
+  // 2026-11-27: 材料名ごとに1回だけ在庫と照らす（在庫ごとに全レシピを回すと、初めて在庫タブを開くときに十数秒かかっていた）
+  const hitOf = new Map(), subOf2 = new Map(), uses = new Map();
+  const hit = n => { if (!hitOf.has(n)) { const m = matchStock(n); hitOf.set(n, m ? m.id : ""); } return hitOf.get(n); };
+  const subs = n => { const k = normName(n); if (!subOf2.has(k)) subOf2.set(k, (ING_SUB[k] || []).map(o => { const m = matchStock(o.use.split("・")[0], S.stock, true); return m ? m.id : ""; }).filter(Boolean)); return subOf2.get(k); };
+  const add = (id, u) => { if (!uses.has(id)) uses.set(id, []); uses.get(id).push(u); };
+  book.forEach(r => ingsOf(r).forEach(i => { const id = hit(i.name); if (id) add(id, { r, amount: i.amount }); subs(i.name).forEach(sid => { if (sid !== id) add(sid, { r, amount: null }); }); }));
   S.stock.filter(s => isDryOrSeas(s) && hasQty(s) && !isRice(s.name) && !/押麦|麦$/.test(normName(s.name)) && !daily.has(normName(s.name)) && !/プロテイン/.test(s.name)).forEach(s => {
-    const h = pqAll(s.qty).find(p => conv(p, "g") != null || conv(p, "ml") != null || p.n > 0), uses = [];
-    book.forEach(r => ingsOf(r).forEach(i => { const m = matchStock(i.name); if (m && m.id === s.id) uses.push({ r, a: h ? convIn(pqAll(i.amount), h.u) : null }); else if (subHit(i.name, s.id)) uses.push({ r, a: null }); }));
-    if (!uses.length) { v.none.push(s); return; }
-    if (!h || uses.some(u => u.a == null || u.a <= h.n + 1e-6)) return;
-    const mn = uses.reduce((x, u) => u.a < x.a ? u : x); v.small.push({ s, need: `${exactNum(Math.round(mn.a * 10) / 10)}${h.u}`, r: mn.r });
+    const l = uses.get(s.id) || []; if (!l.length) { v.none.push(s); return; }
+    const h = pqAll(s.qty).find(p => conv(p, "g") != null || conv(p, "ml") != null || p.n > 0); if (!h) return;
+    const a = l.map(u => ({ r: u.r, a: u.amount == null ? null : convIn(pqAll(u.amount), h.u) }));
+    if (a.some(u => u.a == null || u.a <= h.n + 1e-6)) return;
+    const mn = a.reduce((x, u) => u.a < x.a ? u : x); v.small.push({ s, need: `${exactNum(Math.round(mn.a * 10) / 10)}${h.u}`, r: mn.r });
   });
   SF_ = { key, v }; return v;
 }
