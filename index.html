@@ -1415,6 +1415,7 @@ function drawMenu() {
   document.documentElement.classList.toggle("lock", !future && ws <= curWs); if (!future && ws <= curWs) window.scrollTo(0, 0);
   $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip" style="grid-template-columns:auto repeat(${days.length}, minmax(0, 1fr)) auto"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => { const w = new Date(d + "T00:00:00").getDay(); return `<button class="dbtn${d === today() ? " today" : ""}${w === 0 ? " sun" : w === 6 ? " sat" : ""}${i === 0 ? " shop" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}${i === 0 ? ` title="買い物の日${shopDayTag(d) ? "（" + shopDayTag(d) + "）" : ""}"` : ""}><small>${i === 0 ? "🛒" : ""}${"日月火水木金土"[w]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`; }).join("")}<button class="nav" id="wNext">›</button></div><p class="shopline">🛒 買い物の日 ${+ws.slice(5, 7)}/${+ws.slice(8)}（${"日月火水木金土"[new Date(ws + "T00:00:00").getDay()]}）${shopDayTag(ws) ? `・${shopDayTag(ws)}` : ""} 〜 ${+we.slice(5, 7)}/${+we.slice(8)}（${days.length}日）</p></section>
     ${lsGet("buyChk") ? `<section class="card jobbn"><b>🧾 買った物の確認がまだです</b><small>量の直しと、合計金額の入力（相場合わせ）ができます。</small><button class="chip" id="bcOpen">開く</button></section>` : ""}
+    ${(l => l.length ? `<section class="card jobbn"><b>🐟 期限までに使い切れない肉・魚があります</b><small>${esc(l.map(x => `${x.s.name} ${x.left}（期限 ${+x.s.exp.slice(5, 7)}/${+x.s.exp.slice(8)}）`).join("・"))}。献立の「違うものを食べたい」や見直しで使い切る料理に替えてください。</small></section>` : "")(S.tab === "menu" ? wasteRaw() : [])}
     ${(l => l.length ? `<section class="card jobbn"><b>📕 本のレシピではない料理が献立に入っています</b><small>${esc(uniqPlans(l).map(p => `${+p.date.slice(5, 7)}/${+p.date.slice(8)}${MEAL_LABEL[p.meal]}「${p.title}」`).join("・"))}。タップして「違うものを食べたい」などで本のレシピに替えてください。</small><button class="chip" id="nbOpen" data-d="${l[0].date}" data-m="${l[0].meal}">開く</button></section>` : "")(notBookPlans())}
     ${future ? planCardHtml(ws) : ""}
     <section class="card daycard">
@@ -3414,6 +3415,7 @@ const RULES = `【献立のルール】
 - 次の食材は、決めた量（1週間で使い切る量）の倍数で使い、買う（{{BUY_PACK}}）。1週間の合計がこの量の倍数になるようにし、半端（1/2缶・1と1/2個など）にしない。使わない週があってもよい。使う週は、買った分を何品かに分けて全部使い切る（例: 玉ねぎ3個なら、3個を何品かに分けて使い切る）。少し余りそうなときは、ほかの料理（炒め物・汁物・煮物・付け合わせなど）の分量を増やして入れてしまってよい。そのときは、その料理の栄養（kcal・P・F・C）も増やした分だけ足す。味の調味料が濃くなりすぎたり、同じ調味料に偏ったりしないように、調味料のバランスは保つ。
 - 野菜の量は、大根・キャベツ・白菜・かぼちゃは1/8単位（1/8本・3/8個など）、ほかの野菜は1/4単位で書く。1/3・2/3は使わない。
 - 出番の少ない材料は買わない: 主役の肉・魚と、ふだん使いの野菜（玉ねぎ・にんじん・じゃがいも・キャベツなど）以外で、在庫に無く買う必要がある材料（ピクルス・ザーサイ・わかめ・ハーブ・その料理専用の調味料など）は、この期間に2回以上の調理で使うときだけ使う。作り置きを次の食事に食べる分は、調理としては1回と数える（夜に作って翌日の昼に食べても1回）。1回しか使わないなら、その材料を使わない別のレシピを選ぶ。買うなら、同じ材料を使うレシピを別の日にも入れて使い切る（毎日でなくてよい）。「適量」「好みで」の飾り・薬味は無くてよいので、そのために買わない。
+- 在庫の肉・魚で、期限が献立の期間内に来る物は、期限の日までに残さず使い切る（2切れある鮭を1切れだけ使って1切れ残す、のようにしない。分量を増やすか、その食材を使う本のレシピをもう1つ入れる）。
 - 卵は10個入り、納豆は3個入りで買う。卵が数個・納豆が1〜2個だけ足りない、という買い物は出さない。足りないときは、卵・納豆を使う量を在庫に収めるか、使わない料理に変える（買うなら1パックを使い切る計画にする）。
 - 夕食は「主食（ご飯など）＋主菜＋副菜か汁物」にする。ご飯は「白ごはん」という料理として meals に入れる。昼・夜は recipe_id=${RICE_LD}（米1.25合で2人分。1人 約210g・約335kcal。夜にまとめて炊き、翌日の昼に回す想定）、朝は recipe_id=${RICE_AM}（米1合で2人分）を使う。米は在庫から使い、買い物には入れない。カレー・丼など主食が入る料理は、それに副菜か汁物を1品足す。朝・昼も主食を入れる。朝は手軽なもの（トースト・卵かけご飯・納豆ご飯・冷奴など）にし、パンの枚数・塗る物は、決まりごとに従う（多く出さない）。朝のカロリーが足りない分は、調理のいらない牛乳・ヨーグルト・バナナ・きなこ・ゆで卵などで補う。鍋やフライパンを使う料理（雑炊・鍋で作る汁物など）は出さない。汁物を付けるなら、電気ケトルのお湯で作る即席スープにする。季節の旬の食材を使う。
 - 肉・魚の主菜には、なるべく付け合わせの野菜を添えて栄養のバランスをとる（例: ハンバーグにゆでブロッコリーとにんじんのグラッセ、生のミニトマト）。付け合わせは主菜のレシピの材料と手順に書き、別の料理にしなくてよい。
@@ -3716,6 +3718,7 @@ async function applyAi(res, meta, prompt, id) {
     // 材料費が予算の許容値をこえている → 栄養は保ったまま安くしてもらう
     if (meta.mode === "week" && S.draft.cost) { const ds = [...new Set(S.draft.meals.map(m => m.date))], lim = budgetFor(ds, (d, m) => { const l = st.plans.filter(p => p.date === d && p.meal === m); return !l.length || l.every(isOut); }); if (lim && S.draft.cost > lim * tolBud() / 100) bad.push(`材料費が約${S.draft.cost}円で、予算 約${lim}円の${tolBud()}%（約${Math.round(lim * tolBud() / 100)}円）をこえている。栄養は1日の目標の${tolNut()}%以上を保ったまま、安い料理・材料に変えて、予算の${tolBud()}%以内にする`); }
     { const rs = shopItems(st.plans).filter(i => i.rest && own.has(normName(i.name))); if (rs.length) bad.push(`売っている単位で買うと余る野菜がある: ${rs.map(i => `${i.name}（${buyText(i)}買って${i.rest}余る）`).join("、")}。余る分は、ほかの料理（炒め物・汁物・煮物・付け合わせなど）の分量を増やして入れてしまってよいので、買った分を使い切る。増やした料理は栄養（kcal・P・F・C）もその分足す。調味料のバランスは崩さない`); }
+    { const wr = wasteRaw(st.plans); if (wr.length) bad.push(`期限までに使い切れない肉・魚がある: ${wr.map(x => `${x.s.name} ${x.left}（期限 ${x.s.exp}）`).join("、")}。期限の日までのどこかの料理で、残さず使い切る（同じ料理の分量を増やすか、その食材を使う本のレシピを足す）`); }
     const left = leftovers(st.plans).filter(x => (meta.mustUse || []).includes(x.s.id)); if (left.length) bad.push(`使い切るはずの食材がまだ残る: ${leftoverText(left)}。分量を増やすか、この食材を使う料理を足して使い切る`);
     if (bad.length) { S.prevDraft = S.draft; S.draft = null; await askAi(prompt + `\n【前の案の問題】${bad.join("。")}`, { ...m0, retried: true }); return; }
   }
@@ -4236,6 +4239,10 @@ function leftovers(plans, end) {
     return { s, left: fmtQ(left), used: !!res[s.id] };
   }).filter(Boolean).sort((a, b) => (a.s.exp || "9").localeCompare(b.s.exp || "9"));
 }
+// 2026-11-27: 期限までに使い切れない肉・魚（献立の最後の日までに期限が来るのに、献立で使い切らずに残る物）。
+//   献立の案でも、手で直した献立でも見つけて知らせる（例: 鮭の切り身2切れのうち1切れしか使わない）
+const wasteRaw = (plans, end) => { const ps = (plans || S.plans).filter(p => p.date >= today()), last = end || ps.reduce((m, p) => p.date > m ? p.date : m, today());
+  return leftovers(plans || S.plans, last).filter(x => x.s.exp && x.s.exp <= last && RAW_RE.test(normName(x.s.name)) && !NOT_RAW.test(normName(x.s.name))); };
 // しばらく献立に出ていない調味料（読み込んでいる過去2週間とこれからの予定で判定。古い順・期限の近い順に数品）
 function staleSeasonings(plans, lim) {
   const last = {};
