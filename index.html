@@ -145,6 +145,14 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .kcalrow { display: flex; justify-content: space-between; gap: 8px; font-size: .82rem; }
 .kcalrow b { font-size: 1.2rem; }
 .mcard { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; text-align: left; font: inherit; color: var(--ink); background: var(--bg); border: 0; border-radius: 18px; padding: 10px 12px; cursor: pointer; }
+/* 2026-11-27: 食事のラベル・状態・kcalは上の1行に、料理名は下に行の幅いっぱいで（改行しない） */
+.mcard { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "hd go" "bd bd"; align-items: center; align-content: start; gap: 4px 6px; padding: 8px 12px; }
+.mcard .slcol { grid-area: hd; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 3px 6px; align-self: center; }
+.mcard .mcbody { grid-area: bd; }
+.mcard .mcgo { grid-area: go; }
+.mcard .mcbody > span:not(.tag) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topacts { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.topacts .chip { font-size: .74rem; padding: 3px 10px; }
 .mcard.empty { background: transparent; border: 1px dashed var(--line); }
 .mcard.done { background: #e7e6ec; }
 .slabel { white-space: nowrap; font-weight: 700; font-size: .78rem; border-radius: 999px; padding: 1px 9px; align-self: start; }
@@ -1460,8 +1468,8 @@ function drawMenu() {
   const future = ws > curWs || noPlan, mon = new Date(S.day + "T00:00:00").getMonth() + 1;
   $("app").classList.toggle("fill", !future && ws <= curWs);
   document.documentElement.classList.toggle("lock", !future && ws <= curWs); if (!future && ws <= curWs) window.scrollTo(0, 0);
-  $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip" style="grid-template-columns:auto repeat(${days.length}, minmax(0, 1fr)) auto"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => { const w = new Date(d + "T00:00:00").getDay(); return `<button class="dbtn${d === today() ? " today" : ""}${w === 0 ? " sun" : w === 6 ? " sat" : ""}${i === 0 ? " shop" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}${i === 0 ? ` title="買い物の日${shopDayTag(d) ? "（" + shopDayTag(d) + "）" : ""}"` : ""}><small>${i === 0 ? "🛒" : ""}${"日月火水木金土"[w]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`; }).join("")}<button class="nav" id="wNext">›</button></div><p class="shopline">🛒 買い物の日 ${+ws.slice(5, 7)}/${+ws.slice(8)}（${"日月火水木金土"[new Date(ws + "T00:00:00").getDay()]}）${shopDayTag(ws) ? `・${shopDayTag(ws)}` : ""} 〜 ${+we.slice(5, 7)}/${+we.slice(8)}（${days.length}日）</p></section>
-    ${lsGet("buyChk") ? `<section class="card jobbn"><b>🧾 買った物の確認がまだです</b><small>量の直しと、合計金額の入力（相場合わせ）ができます。</small><button class="chip" id="bcOpen">開く</button></section>` : ""}
+  $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip" style="grid-template-columns:auto repeat(${days.length}, minmax(0, 1fr)) auto"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => { const w = new Date(d + "T00:00:00").getDay(); return `<button class="dbtn${d === today() ? " today" : ""}${w === 0 ? " sun" : w === 6 ? " sat" : ""}${i === 0 ? " shop" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}${i === 0 ? ` title="買い物の日${shopDayTag(d) ? "（" + shopDayTag(d) + "）" : ""}"` : ""}><small>${i === 0 ? "🛒" : ""}${"日月火水木金土"[w]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`; }).join("")}<button class="nav" id="wNext">›</button></div><p class="shopline">🛒 買い物の日 ${+ws.slice(5, 7)}/${+ws.slice(8)}（${"日月火水木金土"[new Date(ws + "T00:00:00").getDay()]}）${shopDayTag(ws) ? `・${shopDayTag(ws)}` : ""} 〜 ${+we.slice(5, 7)}/${+we.slice(8)}（${days.length}日）</p>${(() => { const b = [!future && we >= today() ? `<button class="chip" id="reb">🗓 作る日変更</button>` : "", !ps.some(isSik) && S.day >= today() ? `<button class="chip" id="sikAdd">🥒 仕込みを追加</button>` : ""].filter(Boolean); return b.length ? `<div class="topacts">${b.join("")}</div>` : ""; })()}</section>
+    ${lsGet("buyChk") ? `<section class="card jobbn stack"><div><b>🧾 買った物の確認がまだです</b><small>量の直し・合計金額の入力</small></div><button class="chip" id="bcOpen">開く</button></section>` : ""}
     ${(l => l.length ? `<section class="card jobbn stack"><div><b>🥕 期限までに使い切れない食材</b><small>${esc(l.map(x => `${x.s.name} ${x.left}（${+x.s.exp.slice(5, 7)}/${+x.s.exp.slice(8)}）`).join("・"))}</small></div><button type="button" class="chip" id="wasteExp">期限確認</button></section>` : "")(S.tab === "menu" ? wasteRaw() : [])}
     ${(l => l.length ? `<section class="card jobbn stack"><div><b>📕 本のレシピではない料理</b><small>${esc(uniqPlans(l).map(p => `${+p.date.slice(5, 7)}/${+p.date.slice(8)}${MEAL_LABEL[p.meal]}「${p.title}」`).join("・"))}</small></div><button class="chip" id="nbOpen" data-d="${l[0].date}" data-m="${l[0].meal}">開く</button></section>` : "")(notBookPlans())}
     ${future ? planCardHtml(ws) : ""}
@@ -1474,8 +1482,7 @@ function drawMenu() {
         const ph = photoOf(S.day, m), kc = m === SIKOMI ? 0 : Math.round(uniq.reduce((s, p) => s + (isOut(p) ? OUT_EST[m].kcal : +(recipeOf(p.recipeId) || {}).kcal || 0), 0));
         return `<button class="mcard s-${m}${list.length ? "" : " empty"}${done ? " done" : ""}${ph ? " hasph" : ""}" data-m="${m}"${ph ? ` style="--ph:url('${ph.thumb}')"` : ""}><span class="slcol"><span class="slabel">${MEAL_LABEL[m]}</span>${(st => st ? `<small class="mst st-${st}">${SLT[st]}</small>` : "")(slotTypeOf(S.day, m, list))}${soloOf(S.day, m) && list.length ? `<small class="mst st-solo">${esc(soloTag(S.day, m))}</small>` : ""}${kc ? (so => `<small class="mkc">${uniq.some(isOut) ? "想定" : "約"}${so === 2 ? "外食" : Math.round(kc * sh(1))}/${so === 1 ? "外食" : Math.round(kc * sh(2))}kcal</small>`)(soloOf(S.day, m)) : ""}</span><span class="mcbody">${uniq.length ? uniq.map(p => `<span>${esc(p.title)}${isOut(p) ? `<span class="tag">食後に内容を入力</span>` : ""}</span>`).join("") : `<span class="mcempty">まだ空き</span>`}${lk ? `<span class="tag lack" style="justify-self:start">足りない材料あり</span>` : ""}</span><span class="mcgo">›</span></button>`;
       }).join("")}</div>
-      ${!ps.some(isSik) && S.day >= today() ? `<button class="chip" id="sikAdd" style="margin-top:8px">🥒 仕込みを追加（浅漬け・塩麹など）</button>` : ""}
-      ${!future && we >= today() ? `<button class="btn ghost wide" id="reb" style="margin-top:8px">🗓 作る日変更</button>` : ""}</section>`;
+</section>`;
   $("app").querySelectorAll(".dbtn").forEach(b => b.onclick = () => { S.day = b.dataset.d; drawMenu(); });
   $("wPrev").onclick = () => { S.day = weekStartOf(shiftDay(ws, -1)); drawMenu(); };
   $("wNext").onclick = () => { S.day = nextWeekOf(ws); drawMenu(); };
