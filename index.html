@@ -364,14 +364,16 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .cprep .pckh { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .cprep .pckh b { font-size: 1.05rem; }
 .cprep .pckh small { color: var(--muted); font-size: .75rem; }
-.cprep .pck3 { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
-.cprep .pc { display: flex; flex-direction: column; min-width: 0; flex: none; }
+.cprep .pck3 { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px; min-width: 0; }
+.cprep .pc { display: flex; flex-direction: column; min-width: 0; flex: 0 1 auto; }
 .cprep .pc small { font-size: .68rem; color: var(--muted); white-space: nowrap; }
-.cprep .pc > b { font-size: .95rem; white-space: nowrap; padding-bottom: .55em; }
-.cprep .pc.pin { flex: 1; }
+.cprep .pc > b { font-size: .95rem; padding-bottom: .55em; overflow-wrap: anywhere; }
+.cprep .pc > b small { display: block; font-size: .7rem; font-weight: 400; color: var(--muted); }
+.cprep .pc.pin { flex: 1 0 auto; max-width: 100%; }
+.cprep .pc.pin:not(.pg) .qsub { display: none; }
+.cprep .pc.pin .qf { flex-wrap: wrap; }
 .cprep .pc.pin small { color: var(--accent); font-weight: 700; }
 .cprep .pop { color: var(--muted); font-weight: 700; padding-bottom: .6em; flex: none; }
-.cprep .pc.pin .qf { flex-wrap: nowrap; }
 .cprep .pc.pin .qf .qfl small { display: none; }
 .cprep .pc.pin .qf.vq .qn { width: 2.6em; }
 .cprep .pc.pin .qf:not(.vq) .qn { width: 4.2em; }
@@ -821,7 +823,7 @@ async function load() {
   WQ.forEach(op => wqApply(d, op.fn, op.a));
   (d.stock || []).forEach(s => { s.qty = toFrac(s.qty); });
   Object.assign(S, d); S.stale = false; showStale(false); saveCache(d);
-  vegMigrate(); unitMigrate(); unitMigrate2(); bookUnitMigrate(); countMigrate();
+  vegMigrate(); unitMigrate(); unitMigrate2(); bookUnitMigrate(); countMigrate(); laurierMigrate();
   if (await takeJob(S.job)) return;
   draw();
   setTimeout(precookSoon, 3000);
@@ -1075,9 +1077,9 @@ function subOf(name, stock) {
 // レシピの材料（「名前：量」の行）
 // 「※…（注）」の行は材料ではなく注意書き（ingNotesOf で別に出す）
 const ingNotesOf = r => String(r && r.ingredients || "").split("\n").map(l => l.trim()).filter(l => /^※/.test(l)).map(l => l.replace(/：[^：]*$/, "").replace(/（注）$/, ""));
-const ingsOf = r => String(r && r.ingredients || "").split("\n").map(l => l.trim()).filter(l => l && !/^※/.test(l)).map(l => { const i = l.lastIndexOf("："); return i < 0 ? { name: l, amount: "" } : { name: l.slice(0, i), amount: toFrac(l.slice(i + 1)) }; })
+const ingsOf = r => String(r && r.ingredients || "").replace(/ロリエ/g, "ローリエ").split("\n").map(l => l.trim()).filter(l => l && !/^※/.test(l)).map(l => { const i = l.lastIndexOf("："); return i < 0 ? { name: l, amount: "" } : { name: l.slice(0, i), amount: toFrac(l.slice(i + 1)) }; })
   .flatMap(g => { const n = normName(g.name); if (!/^長ねぎ/.test(n)) return [g]; const a = String(g.amount).replace(/本分/g, "本"); return n === "長ねぎ白" ? [{ name: NEGI_W, amount: a }] : n === "長ねぎ青" ? [{ name: NEGI_G, amount: a }] : [{ name: NEGI_W, amount: a }, { name: NEGI_G, amount: a }]; });
-const stepsOf = r => String(r && r.steps || "").split("\n").map(l => l.trim()).filter(Boolean);
+const stepsOf = r => String(r && r.steps || "").replace(/ロリエ/g, "ローリエ").split("\n").map(l => l.trim()).filter(Boolean);
 const recipeOf = id => S.recipes.find(r => r.id === id) || (S.tmpRecipes || []).find(r => r.id === id) || null;
 
 // ===== 献立と在庫の押さえ =====
@@ -1888,7 +1890,7 @@ function stockRows(cooks) {
     const v = vegOf(x.s.name), n0 = v ? vegN(x.s.name, x.s.qty, v) : null, us = v ? x.used.map(u => vegN(x.s.name, u, v)) : [];
     // 使いかけを残さない物（卵・缶詰・バナナ）は、少しでも使ったら1つ減らす。ほかは分けかたの単位で丸める（1/2本 を使って 4本 → 4本 のままにならないように、分けかたは本に合わせてある）
     if (v && n0 != null && us.every(u => u != null)) { const left = n0 - us.reduce((a, b) => a + b, 0), k = v.whole ? Math.floor(left * v.d + 1e-6) : Math.round(left * v.d); x.gone = k <= 0; x.after = x.gone ? "" : vegFmt(k / v.d, v); return; }
-    let left = x.s.qty; for (const u of x.used) { const r = left === "gone" ? "gone" : subQty(left, u); left = r == null ? left : r; } x.gone = left === "gone"; x.after = left === "gone" ? "" : left; });
+    let left = x.s.qty; for (const u of x.used) { const sp = spoonQ(x.s.name, u), r = left === "gone" ? "gone" : subQty(left, u) || (sp ? subQty(left, sp) : null); left = r == null ? left : r; } x.gone = left === "gone"; x.after = left === "gone" ? "" : left; });
   return rows;
 }
 // この枠の料理が「今週使う在庫」に入っているか
@@ -2385,6 +2387,16 @@ function unitMigrate2() {
   const ups = []; S.stock.forEach(x => { const v = vegOf(x.name); if (!v || v.u !== "本" || /^(あり|わずか)$/.test(x.qty) || !/個/.test(x.qty)) return; const n = vegN(x.name, x.qty, v); if (n == null) return; const q = vegFmt(n, v); if (q && q !== x.qty) ups.push({ ...x, qty: q }); });
   if (ups.length) run("saveStock", ups);
   S.settings["本を戻す"] = today(); run("saveSetting", "本を戻す", today());
+}
+// 2026-11-27: 「ロリエ」（本の書き方）を「ローリエ」に。レシピ（材料・手順・料理名）と在庫の名前を1回だけ直す
+function laurierMigrate() {
+  if (SET("ローリエの表記") || WQ.length) return;
+  const fix = t => String(t || "").replace(/ロリエ/g, "ローリエ");
+  const rs = S.recipes.filter(r => /ロリエ/.test([r.title, r.ingredients, r.steps].join("\n"))).map(r => ({ ...r, title: fix(r.title), ingredients: fix(r.ingredients), steps: fix(r.steps) }));
+  if (rs.length) { rs.forEach(n => { const o = S.recipes.find(r => r.id === n.id); if (o) Object.assign(o, n); }); run("saveRecipes", rs); }
+  const st = S.stock.filter(x => /ロリエ/.test(x.name)).map(x => ({ ...x, name: fix(x.name) }));
+  if (st.length) { st.forEach(n => { const o = S.stock.find(x => x.id === n.id); if (o) o.name = n.name; }); run("saveStock", st); }
+  S.settings["ローリエの表記"] = today(); run("saveSetting", "ローリエの表記", today());
 }
 // 2026-11-25: 単位と分母を本（女子栄養大学の毎日おかず）に合わせる。設定の単位・分母は消し（1週間の量だけ残す）、在庫の量を本の単位に直す。1回だけ
 function bookUnitMigrate() {
@@ -3178,9 +3190,11 @@ function drawPrep() {
   const seen = new Set(), withRow = [], other = [];
   list.forEach(i => { if (i.ri >= 0 && !seen.has(i.ri) && i.st.st !== "skip") { seen.add(i.ri); withRow.push(i); } else if (!(i.ri >= 0 && seen.has(i.ri))) other.push(i); else { const w = withRow.find(x => x.ri === i.ri); if (w) { w.amts = w.amts.concat(i.amts); w.per = w.per.concat(i.per); } } });
   const subNote = i => i.st.st === "sub" ? `🔄 ${i.st.sub.use.split("・")[0]}で代用${i.st.sub.amount ? `（${i.st.sub.amount}）` : ""}${i.st.sub.note ? `。${i.st.sub.note}` : ""}` : "";
+  // 量は「カップ1と1/2」を大きく、「（約300ml・315g）」を下に小さく（横に長くならないように）
+  const amtHtml = t => { const m = String(t).match(/^(.*?)\s*([（(][^）)]*[）)])\s*$/); return m && m[1] ? `${esc(m[1])}<small>${esc(m[2])}</small>` : esc(t); };
   const rowHtml = i => { const row = rows[i.ri], v = CK.prepVals && CK.prepVals[i.ri], pt = perTxt(i);
     return `<li class="pck"><div class="pckh"><b>${esc(i.show || i.name)}</b>${pt ? `<small>${esc(pt)}</small>` : ""}</div>${subNote(i) ? `<em class="pnote">${esc(subNote(i))}</em>` : ""}
-      <div class="pck3"><span class="pc"><small>在庫</small><b>${esc(row.s.qty || "なし")}</b></span><span class="pop">−</span><span class="pc"><small>今回使う</small><b>${esc(total(row.s.name, i.amts))}</b></span><span class="pop">＝</span><span class="pc pin"><small>残り（直せます）</small>${qtyBox(v != null ? v : row.after, "q pq", i.ri, row.s.name)}</span></div></li>`; };
+      <div class="pck3"><span class="pc"><small>在庫</small><b>${amtHtml(row.s.qty || "なし")}</b></span><span class="pop">−</span><span class="pc"><small>今回使う</small><b>${amtHtml(total(row.s.name, i.amts))}</b></span><span class="pop">＝</span><span class="pc pin${/[（(]約?\d/.test(v != null ? v : row.after || "") ? " pg" : ""}"><small>残り（直せます）</small>${qtyBox(v != null ? v : row.after, "q pq", i.ri, row.s.name)}</span></div></li>`; };
   const otherHtml = i => { const lb = i.st.st === "skip" ? "在庫に無いので省く" : subNote(i), amt = i.amts.length > 1 ? i.amts.join("＋") : i.amts[0] || "";
     return `<li${i.st.st === "skip" ? ` class="pskp"` : ""}><span><b>${esc(i.show || i.name)}</b> ${i.st.st === "skip" ? `<s>${esc(amt)}</s>` : esc(amt)}${multi && i.per.length === 1 ? `<small> ${no(i.per[0].c)}</small>` : ""}</span><small>${lb ? esc(lb) : i.s ? `在庫 ${esc(i.s.qty || "なし")}` : "在庫なし"}</small></li>`; };
   $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}<h3>材料の確認</h3>
