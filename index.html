@@ -577,6 +577,8 @@ label.hastdy .tdy { position: absolute; right: 0; top: -6px; padding: 3px 12px; 
 #sbList .qf .qg { width: 3.4em; }
 .rsEd{margin:.5rem 0;padding:.6rem .7rem}.rsEd .rsHead small{display:block;color:var(--sub,#777);font-size:.78rem}.rsEd .rsList li{display:flex;align-items:center;gap:.3rem}.rsEd .rsList .nmt{flex:1}.rsEd .rsAddRow{display:flex;gap:.3rem;align-items:center;margin:.4rem 0}.rsEd .rsAddRow[hidden]{display:none}.rsEd .rsNm{flex:1;min-width:0}.rsEd .nmt small{margin-left:.4em;color:var(--sub,#777)}
 .jobbn.stack{grid-template-columns:1fr auto}.jobbn.stack>div{min-width:0}
+.eqrec .secthead small{color:var(--sub,#777)}.eqrec>small{display:block;line-height:1.45}
+.eqrecs summary{cursor:pointer;list-style:none}.eqrecs summary::-webkit-details-marker{display:none}.eqrecs .eqrec{box-shadow:none;border:1px solid var(--line,#eee);margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -2233,11 +2235,25 @@ function openNegi() {
 }
 
 // --- 器具 ---
+// 2026-11-27: あると節約につながる器具のおすすめ。持っている器具（名前が合う物）と「いらない」にした物は出さない
+const EQ_REC = [
+  { name: "ホームベーカリー", own: /ホームベーカリー|パン焼き機/, price: "約1万円", why: "毎週買う食パンを家で焼けます。1斤 約60円（市販 約170円）で、週1斤なら月 約450円の節約。", stockNote: ["強力小麦粉", "ドライイースト"] },
+  { name: "電気圧力鍋", own: /圧力鍋|圧力なべ/, price: "約1〜1.5万円", why: "安い豚肩・すね肉や乾燥豆を短時間でやわらかくできます。入れて放っておけるので作り置きがはかどり、ガス代も減ります。" },
+  { name: "保温調理鍋（シャトルシェフなど）", own: /保温調理|シャトルシェフ|保温鍋/, price: "約5,000円〜", why: "煮込みを数分だけ火にかけ、あとは保温で仕上げます。カレー・豚汁・煮物のガス代を大きく減らせます。" },
+  { name: "耐熱ガラスの保存容器（作り置き用）", own: /保存容器|タッパー|イワキ|iwaki|パック&レンジ/i, price: "約2,000円（3〜4個）", why: "作り置きをそのままレンジで温め直せて、においも移りにくいです。作り置きを最後まで食べ切りやすくなり、食べ残しが減ります。" },
+  { name: "キッチンスケール", own: /スケール|はかり|秤/, price: "約1,500円", why: "レシピの分量どおりに肉・調味料を量れるので、使いすぎを防げます。在庫の残りも正確に分かります。" },
+  { name: "ヨーグルトメーカー", own: /ヨーグルトメーカー/, price: "約3,000円", why: "牛乳1Lからヨーグルト1Lが作れて、市販の約半額になります。朝の単品やおやつに使えます。" },
+];
+const eqRecHide = () => { try { return JSON.parse(SET("器具おすすめ_非表示") || "[]") || []; } catch (e) { return []; } };
+const eqRecs = () => { const eq = S.equipment || [], hide = eqRecHide(); return EQ_REC.filter(r => !hide.includes(r.name) && !eq.some(e => r.own.test(`${e.name} ${e.model || ""}`))); };
+const eqRecHtml = () => { const l = eqRecs(); if (!l.length) return ""; return `<details class="card eqrecs"${lsGet("eqRecOpen") ? " open" : ""}><summary><b>💡 あると節約につながる器具（${l.length}）</b></summary><p class="note">持っている器具と、今の献立・買い物から選んでいます。持っている物や、いらない物は「外す」で消せます。</p>
+  ${l.map(r => `<section class="card eqrec"><div class="secthead"><b>${esc(r.name)}</b><small>${esc(r.price)}</small></div><small>${esc(r.why)}${r.stockNote && r.stockNote.every(n => matchStock(n)) ? `${esc(r.stockNote.join("と"))}は在庫にあります。` : ""}</small><div class="row" style="gap:6px;margin-top:6px"><button class="chip" data-rec-own="${esc(r.name)}">持っている</button><button class="chip" data-rec-hide="${esc(r.name)}">外す</button></div></section>`).join("")}</details>`; };
 function drawTools() {
   const eq = S.equipment || [];
   const bt = (+SET("予算_材料") || 0) + (+SET("予算_米") || 0) + (+SET("予算_調味料") || 0);
   $("app").innerHTML = `<button class="card toolcard" id="pref"><span class="tkind">好み・予算</span><b>AIへの好み・決まりごと・予算</b><small>1か月 約${bt.toLocaleString()}円（材料 ${(+SET("予算_材料") || 0).toLocaleString()}・米 ${(+SET("予算_米") || 0).toLocaleString()}・調味料 ${(+SET("予算_調味料") || 0).toLocaleString()}）</small><small>${esc(String(SET("好き")).slice(0, 40))}…</small></button>
     <h2>器具</h2><p class="note">AIがレシピを考えるときと、調理モードの段取りで使います。</p>
+    ${eqRecHtml()}
     ${eq.map(e => `<button class="card toolcard" data-id="${esc(e.id)}"><span class="tkind">${esc(e.kind || "その他")}</span><b>${esc(e.name)}</b>${e.model ? `<small>${esc(e.model)}</small>` : ""}${String(e.unverified).toUpperCase() === "TRUE" ? `<small class="red">仕様未確認</small>` : ""}${e.rule ? `<small>決まりごと: ${esc(e.rule)}</small>` : ""}</button>`).join("") || `<section class="card"><p class="note">まだ登録がありません</p></section>`}
     <button class="btn wide" id="tAdd">＋ 器具を追加</button>
     ${S.sheetUrl ? `<a class="btn ghost wide" href="${esc(S.sheetUrl)}" target="_blank" rel="noopener" style="margin-top:14px;text-align:center;text-decoration:none">📄 データのスプレッドシートを開く</a>` : ""}
@@ -2245,6 +2261,11 @@ function drawTools() {
   $("app").querySelectorAll(".toolcard").forEach(b => b.onclick = () => openTool(b.dataset.id));
   $("tAdd").onclick = () => openTool("");
   $("pref").onclick = openPref;
+  // おすすめ: 「外す」は表示しない一覧に入れる。「持っている」は器具の追加画面を名前入りで開く
+  const hideRec = n => { const v = JSON.stringify([...new Set([...eqRecHide(), n])]); S.settings["器具おすすめ_非表示"] = v; run("saveSetting", "器具おすすめ_非表示", v).catch(e => alert(e.message)); drawTools(); };
+  { const d = $("app").querySelector(".eqrecs"); if (d) d.ontoggle = () => lsSet("eqRecOpen", d.open ? 1 : 0); }
+  $("app").querySelectorAll("[data-rec-hide]").forEach(b => b.onclick = () => hideRec(b.dataset.recHide));
+  $("app").querySelectorAll("[data-rec-own]").forEach(b => b.onclick = () => { const n = b.dataset.recOwn; hideRec(n); openTool(""); setTimeout(() => { const i = document.querySelector("#sheetBody input"); if (i && !i.value) i.value = n.replace(/（.*$/, ""); }, 50); });
 }
 // ===== レシピ帳: 本・AI・自分で入れたレシピを見る・探す・直す =====
 // 本から入れたレシピは、メモの先頭に「【本】本の名前 p.ページ｜種類｜食材｜説明」と書いておく（シートの列を増やさずに持つため）
