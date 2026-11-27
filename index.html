@@ -3460,6 +3460,11 @@ const slotTypes = () => { try { return JSON.parse(SET("枠の種類") || "{}") |
 function slotTypeOf(d, m, list) {
   const st = slotTypes()[d + "|" + m];
   if (!list.length) return st === "skip" ? "skip" : "";
+  // 2026-11-27: 選んだ種類が「作り置き」でも、その日に作る料理（白ごはん・単品以外で作り置きではない物）があれば「レシピ」。
+  //   「レシピ」でも、作り置きと白ごはん・単品だけなら「作り置き」（献立を手で直したときに表記が合わなくならないように）
+  const cooks = list.filter(p => !isLo(p) && !isOut(p) && (r => !!r && !isRice(r.title) && !/^白ごはん/.test(r.title) && ingsOf(r).filter(i => !/^(水|湯|お湯|ぬるま湯)$/.test(normName(i.name))).length > 1)(recipeOf(p.recipeId)));
+  if (st === "lo" && cooks.length) return "new";
+  if (st === "new" && !cooks.length && list.some(isLo)) return "lo";
   if (st && st !== "skip") return st;
   return list.some(isOut) ? "out" : list.every(isLo) ? "lo" : "";
 }
