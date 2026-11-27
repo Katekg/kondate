@@ -595,6 +595,8 @@ label.hastdy .tdy { position: absolute; right: 0; top: -6px; padding: 3px 12px; 
 .putlist .nm { flex: 1 1 9em; min-width: 0; }
 .putf { display: flex; gap: 6px; flex: none; }
 .putf select, .putf input { width: auto; padding: 4px 6px; font-size: .85rem; }
+ul.rules { margin: 2px 0 8px; padding-left: 1.2em; }
+ul.rules li { margin: 3px 0; line-height: 1.45; font-size: .9rem; }
 dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 8px 0 14px; }
 dl.kv dt { color: var(--muted); font-size: .85rem; }
 dl.kv dd { margin: 0; font-weight: 600; }
@@ -1936,6 +1938,44 @@ function expirySheet() {
   paint();
 }
 document.addEventListener("click", e => { if (e.target.closest("#wasteExp")) expirySheet(); });
+// 2026-11-27: アプリの決まりごと（献立・在庫・期限・調理）。かずやさんとClaudeが忘れないように、在庫タブの「ルール」から見られる。
+// 決まりを足したり変えたりしたら、ここも必ず直す
+function openRules() {
+  const R = [
+    ["🍽 献立の選び方", [
+      "料理は、料理本のレシピ・【自分】のレシピ・白ごはん・そのまま食べる物（納豆・冷ややっこ・牛乳・果物など）から選ぶ。新しい料理は作らない",
+      "そのまま食べる物は、栄養が足りないときか、料理より安いときに入れる",
+      "「簡単」の枠は火を使わない（レンジ・トースターはOK）",
+      "朝は火も包丁もほぼ使わない（しそ・ねぎなどの薬味を刻む程度はOK）",
+      "7日以内に作った料理は選ばない（ほかに合う料理がどうしても無いときだけ）",
+      "出番の少ない材料（その料理専用の物）は買わない",
+      "枠の表示（簡単・レシピ・作り置き）は中身に合わせる",
+    ]],
+    ["⚖ 許容値", [
+      `栄養（カロリー・たんぱく質）は目標の${tolNut()}%以上`,
+      `予算は${tolBud()}%まで`,
+      `肉・魚は、買った量が必要な量の±${+SET("許容_買った量") || 15}%以内なら、使う料理に均等に分ける`,
+      "（数字は「好み・予算」で変えられます）",
+    ]],
+    ["📦 在庫・期限", [
+      "食材（調味料以外）は、期限までに使い切る献立にする",
+      "献立を作る・考え直す前に、「期限の確認」を0件にする（期限切れと7日以内の物を、合っている・延ばす・捨てるで決める）",
+      "肉は買ったら瞬冷凍に入れる。期限は1週間",
+      "7日以上使っていない調味料・粉物・乾物は、古い順に5つまで、献立の期間中に1回ずつ使う（米・押麦・いつもの飲み物は除く）",
+      "少しだけ足りない調味料・粉物（大さじ2以下で、使う量の2割以下）は買わずに、料理の量を少しずつ減らす",
+    ]],
+    ["🔪 調理", [
+      "生の肉・魚は、野菜をすべて切った後に切る。生で食べる料理はその前に作る",
+      "生の肉・魚を扱ったら、手・まな板・包丁を洗う",
+      "魚焼きグリルは使わない",
+    ]],
+    ["💴 お金", [
+      "米・調味料の買い物は、食費とは別の予算。入力した今月の食費から自動で引いて考える（「今月使った食費」の下の一覧で直せる）",
+    ]],
+  ];
+  openSheet(`<h2>📜 ルール</h2><p class="note">アプリが献立を作るときに守っている決まりです。</p>${R.map(([h, l]) => `<h3 class="exh">${h}</h3><ul class="rules">${l.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`).join("")}<button class="btn wide" id="rlClose">閉じる</button>`);
+  $("rlClose").onclick = () => closeSheet();
+}
 // 買い物リストの1品の詳しい情報
 function openShopInfo(i) {
   if (!i) return;
@@ -1999,7 +2039,7 @@ function drawStock() {
   // 2026-11-27: 今週使う在庫も、今週使わない食材と同じくカテゴリ別・色の順に並べる
   const byCatUse = list => [...cats, "その他"].map(c => { const l = list.filter(s => (cats.includes(s.cat) ? s.cat : "その他") === c).sort((a, b) => (hueKey(a.name) - hueKey(b.name)) || a.name.localeCompare(b.name, "ja")), h = l.map(s => tile(s, true)).join("");
     return h ? `<div class="cathead"><h3>${esc(c)}（${l.length}）</h3></div><ul class="tiles">${h}</ul>` : ""; }).join("");
-  $("app").innerHTML = `<div class="h2row"><h2>在庫</h2><div class="btns"><button class="btn ghost" id="ckBtn">📋 在庫確認</button><button class="btn" id="addBtn">＋ 追加</button></div></div>
+  $("app").innerHTML = `<div class="h2row"><h2>在庫</h2><div class="btns"><button class="btn ghost" id="ruleBtn">📜 ルール</button><button class="btn ghost" id="ckBtn">📋 在庫確認</button><button class="btn" id="addBtn">＋ 追加</button></div></div>
     ${expiredCard()}
     ${items.length ? `<section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3><button class="chip" id="copy">コピー</button></div><p class="note">買った物にチェックし、量が違えば直してから「在庫へ」を押すと、まとめて在庫に入ります。</p><ul class="list" id="sbList">${items.map((i, n) => { const s = matchStock(i.name), e = (S.buyEd || {})[i.name] || {}, ah = n === 0 || aisleOf(items[n - 1].name) !== aisleOf(i.name) ? `<li class="aisle">${AISLES[aisleOf(i.name)]}</li>` : ""; return ah + `<li class="qrow"><label class="bcck"><input type="checkbox" data-i="${n}" ${e.ck ? "checked" : ""}></label><button type="button" class="nmt sbinfo" data-i="${n}">${esc(i.name)}<small>${(lsGet("laterBuy") || {})[i.name] ? `<span class="tag">後で買う</span>` : ""}必要: ${esc(buyText(i))}・${s && s.qty !== OUT ? `在庫: ${esc(s.qty)}` : "在庫なし"}</small></button>${qtyBox(e.q || buyText(i), "q sbq", n, i.name)}</li>`; }).join("")}</ul><div class="grid2" style="margin-top:8px"><button class="btn ghost" id="sbAll">全部選ぶ</button><button class="btn" id="sbGo">在庫へ</button></div></section>` : ""}
     ${(() => { const sk = smallShort(gs), l = S.stock.filter(s => sk[s.id] && !sk[s.id].meat), lm = S.stock.filter(s => sk[s.id] && sk[s.id].meat); return (lm.length ? `<p class="note">⚖ 買った量に合わせて、使う料理に均等に分けます: ${lm.map(s => `${esc(s.name)} ${sk[s.id].n}品で1品あたり約${Math.round(sk[s.id].f * 100)}%`).join("、")}</p>` : "") + (l.length ? `<p class="note">🤏 少しだけ足りない物（買わずに、${l.length > 1 ? "それぞれ" : ""}使う料理の量を少しずつ減らします）: ${l.map(s => `${esc(s.name)} ${Math.round(sk[s.id].short)}${sk[s.id].u}不足・${sk[s.id].n}品で約${Math.round((1 - sk[s.id].f) * 100)}%減`).join("、")}</p>` : ""); })()}
@@ -2056,6 +2096,7 @@ function drawStock() {
   }
   const c = $("copy"); if (c) c.onclick = () => { navigator.clipboard.writeText("買い物リスト\n" + items.map(i => `・${i.name} ${buyText(i)}`).join("\n")).then(() => c.textContent = "コピーしました"); };
   $("addBtn").onclick = () => openAdd(cats);
+  $("ruleBtn").onclick = openRules;
   $("ckBtn").onclick = () => openCheckMode(0);
   const gf = $("goFix"); if (gf) gf.onclick = () => { S.tab = "menu"; S.day = today(); draw(); openRebuild(weekStartOf(today())); };
 }
@@ -3514,9 +3555,9 @@ function catalogText() {
 - 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
 - 朝の「簡単なもの」の枠は、一覧で「朝向き（火も包丁もほぼ使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む（朝は包丁もなるべく使わない。しそ・ねぎなどの薬味を少し刻むくらいはよい）。
 - ほかの「簡単なもの」の枠は、一覧で「朝向き」か「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
-- 「しばらく使っていない調味料」と付いた料理は、在庫で眠っている調味料を使える。期間中に、それぞれの調味料を1回ずつ使えるように選ぶ（ほかの決まりより優先はしない）。\n- 「最近作った」と付いた料理（この7日以内に作った本のレシピ）は、同じ料理が続かないように選ばない。ほかに合う料理がどうしても無いときだけ使う。
+- 「しばらく使っていない在庫」と付いた料理は、在庫で眠っている調味料・粉物・乾物を使える。期間中に、それぞれを1回ずつ使えるように選ぶ（ほかの決まりより優先はしない）。\n- 「最近作った」と付いた料理（この7日以内に作った本のレシピ）は、同じ料理が続かないように選ばない。ほかに合う料理がどうしても無いときだけ使う。
 - 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
-${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${(t => t.length ? `｜しばらく使っていない調味料: ${t.join("・")}` : "")(staleOf(r))}${recentAt.has(r.id) && bookOf(r) ? `｜最近作った（${recentAt.get(r.id).slice(5).replace("-", "/")}）` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${(t => t.length ? `｜しばらく使っていない在庫: ${t.join("・")}` : "")(staleOf(r))}${recentAt.has(r.id) && bookOf(r) ? `｜最近作った（${recentAt.get(r.id).slice(5).replace("-", "/")}）` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
 function pickFix(meals) {
@@ -3749,7 +3790,7 @@ ${Object.keys(res).length ? "■ほかの予定で押さえている在庫\n" + 
 ${rules()}
 【依頼】${tg[0].d}〜${tg[tg.length - 1].d} の献立（2人分）${opts.buyOnly ? "を、これ以上買い物をせず、今の在庫と、お店でカゴに入れた物（下の量まで）だけで作る（それ以外の食材は使わない。在庫・カゴの量より多くは使わない）" : opts.stockOnly ? "を、買い物をせず、今の在庫だけで作る（在庫に無い食材・在庫より多い量は使わない）" : "と、足りない物の買い物の案を作る"}。
 - お店でもうカゴに入れた物（買うことが決まっている。値段があれば参考にする）: ${S.dealText || "なし"} → ${opts.buyOnly ? "この量まで使ってよい。1日の栄養の目標を満たせるなら、残ってもよい" : "必ず使い、量も使い切る"}
-${(l => l.length ? `- 調味料はまんべんなく使い、同じ物に偏らせない。次の調味料はしばらく献立に出ていないので、この期間にそれぞれ1回、味の合う料理で普通の量を使う（合う料理が無ければ使わなくてよい。1つの調味料を何度も使わない）: ${l.map(x => x.name).join("、")}\n` : "")(staleSeasonings(keepPlans))}- 仕込み: この期間の献立に、仕込み（meal:"仕込み"）を組み込む。余りそうな野菜があれば浅漬け・甘酢漬けを1回（夜ごはんが簡単か作り置きの日に、翌日以降の副菜を leftover:true で2〜3食）。塩麹が在庫に無く、最後に仕込んでから25日以上たっていれば塩麹も1回。どちらにも当てはまらなければ入れなくてよい。
+${(l => l.length ? `- 調味料・粉物・乾物はまんべんなく使い、同じ物に偏らせない。次の物はしばらく献立に出ていないので、この期間にそれぞれ1回、味の合う料理で普通の量を使う（合う料理が無ければ使わなくてよい。1つの調味料を何度も使わない）: ${l.map(x => x.name).join("、")}\n` : "")(staleSeasonings(keepPlans))}- 仕込み: この期間の献立に、仕込み（meal:"仕込み"）を組み込む。余りそうな野菜があれば浅漬け・甘酢漬けを1回（夜ごはんが簡単か作り置きの日に、翌日以降の副菜を leftover:true で2〜3食）。塩麹が在庫に無く、最後に仕込んでから25日以上たっていれば塩麹も1回。どちらにも当てはまらなければ入れなくてよい。
 - 使い切りたい食材（今の在庫。期間中にほかの予定で使う分は差し引き済み）: ${leftoverText(leftovers(keepPlans, tg[tg.length - 1].d)) || "なし"}
 - 枠: ${tg.filter(x => x.st !== "out").map(x => `${x.d} ${x.m}（${x.st === "easy" ? "簡単なもの" : x.st === "lo" ? "前の料理の作り置き" : "レシピ"}${soloOf(x.d, x.m) ? `・${SET("人" + soloOf(x.d, x.m))}だけが食べる1人分。people=${soloPeople(soloOf(x.d, x.m))}` : ""}）`).join("、")}
 - 外食の枠（何も入れない。標準的な1食分の栄養（朝500・昼800・夜900kcal）を食べるものとして、その日の栄養を考える）: ${tg.filter(x => x.st === "out").map(x => `${x.d} ${x.m}`).join("、") || "なし"}
@@ -4394,7 +4435,9 @@ const wasteRaw = (plans, end) => { const ps = (plans || S.plans).filter(p => p.d
 function staleSeasonings(plans, lim) {
   const last = {};
   plans.forEach(p => { const r = recipeOf(p.recipeId); if (r) ingsOf(r).forEach(i => { const st = matchStock(i.name); if (st && (!last[st.id] || last[st.id] < p.date)) last[st.id] = p.date; }); });
-  return S.stock.filter(s => isSeas(s) && hasQty(s) && !(last[s.id] > shiftDay(today(), -7)))
+  // 2026-11-27: 調味料に加えて、粉物・乾物も（米・押麦・いつもの飲み物は毎日使うので除く）
+  const daily = new Set(dailyItems().map(it => normName(it.name)));
+  return S.stock.filter(s => isDryOrSeas(s) && !isRice(s.name) && !/^米$|押麦|麦$/.test(normName(s.name)) && !daily.has(normName(s.name)) && !/プロテイン/.test(s.name) && hasQty(s) && !(last[s.id] > shiftDay(today(), -7)))
     .sort((a, b) => (last[a.id] || "").localeCompare(last[b.id] || "") || (a.exp || "9").localeCompare(b.exp || "9")).slice(0, lim || 5);
 }
 const leftoverText = l => l.map(x => `${x.s.name} ${x.left}${x.s.exp ? `（期限 ${x.s.exp}）` : ""}`).join("、");
