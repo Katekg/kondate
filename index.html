@@ -588,10 +588,19 @@ label.hastdy .tdy { position: absolute; right: 0; top: -6px; padding: 3px 12px; 
 .card:has(> #sbList) { min-width: 0; }
 #sbList { min-width: 0; }
 #sbList li.qrow { min-width: 0; padding: 6px 0; gap: 4px 8px; align-items: center; }
-#sbList li.qrow .bcck { width: auto; flex: 1 1 10em; min-width: 0; gap: 10px; }
+#sbList li.qrow .bcck { width: auto; flex: none; min-width: 0; gap: 10px; padding: 4px 0; }
 #sbList .bcck input[type=checkbox] { width: 22px; height: 22px; }
-#sbList .bcck .nmt { font-size: 1.08rem; font-weight: 700; color: var(--ink); line-height: 1.25; min-width: 0; }
-#sbList .bcck .nmt small { font-weight: 400; font-size: .7rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sbList .sbinfo { flex: 1 1 8em; min-width: 0; display: block; background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: pointer; font: inherit; }
+.putlist li { flex-wrap: wrap; gap: 4px 8px; }
+.putlist .nm { flex: 1 1 9em; min-width: 0; }
+.putf { display: flex; gap: 6px; flex: none; }
+.putf select, .putf input { width: auto; padding: 4px 6px; font-size: .85rem; }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 8px 0 14px; }
+dl.kv dt { color: var(--muted); font-size: .85rem; }
+dl.kv dd { margin: 0; font-weight: 600; }
+#sbList li.aisle { font-size: .78rem; font-weight: 700; color: var(--muted); padding: 8px 0 2px; border: 0; }
+#sbList .nmt { font-size: 1.08rem; font-weight: 700; color: var(--ink); line-height: 1.25; min-width: 0; }
+#sbList .nmt small { display: block; color: var(--muted); font-weight: 400; font-size: .7rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #sbList .qf.q { width: auto; flex: none; margin-left: auto; }
 #sbList .qf .qfl small { display: none; }
 #sbList .qf input, #sbList .qf select { height: 2.3em; }
@@ -1151,10 +1160,13 @@ function smallShort(gs, stock) {
   if (SS_ && SS_.st === stock && SS_.key === key) return SS_.v;
   const res = reservations(gs, stock), v = {};
   stock.forEach(s => {
-    if (!isDryOrSeas(s) || !res[s.id] || s.qty === OUT) return;
+    // 2026-11-27: 肉・魚は、買った量が必要な量に近ければ（許容_買った量 %以内）、使う料理に均等に割り振る（多ければ少しずつ多め、少なければ少しずつ少なめ）
+    const meat = !isDryOrSeas(s) && RAW_RE.test(normName(s.name)) && !NOT_RAW.test(normName(s.name));
+    if (!(isDryOrSeas(s) || meat) || !res[s.id] || s.qty === OUT) return;
     const h = pqAll(s.qty).find(p => conv(p, "g") != null || conv(p, "ml") != null); if (!h) return;
     let need = 0; for (const x of res[s.id]) { const a = convIn(pqAll(x.amount), h.u); if (a == null) return; need += a; }
     const per = conv({ n: 1, u: h.u }, "g") ?? conv({ n: 1, u: h.u }, "ml"), short = (need - h.n) * per;
+    if (meat) { const tol = (+SET("許容_買った量") || 15) / 100; if (res[s.id].length > 1 && Math.abs(need - h.n) > 1e-6 && Math.abs(need - h.n) <= need * tol) v[s.id] = { f: h.n / need, short, u: conv({ n: 1, u: h.u }, "g") != null ? "g" : "ml", n: res[s.id].length, meat: true }; return; }
     if (short > 1e-6 && short <= 30 && short <= need * per * .2) v[s.id] = { f: h.n / need, short, u: conv({ n: 1, u: h.u }, "g") != null ? "g" : "ml", n: res[s.id].length };
   });
   SS_ = { st: stock, key, v };
@@ -1162,7 +1174,7 @@ function smallShort(gs, stock) {
 }
 // 表示用: これからの料理で、その材料の量に掛ける割合（少しだけ足りない物は 1 より小さい）
 const kOf = name => { const s = matchStock(name), v = s && smallShort(planGroups())[s.id]; return v ? v.f : 1; };
-const lessTag = name => kOf(name) < 1 ? "（在庫に合わせて少なめ）" : "";
+const lessTag = name => { const k = kOf(name); return k < 1 ? "（在庫に合わせて少なめ）" : k > 1 ? "（買った量に合わせて多め）" : ""; };
 // 買い物リスト: 近い日の献立から順に在庫を割り当てて、足りない物
 function shopItems(plans, stock) {
   const gs = planGroups(plans), map = new Map(), sk = smallShort(gs, stock);
@@ -1891,27 +1903,32 @@ function stockSortSetup(cats) {
 // 「期限を延ばす」か「捨てる（在庫から消す）」を選んでもらう。延ばせば、その期限で献立に使う
 const expiredList = () => (S.stock || []).filter(s => s.exp && s.exp < today() && hasQty(s)).sort((a, b) => a.exp.localeCompare(b.exp));
 const daysPast = s => Math.round((new Date(today() + "T00:00:00") - new Date(s.exp + "T00:00:00")) / 864e5);
-// 2026-11-27: 期限が近い物（7日以内）。期限の入力が間違っていることもあるので、献立を作る前に本当にその日までか確かめてもらう。「合っている」を押した物は、アプリを開いている間は聞かない
-const soonOk = new Set();
-const soonList = () => (S.stock || []).filter(s => s.exp && s.exp >= today() && s.exp <= shiftDay(today(), 7) && hasQty(s) && !soonOk.has(s.id)).sort((a, b) => a.exp.localeCompare(b.exp));
+// 2026-11-27: 期限が近い物（7日以内）。期限の入力が間違っていることもあるので、本当にその日までか確かめてもらう。
+// 「合っている」「＋3日」「日付」のどれかを選んだ物は確定として、その期限のあいだは一覧に出さない（設定「期限確認済み」に {在庫id: 期限} で保存）。
+// ふだんは0件。献立を作る・考え直す前に残っていれば、0にしてから進む
+const expOkMap = () => { try { return JSON.parse(SET("期限確認済み") || "{}") || {}; } catch (e) { return {}; } };
+const isExpOk = s => expOkMap()[s.id] === s.exp;
+async function markExpOk(id, exp) {
+  const m = expOkMap(), ids = new Set((S.stock || []).map(x => x.id));
+  Object.keys(m).forEach(k => { if (!ids.has(k) || m[k] < today()) delete m[k]; });
+  (Array.isArray(id) ? id : [[id, exp]]).forEach(([i, e]) => { if (i && e) m[i] = e; }); const v = JSON.stringify(m); S.settings["期限確認済み"] = v; await run("saveSetting", "期限確認済み", v);
+}
+const soonList = () => (S.stock || []).filter(s => s.exp && s.exp >= today() && s.exp <= shiftDay(today(), 7) && hasQty(s) && !isExpOk(s)).sort((a, b) => a.exp.localeCompare(b.exp));
+const expTodo = () => expiredList().length + soonList().length;
 function expiredRows(l, soon) {
   return `<ul class="list exlist">${l.map(s => `<li data-xid="${esc(s.id)}"><span class="nm"><b>${esc(s.name)}</b><small>${esc(vegQ(s.name, s.qty))}・期限 ${+s.exp.slice(5, 7)}/${+s.exp.slice(8)}（${soon ? (-daysPast(s) ? `あと${-daysPast(s)}日` : "今日まで") : `${daysPast(s)}日過ぎ`}）</small></span>
-    <span class="exbtns">${soon ? (soonOk.has(s.id) ? `<span class="chip okmark">✓ 確認済み</span>` : `<button type="button" class="chip" data-xok>合っている</button>`) : ""}<button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
+    <span class="exbtns">${soon ? `<button type="button" class="chip" data-xok>合っている</button>` : ""}<button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(s.exp > today() ? s.exp : today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
 }
-// 在庫タブの一番上: 期限が切れた物と、7日以内の物をいつも出す（無いときは小さく「ありません」）
-const soonAll = () => (S.stock || []).filter(s => s.exp && s.exp >= today() && s.exp <= shiftDay(today(), 7) && hasQty(s)).sort((a, b) => a.exp.localeCompare(b.exp));
 function expiryBody() {
-  const l = expiredList(), n = soonAll();
-  if (!l.length && !n.length) return `<p class="note okmark">✅ 期限が切れた物も、7日以内の物もありません</p>`;
-  return `${l.length ? `<h3 class="exh red">⚠ 期限が切れた物（${l.length}品）</h3><p class="note">まだ使えそうなら期限を延ばし、だめなら「捨てる」で在庫から消してください。延ばした物は、その期限で献立に使います。</p>${expiredRows(l)}` : ""}
-    ${n.length ? `<h3 class="exh">期限が近い物（7日以内・${n.length}品）</h3><p class="note">期限の入力が違っていないか確かめてください。違っていれば「＋」か「日付」で直します。合っていれば「合っている」を押してください。</p>${expiredRows(n, true)}` : ""}`;
+  const l = expiredList(), n = soonList();
+  if (!l.length && !n.length) return `<p class="note okmark">✅ 確認が必要な物はありません</p>`;
+  return `${l.length ? `<h3 class="exh red">⚠ 期限が切れた物（${l.length}品）</h3><p class="note">まだ使えそうなら期限を延ばし、だめなら「捨てる」で在庫から消してください。</p>${expiredRows(l)}` : ""}
+    ${n.length ? `<h3 class="exh">期限が近い物（7日以内・${n.length}品）</h3><p class="note">合っていれば「合っている」、違っていれば「＋」（今の期限から延ばします）か「日付」で直してください。選んだ物は一覧から消えます。</p>${expiredRows(n, true)}` : ""}`;
 }
-let expOpen = false;
-document.addEventListener("toggle", e => { if (e.target.id === "expCard") expOpen = e.target.open; }, true);
 function expiredCard() {
-  const l = expiredList(), n = soonAll(), todo = n.filter(s => !soonOk.has(s.id)).length;
-  if (!l.length && !n.length) return `<section class="card" id="expCard"><small class="okmark">📅 ✅ 期限が切れた物も、7日以内の物もありません</small></section>`;
-  return `<details class="card${l.length ? " excard" : ""}" id="expCard"${l.length || expOpen ? " open" : ""}><summary><b>📅 期限の確認</b> <small>${[l.length ? `切れた物 ${l.length}品` : "", n.length ? `7日以内 ${n.length}品${todo < n.length ? `（未確認 ${todo}）` : ""}` : ""].filter(Boolean).join("・")}</small></summary>${expiryBody()}</details>`;
+  const l = expiredList(), n = soonList();
+  if (!l.length && !n.length) return `<section class="card" id="expCard"><small class="okmark">📅 期限の確認: 0件</small></section>`;
+  return `<section class="card excard" id="expCard"><div class="secthead"><h3>📅 期限の確認（${l.length + n.length}件）</h3></div>${expiryBody()}</section>`;
 }
 // 黄色い警告などから開く、期限の確認画面
 function expirySheet() {
@@ -1919,27 +1936,36 @@ function expirySheet() {
   paint();
 }
 document.addEventListener("click", e => { if (e.target.closest("#wasteExp")) expirySheet(); });
-// 期限を延ばす・捨てるボタン。1品済むごとに done() を呼ぶ（画面を描き直す）
+// 買い物リストの1品の詳しい情報
+function openShopInfo(i) {
+  if (!i) return;
+  const s = matchStock(i.name), e = (S.buyEd || {})[i.name] || {}, g = guessExp(i.name, ""), cat = s ? s.cat : g.cat, ex = s && s.exp && s.exp > today() ? s.exp : g.exp;
+  const rows = [["必要な量", buyText(i)], e.q && e.q !== buyText(i) ? ["入力した量", e.q] : null, i.need && i.need !== buyText(i) ? ["料理で使う量", i.need] : null, i.rest ? ["買うと余る量", i.rest] : null, ["使う献立", [...new Set(i.when)].join("、")], ["今の在庫", s && s.qty !== OUT ? `${s.qty}${s.exp ? `（期限 ${+s.exp.slice(5, 7)}/${+s.exp.slice(8)}）` : ""}` : "なし"], ["置き場所", cat || "—"], ["買ったときの期限の目安", `${+ex.slice(5, 7)}/${+ex.slice(8)}（${s && s.exp > today() ? "今の在庫の期限" : `買った日から${g.days}日`}）`]].filter(Boolean);
+  openSheet(`<h2>${esc(i.name)}</h2><dl class="kv">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl><button class="btn wide" id="siClose">閉じる</button>`);
+  $("siClose").onclick = () => closeSheet();
+}
+// 期限を延ばす・確かめる・捨てるボタン。1品済むごとに done() を呼ぶ（画面を描き直す）
 function expiredBind(root, done) {
   if (!root) return;
-  const ext = async (id, exp) => { const s = S.stock.find(x => x.id === id); if (!s || !exp) return; await run("saveStock", [{ ...s, exp }]); done(); };
-  root.querySelectorAll(".exlist [data-xd]").forEach(b => b.onclick = e => { e.preventDefault(); const id = b.closest("li").dataset.xid, n = b.dataset.xd; ext(id, n === "m" ? addMonth(today(), 1) : shiftDay(today(), +n)); });
-  root.querySelectorAll(".exlist [data-xdate]").forEach(i => i.onchange = () => { if (i.value >= today()) ext(i.closest("li").dataset.xid, i.value); });
-  root.querySelectorAll(".exlist [data-xok]").forEach(b => b.onclick = e => { e.preventDefault(); soonOk.add(b.closest("li").dataset.xid); done(); });
-  root.querySelectorAll(".exlist [data-xdel]").forEach(b => b.onclick = async e => { e.preventDefault(); const li = b.closest("li"), s = S.stock.find(x => x.id === li.dataset.xid); if (!s || !confirm(`${s.name} を捨てて、在庫から消しますか？`)) return; await run("deleteStock", [s.id]); done(); });
+  const act = async (li, f) => { li.style.opacity = ".4"; li.querySelectorAll("button, input").forEach(x => x.disabled = true); try { await f(); } catch (e) { alert(e.message || e); } done(); };
+  const ext = (li, exp) => act(li, async () => { const s = S.stock.find(x => x.id === li.dataset.xid); if (!s || !exp) return; await run("saveStock", [{ ...s, exp }]); await markExpOk(s.id, exp); });
+  // 「＋」は、今の期限から延ばす（期限が切れた物は今日から）
+  root.querySelectorAll(".exlist [data-xd]").forEach(b => b.onclick = e => { e.preventDefault(); const li = b.closest("li"), s = S.stock.find(x => x.id === li.dataset.xid); if (!s) return; const base = s.exp && s.exp > today() ? s.exp : today(), n = b.dataset.xd; ext(li, n === "m" ? addMonth(base, 1) : shiftDay(base, +n)); });
+  root.querySelectorAll(".exlist [data-xdate]").forEach(i => i.onchange = () => { if (i.value >= today()) ext(i.closest("li"), i.value); });
+  root.querySelectorAll(".exlist [data-xok]").forEach(b => b.onclick = e => { e.preventDefault(); const li = b.closest("li"), s = S.stock.find(x => x.id === li.dataset.xid); if (s) act(li, () => markExpOk(s.id, s.exp)); });
+  root.querySelectorAll(".exlist [data-xdel]").forEach(b => b.onclick = e => { e.preventDefault(); const li = b.closest("li"), s = S.stock.find(x => x.id === li.dataset.xid); if (!s || !confirm(`${s.name} を捨てて、在庫から消しますか？`)) return; act(li, () => run("deleteStock", [s.id])); });
 }
 // 献立を作る・考え直す前に、期限が切れた物をどうするか聞く。進むなら true
 function expiredGate() {
-  if (!expiredList().length && !soonList().length) return Promise.resolve(true);
+  if (!expTodo()) return Promise.resolve(true);
   return new Promise(ok => {
     const paint = () => {
-      const l = expiredList(), n = soonList();
-      openSheet(`<h2>⚠ 献立を作る前に、期限を確かめてください</h2>
-        ${expiredList().length || l.length ? `<h3>期限が切れた物</h3><p class="note">まだ使えるなら期限を延ばし、だめなら「捨てる」を選んでください。延ばした物は献立で使います。</p>${l.length ? expiredRows(l) : `<p class="note okmark">✅ 全部決まりました</p>`}` : ""}
-        ${n.length ? `<h3>期限が近い物（7日以内）</h3><p class="note">期限の入力が違っていないか確かめてください。合っていれば「合っている」、違っていれば正しい日付に直してください。合っている物は、期限までに使い切る献立にします。</p>${expiredRows(n, true)}` : `<p class="note okmark">✅ 期限が近い物の確認は済みました</p>`}
-        <button class="btn wide" id="xGo">${l.length || n.length ? "このまま献立を作る（今の期限のまま使う）" : "献立を作る"}</button><button class="btn ghost wide" id="xNo">やめる</button>`);
-      expiredBind($("sheetBody"), paint);
-      $("xGo").onclick = () => ok(true); $("xNo").onclick = () => { closeSheet(); ok(false); };
+      const left = expTodo();
+      openSheet(`<h2>📅 献立を作る前に、期限の確認を0件にしてください</h2>
+        ${expiryBody()}
+        <button class="btn wide" id="xGo"${left ? " disabled" : ""}>${left ? `あと${left}件` : "献立を作る"}</button><button class="btn ghost wide" id="xNo">やめる</button>`);
+      expiredBind($("sheetBody"), () => { paint(); });
+      $("xGo").onclick = () => { if (!expTodo()) ok(true); }; $("xNo").onclick = () => { closeSheet(); ok(false); };
     };
     paint();
   });
@@ -1970,12 +1996,15 @@ function drawStock() {
   const sorting = !!S.stockSort;
   const byCat = list => [...cats, "その他"].map((c, ci) => { const l = list.filter(s => (cats.includes(s.cat) ? s.cat : "その他") === c).sort((a, b) => (hueKey(a.name) - hueKey(b.name)) || a.name.localeCompare(b.name, "ja")); const own = c !== "その他";
     return l.length || (sorting && own) ? `<div class="cathead"><h3>${esc(c)}（${l.length}）</h3>${sorting && own ? `<button class="chip" data-cup="${ci}" ${ci ? "" : "disabled"}>↑</button><button class="chip" data-cdn="${ci}" ${ci < cats.length - 1 ? "" : "disabled"}>↓</button><button class="chip" data-cren="${ci}">名前</button><button class="chip" data-cdel="${ci}">削除</button>` : ""}</div><ul class="tiles" data-cat="${esc(own ? c : "")}">${l.map(s => tile(s, false, true)).join("")}</ul>` : ""; }).join("");
+  // 2026-11-27: 今週使う在庫も、今週使わない食材と同じくカテゴリ別・色の順に並べる
+  const byCatUse = list => [...cats, "その他"].map(c => { const l = list.filter(s => (cats.includes(s.cat) ? s.cat : "その他") === c).sort((a, b) => (hueKey(a.name) - hueKey(b.name)) || a.name.localeCompare(b.name, "ja")), h = l.map(s => tile(s, true)).join("");
+    return h ? `<div class="cathead"><h3>${esc(c)}（${l.length}）</h3></div><ul class="tiles">${h}</ul>` : ""; }).join("");
   $("app").innerHTML = `<div class="h2row"><h2>在庫</h2><div class="btns"><button class="btn ghost" id="ckBtn">📋 在庫確認</button><button class="btn" id="addBtn">＋ 追加</button></div></div>
     ${expiredCard()}
-    ${items.length ? `<section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3><button class="chip" id="copy">コピー</button></div><p class="note">買った物にチェックし、量が違えば直してから「在庫へ」を押すと、まとめて在庫に入ります。</p><ul class="list" id="sbList">${items.map((i, n) => { const s = matchStock(i.name), e = (S.buyEd || {})[i.name] || {}; return `<li class="qrow"><label class="bcck"><input type="checkbox" data-i="${n}" ${e.ck ? "checked" : ""}><span class="nmt">${esc(i.name)}<small>${(lsGet("laterBuy") || {})[i.name] ? `<span class="tag">後で買う</span>` : ""}${s && s.qty !== OUT ? `在庫: ${esc(s.qty)}・` : "在庫なし・"}使う: ${esc([...new Set(i.when)].join("、"))}</small></span></label>${qtyBox(e.q || buyText(i), "q sbq", n, i.name)}</li>`; }).join("")}</ul><div class="grid2" style="margin-top:8px"><button class="btn ghost" id="sbAll">全部選ぶ</button><button class="btn" id="sbGo">在庫へ</button></div></section>` : ""}
-    ${(() => { const sk = smallShort(gs), l = S.stock.filter(s => sk[s.id]); return l.length ? `<p class="note">🤏 少しだけ足りない物（買わずに、${l.length > 1 ? "それぞれ" : ""}使う料理の量を少しずつ減らします）: ${l.map(s => `${esc(s.name)} ${Math.round(sk[s.id].short)}${sk[s.id].u}不足・${sk[s.id].n}品で約${Math.round((1 - sk[s.id].f) * 100)}%減`).join("、")}</p>` : ""; })()}
+    ${items.length ? `<section class="card"><div class="secthead"><h3>🛒 買い物リスト（${items.length}品）</h3><button class="chip" id="copy">コピー</button></div><p class="note">買った物にチェックし、量が違えば直してから「在庫へ」を押すと、まとめて在庫に入ります。</p><ul class="list" id="sbList">${items.map((i, n) => { const s = matchStock(i.name), e = (S.buyEd || {})[i.name] || {}, ah = n === 0 || aisleOf(items[n - 1].name) !== aisleOf(i.name) ? `<li class="aisle">${AISLES[aisleOf(i.name)]}</li>` : ""; return ah + `<li class="qrow"><label class="bcck"><input type="checkbox" data-i="${n}" ${e.ck ? "checked" : ""}></label><button type="button" class="nmt sbinfo" data-i="${n}">${esc(i.name)}<small>${(lsGet("laterBuy") || {})[i.name] ? `<span class="tag">後で買う</span>` : ""}必要: ${esc(buyText(i))}・${s && s.qty !== OUT ? `在庫: ${esc(s.qty)}` : "在庫なし"}</small></button>${qtyBox(e.q || buyText(i), "q sbq", n, i.name)}</li>`; }).join("")}</ul><div class="grid2" style="margin-top:8px"><button class="btn ghost" id="sbAll">全部選ぶ</button><button class="btn" id="sbGo">在庫へ</button></div></section>` : ""}
+    ${(() => { const sk = smallShort(gs), l = S.stock.filter(s => sk[s.id] && !sk[s.id].meat), lm = S.stock.filter(s => sk[s.id] && sk[s.id].meat); return (lm.length ? `<p class="note">⚖ 買った量に合わせて、使う料理に均等に分けます: ${lm.map(s => `${esc(s.name)} ${sk[s.id].n}品で1品あたり約${Math.round(sk[s.id].f * 100)}%`).join("、")}</p>` : "") + (l.length ? `<p class="note">🤏 少しだけ足りない物（買わずに、${l.length > 1 ? "それぞれ" : ""}使う料理の量を少しずつ減らします）: ${l.map(s => `${esc(s.name)} ${Math.round(sk[s.id].short)}${sk[s.id].u}不足・${sk[s.id].n}品で約${Math.round((1 - sk[s.id].f) * 100)}%減`).join("、")}</p>` : ""); })()}
     <section class="card"><div class="secthead"><h3>📌 今週使う在庫（${used.length}品）</h3>${period ? `<small>${period}</small>` : ""}</div>
-      ${used.length ? `<ul class="tiles">${used.sort((a, b) => (isLack(b) - isLack(a)) || (!res[a.id] - !res[b.id]) || a.name.localeCompare(b.name, "ja")).map(s => tile(s, true)).join("")}</ul>` : `<p class="note">献立で使う在庫はありません</p>`}
+      ${used.length ? byCatUse(used) : `<p class="note">献立で使う在庫はありません</p>`}
       ${missing.length ? `<p class="note red">在庫に無い材料: ${esc(missing.join("、"))}</p>` : ""}
       <p class="note">タイルをタップすると、使う量の確認と、量の修正ができます。</p>
       ${gs.length ? (lackSet.size ? `<div class="fixbox ng"><b>このままだと献立に足りない材料があります: ${esc([...lackSet].join("、"))}</b><button class="btn wide" id="goFix">栄養を考えながら、在庫に合わせて献立を見直す</button></div>` : `<div class="fixbox okk"><b>今の在庫で、予定の献立は全部作れます</b></div>`) : ""}</section>
@@ -1987,10 +2016,12 @@ function drawStock() {
   const sbl = $("sbList");
   if (sbl) {
     const ed = S.buyEd || (S.buyEd = {});
-    const boxes = () => [...sbl.querySelectorAll("li")].map(li => ({ ck: li.querySelector("input[type=checkbox]"), box: li.querySelector(".sbq"), i: items[+li.querySelector("input[type=checkbox]").dataset.i] }));
+    const boxes = () => [...sbl.querySelectorAll("li.qrow")].map(li => ({ ck: li.querySelector("input[type=checkbox]"), box: li.querySelector(".sbq"), i: items[+li.querySelector("input[type=checkbox]").dataset.i] }));
     const keep = () => boxes().forEach(x => { ed[x.i.name] = { ck: x.ck.checked, q: qtyVal(x.box) }; });
     const upd = () => { const n = boxes().filter(x => x.ck.checked).length; $("sbGo").textContent = n ? `選んだ${n}品を在庫へ` : "在庫へ"; $("sbGo").disabled = !n; $("sbAll").textContent = n === items.length ? "全部外す" : "全部選ぶ"; };
     sbl.addEventListener("change", () => { keep(); upd(); }); sbl.addEventListener("input", keep);
+    // 食材名をタップすると、必要な量・使う料理・期限の目安などを出す
+    sbl.querySelectorAll(".sbinfo").forEach(b => b.onclick = () => openShopInfo(items[+b.dataset.i]));
     $("sbAll").onclick = () => { const all = boxes().every(x => x.ck.checked); boxes().forEach(x => { x.ck.checked = !all; }); keep(); upd(); };
     upd();
     $("sbGo").onclick = async () => {
@@ -1999,10 +2030,27 @@ function drawStock() {
       // 同じ在庫に当たる物は1つにまとめて足す
       const ups = new Map(), names = [];
       sel.forEach(x => { const add = qtyVal(x.box), hit = matchStock(x.i.name); names.push(x.i.name);
-        if (hit) { const cur = ups.get(hit.id) || { ...hit }; cur.qty = cur.qty === OUT || !cur.qty ? add : addQty(cur.qty, add); ups.set(hit.id, cur); }
-        else { const g = guessExp(x.i.name, ""), c = cats.includes(g.cat) ? g.cat : ""; ups.set("new:" + x.i.name, { name: x.i.name, qty: add, cat: c, exp: guessExp(x.i.name, c).exp }); } });
+        if (hit) { const empty0 = hit.qty === OUT || !hit.qty || (hit.exp && hit.exp < today()), cur = ups.get(hit.id) || { ...hit, _add: [] }; cur.qty = cur.qty === OUT || !cur.qty ? add : addQty(cur.qty, add); cur._add.push(add);
+          // 在庫が無かった物（期限切れも）は、今回買った物の期限にする
+          if (empty0 && !ups.has(hit.id)) { const g = guessExp(hit.name, cats.includes(hit.cat) ? hit.cat : ""); if (!cats.includes(hit.cat) && cats.includes(g.cat)) cur.cat = g.cat; cur.exp = guessExp(hit.name, cur.cat).exp; }
+          ups.set(hit.id, cur); }
+        else { const g = guessExp(x.i.name, ""), c = cats.includes(g.cat) ? g.cat : ""; ups.set("new:" + x.i.name, { name: x.i.name, qty: add, cat: c, exp: guessExp(x.i.name, c).exp, _add: [add] }); } });
+      // 2026-11-27: 入れる前に、置き場所と期限を1品ずつ確かめる（食材ごとのおすすめを最初から選んでおく。直せる）
+      const list = [...ups.values()];
+      const ok = await new Promise(done => {
+        openSheet(`<h2>在庫に入れる（${list.length}品）</h2><p class="note">置き場所と期限は、食材ごとのおすすめを入れてあります。違っていれば直してください。</p>
+          <ul class="list putlist">${list.map((u, k) => `<li data-k="${k}"><span class="nm"><b>${esc(u.name)}</b><small>${esc(u._add.join("＋"))} 買った${u.id ? `・在庫は ${esc(u.qty)} に` : ""}</small></span><span class="putf"><select class="pCat">${[...cats, ...(u.cat && !cats.includes(u.cat) ? [u.cat] : [])].map(c => `<option${c === u.cat ? " selected" : ""}>${esc(c)}</option>`).join("")}${u.cat ? "" : `<option selected value="">（選ぶ）</option>`}</select><input type="date" class="pExp" value="${esc(u.exp || "")}"></span></li>`).join("")}</ul>
+          <button class="btn wide" id="putGo">在庫に入れる</button><button class="btn ghost wide" id="putNo">やめる</button>`);
+        const sb = $("sheetBody");
+        sb.querySelectorAll(".putlist li").forEach(li => { const u = list[+li.dataset.k], c = li.querySelector(".pCat"), d = li.querySelector(".pExp");
+          // 置き場所を変えたら、期限の目安も合わせる（日付を手で直した物はそのまま）
+          c.onchange = () => { u.cat = c.value; if (!d.dataset.set) d.value = guessExp(u.name, c.value).exp; }; d.onchange = () => { d.dataset.set = "1"; u.exp = d.value; }; });
+        $("putGo").onclick = () => { sb.querySelectorAll(".putlist li").forEach(li => { const u = list[+li.dataset.k]; u.cat = li.querySelector(".pCat").value; u.exp = li.querySelector(".pExp").value; }); closeSheet(); done(true); };
+        $("putNo").onclick = () => { closeSheet(); done(false); };
+      });
+      if (!ok) return;
       busy(true, `${sel.length}品を在庫に入れています…`);
-      try { await run("saveStock", [...ups.values()]); logRiceSeas(sel.map(x => ({ name: x.i.name, qty: qtyVal(x.box) }))); const lt = lsGet("laterBuy") || {}; names.forEach(n => { delete lt[n]; delete ed[n]; }); lsSet("laterBuy", lt); await load(); } catch (e) { alert(e.message); }
+      try { await run("saveStock", list.map(({ _add, ...u }) => u)); await load(); { const pr = list.map(u => { const h = u.id ? S.stock.find(x => x.id === u.id) : S.stock.find(x => x.name === u.name && x.exp === u.exp); return h && h.exp ? [h.id, h.exp] : null; }).filter(Boolean); if (pr.length) await markExpOk(pr); } logRiceSeas(sel.map(x => ({ name: x.i.name, qty: qtyVal(x.box) }))); const lt = lsGet("laterBuy") || {}; names.forEach(n => { delete lt[n]; delete ed[n]; }); lsSet("laterBuy", lt); await load(); } catch (e) { alert(e.message); }
       busy(false);
     };
   }
@@ -2015,9 +2063,9 @@ function drawStock() {
 const EXP_RULES = [
   [/牛乳|豆乳/, "冷蔵室", 7], [/ヨーグルト/, "冷蔵室", 10], [/生クリーム/, "冷蔵室", 5],
   [/豆腐|厚揚げ/, "冷蔵室", 4], [/油揚げ|納豆/, "冷蔵室", 7], [/チーズ/, "冷蔵室", 14], [/バター/, "冷蔵室", 30],
-  [/ひき肉|挽き肉|ミンチ/, "冷蔵室", 1],
   [/ハム|ベーコン|ソーセージ|ウインナー/, "冷蔵室", 7],
-  [/鶏|豚|牛|肉|ささみ/, "冷蔵室", 2],
+  // 2026-11-27: 肉は買ったら必ず瞬冷凍に入れるので、期限は1週間
+  [/ひき肉|挽き肉|ミンチ|鶏|豚|牛|肉|ささみ/, "瞬冷凍", 7],
   [/鮭|さけ|サーモン|鯖|さば|たら|鱈|ぶり|鰤|あじ|いわし|さんま|いか|えび|海老|たこ|あさり|しじみ|ほたて|刺身|魚|しらす/, "冷蔵室", 2],
   [/卵|たまご|玉子/, "冷蔵室", 14],
   [/もやし/, "野菜室", 2],
@@ -2044,7 +2092,7 @@ const LONG_RULES = [[/缶|水煮/, "コンロ下", 730], [/レトルト|びん�
 function guessExp(name, cat) {
   { const r = LONG_RULES.find(x => x[0].test(String(name || ""))); if (r) return { cat: r[1], days: r[2], exp: shiftDay(today(), r[2]) }; }
   const r = EXP_RULES.find(x => x[0].test(String(name || ""))), c = cat || (r && r[1]) || "";
-  const days = /冷凍/.test(c) ? 30 : r ? r[2] : CAT_DAYS[c] || 5;
+  const days = r && r[1] === "瞬冷凍" ? r[2] : /冷凍/.test(c) ? 30 : r ? r[2] : CAT_DAYS[c] || 5;
   return { cat: r ? r[1] : "", days, exp: shiftDay(today(), days) };
 }
 // 追加で買った物を在庫に入れる
@@ -2442,6 +2490,7 @@ function openPref() {
     <p class="note" id="pfSum"></p>
     <h3 style="margin-top:6px">許容値（献立の案をこの範囲に収める）</h3>
     <div class="grid2"><label>栄養: 目標の何%以上<input data-k="許容_栄養" type="number" inputmode="numeric" value="${esc(SET("許容_栄養") || 90)}"></label><label>予算: 何%まで<input data-k="許容_予算" type="number" inputmode="numeric" value="${esc(SET("許容_予算") || 105)}"></label></div>
+    <label>肉・魚の買った量: 必要な量の±何%なら、使う料理に均等に分ける<input data-k="許容_買った量" type="number" inputmode="numeric" value="${esc(SET("許容_買った量") || 15)}"></label>
     <p class="note">栄養はカロリーとたんぱく質を1人1日の目標と比べます。案がこの範囲から外れたら、AIに1回組み直してもらい、それでも外れたら案の画面に出します。</p>
     <h3 style="margin-top:6px">1日の栄養の目標</h3>
     ${T_KEYS.map(([k, n]) => `<div class="grid4" data-t="${k}"><span class="tlabel">${esc(SET(n))}</span>${["kcal", "P", "F", "C"].map((u, i) => `<label>${u}<input type="number" inputmode="numeric" value="${esc(tg(k)[i] || "")}"></label>`).join("")}</div>`).join("")}
@@ -4052,9 +4101,12 @@ function aisleOf(name) {
   if (/冷凍/.test(n)) return 9;
   if (/缶/.test(n)) return 7;
   if (/しめじ|えのき|まいたけ|しいたけ|エリンギ|きのこ|なめこ/.test(n)) return 1;
-  if (vegBase(n) || /白菜|キャベツ|トマト|もやし|豆苗|かぶ|レタス|オクラ|セロリ|ズッキーニ|アスパラ|枝豆|ゴーヤ|生姜|しょうが|にんにく|大葉|しそ|パセリ|ねぎ|りんご|バナナ|みかん|レモン|いちご|キウイ|ぶどう|梨|柿/.test(n)) return 0;
+  // 2026-11-27: 豆腐・卵・パンなども「野菜の単位」に入っていると野菜の売り場になっていたので、先に見る
   if (/豆腐|納豆|油揚げ|厚揚げ|こんにゃく|ちくわ|かまぼこ|はんぺん/.test(n)) return 2;
   if (/卵|たまご|牛乳|ヨーグルト|チーズ|バター|生クリーム|豆乳/.test(n)) return 5;
+  if (/食パン|パン$|うどん|そば|麺|パスタ|スパゲ|焼きそば/.test(n) && !/パン粉/.test(n)) return 6;
+  if (/白菜|キャベツ|トマト|もやし|豆苗|かぶ|レタス|オクラ|セロリ|ズッキーニ|アスパラ|枝豆|ゴーヤ|生姜|しょうが|にんにく|大葉|しそ|パセリ|ねぎ|りんご|バナナ|みかん|レモン|いちご|キウイ|ぶどう|梨|柿/.test(n)) return 0;
+  if (vegBase(n) && !/肉|豚|鶏|牛|鮭|魚|醤油|味噌|粉/.test(n)) return 0;
   if (/醤油|しょうゆ|味噌|みそ|^酒$|料理酒|みりん|酢|砂糖|^塩$|油|ソース|ケチャップ|マヨ|だし|顆粒|コンソメ|スパイス|胡椒|こしょう|カレー粉|たれ|ドレッシング|めんつゆ|ガラ/.test(n)) return 8;
   if (/粉|乾燥|わかめ|ひじき|のり|海苔|ごま|麹|ゼラチン|春雨|かつお節|鰹節|昆布|乾物/.test(n)) return 7;
   if (/肉|ひき|豚|鶏|牛|ベーコン|ハム|ソーセージ|ウインナー/.test(n)) return 3;
