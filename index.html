@@ -2643,7 +2643,7 @@ function stepHtml(c, i, part) {
 }
 // 生の肉・魚を使う料理（加工品は除く）
 // 生の肉・魚（まな板を分ける・野菜より後に切る物）。本はカタカナで書く魚が多い（サケ・アジ・エビ…）ので、カタカナも見る
-const RAW_RE = /(鶏(?!ガラ|がら)|豚|牛(?!乳)|ひき肉|ミンチ|肉(?!みそ)|鮭|さけ|サケ|ザケ|サーモン|ぶり|ブリ|鰤|さば|サバ|鯖|たら(?!こ|の芽)|タラ(?!コ|の芽)|鱈|あじ|アジ|鯵|さんま|サンマ|秋刀魚|いわし|イワシ|鰯|さわら|サワラ|鰆|かじき|カジキ|まぐろ|マグロ|鮪|かつお(?!節|ぶし)|カツオ(?!節|ブシ)|鯛|キンメダイ|マダイ|^タイ|えび|エビ|海老|いか|イカ|烏賊|ほたて|ホタテ|帆立|魚|切り身|刺身)/, NOT_RAW = /(ハム|ウインナ|ソーセージ|ベーコン|ツナ|ちくわ|かまぼこ|さば缶|サバ缶|鮭缶|サケ缶|鮭フレーク|サケフレーク|かつお節|削り|だし|桜えび|さくらえび|サクラエビ|干しえび|干しエビ|さきいか|するめ|魚肉|魚粉)/;
+const RAW_RE = /(鶏(?!ガラ|がら)|豚|牛(?!乳)|ひき肉|ミンチ|肉(?!みそ)|鮭|さけ|サケ|ザケ|しゃけ|シャケ|サーモン|ぶり|ブリ|鰤|さば|サバ|鯖|たら(?!こ|の芽)|タラ(?!コ|の芽)|鱈|あじ|アジ|鯵|さんま|サンマ|秋刀魚|いわし|イワシ|鰯|さわら|サワラ|鰆|かじき|カジキ|まぐろ|マグロ|鮪|かつお(?!節|ぶし)|カツオ(?!節|ブシ)|鯛|キンメダイ|マダイ|^タイ|えび|エビ|海老|いか|イカ|烏賊|ほたて|ホタテ|帆立|たこ|タコ|あさり|しじみ|牡蠣|貝|白身|魚|切り身|刺身)/, NOT_RAW = /(はんぺん|缶|水煮|フレーク|かつおぶし|削り節|貝割れ|かいわれ|がら|スープの素|コンソメ|牛乳|ちりめん|しらす|オイスター|ソース|エキス|粉|白身魚フライ|ハム|ウインナ|ソーセージ|ベーコン|ツナ|ちくわ|かまぼこ|さば缶|サバ缶|鮭缶|サケ缶|鮭フレーク|サケフレーク|かつお節|削り|だし|桜えび|さくらえび|サクラエビ|干しえび|干しエビ|さきいか|するめ|魚肉|魚粉)/;
 const hasRaw = r => ingsOf(r).some(g => RAW_RE.test(normName(g.name)) && !NOT_RAW.test(normName(g.name)));
 // 料理ごとのパステル色（AIの色を、やさしい色に寄せる）
 const hexHS = h => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || "")); if (!m) return null; const n = parseInt(m[1], 16), r = (n >> 16) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let hh = 0; if (d) hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; const l = (mx + mn) / 2; return { h: Math.round((hh * 60 + 360) % 360), s: d ? Math.round(d / (1 - Math.abs(2 * l - 1)) * 100) : 0 }; };
@@ -2791,9 +2791,7 @@ function bookPlan(cooks) {
   const noteOf = (c, i, part) => { const t = splitTool(part || stepsOf(c.r)[i]).text, out = [];
     const hs = hitNames(c, t, i); ingsOf(c.r).forEach(g => { const b = ingBase(c.r, g.name); if (!hs.has(g.name)) return; const x = ingState(g.name, g.amount, c.k); if (x.st === "skip") out.push(`${b}は無いので省く`); else if (x.st === "sub") out.push(`${b}の代わりに${x.sub.use.split("・")[0]}${x.sub.amount ? `（${x.sub.amount}）` : ""}`); });
     return [...new Set(out)].join("。"); };
-  let washNote = false;
   const pushAt = (c, i, part, extra) => { const txt = part || stepsOf(c.r)[i], hs = hitNames(c, splitTool(txt).text, i), mixHere = mixes.filter(m => m.rid === c.r.id && ((m.words || [m.word]).some(w => mentions(txt, w)) || (m.names || []).some(n => hs.has(n)))).map(m => m.id);
-    if (washNote) { extra = ["生の肉・魚にさわった手・まな板・包丁を洗ってから", extra].filter(Boolean).join("。"); washNote = false; }
     order.push({ recipe_id: c.r.id, step: i + 1, part: part || "", note: [noteOf(c, i, part), extra].filter(Boolean).join("。"), scene: null, mix: mixHere }); };
   const push = (x, extra) => { const i = x.i++; if (skipStep(x.c, i)) return; pushAt(x.c, i, "", extra); };
   // まな板の決まり: 生の肉・魚は、野菜・サラダの下ごしらえが全部終わってからまな板に出す（菌がうつらないように）
@@ -2835,9 +2833,7 @@ function bookPlan(cooks) {
     vegParts.push({ c: x.c, i, part: mv.map(endForm).join("") });
     rest[x.c.r.id + "|" + i] = keep.length ? keep.map(y => /。$/.test(y) ? y : endForm(y)).join("") + (st.tool ? `［${st.tool}］` : "") : ""; } });
   vegParts.forEach(p => pushAt(p.c, p.i, p.part, ""));
-  rawParts.forEach((p, j) => pushAt(p.c, p.i, p.part, j === 0 && vegParts.length ? "生の肉・魚は、野菜の下ごしらえが終わってからまな板に出す" : ""));
-  // 生の肉・魚のあとは、手・まな板・包丁を洗ってから次へ（生で食べる物にうつらないように）
-  washNote = rawParts.length > 0;
+  rawParts.forEach((p, j) => pushAt(p.c, p.i, p.part, [j === 0 && vegParts.length ? "生の肉・魚は、野菜の下ごしらえが終わってからまな板に出す" : "", j === rawParts.length - 1 ? "このあと手・まな板・包丁を洗う" : ""].filter(Boolean).join("。")));
   // 火を使う手順は、長く待つところ（8分以上「15分煮る」など）で分ける。待つあいだにほかの料理の手順を進め、
   // 時間がたったら続き（「バターを加えてさらに5分煮る」）を出す
   const splitWait = t => { const cl = t.match(/[^、。]+[、。]?/g) || [t], out = []; let cur = [];
@@ -3434,6 +3430,7 @@ function catalogText() {
   const Rt = rates(), list = recipeBook().filter(r => Rt[r.id] !== "bad" && ingsOf(r).length);
   [RICE_AM, RICE_LD].forEach(id => { const r = recipeOf(id); if (r && !list.includes(r)) list.push(r); });
   const main = r => ingsOf(r).filter(i => !SEAS_RE.test(normName(i.name)) && !/^(水|湯)$/.test(normName(i.name))).slice(0, 6).map(i => `${normName(i.name)}${i.amount}`).join("・");
+  const recentAt = new Map(); (S.plans || []).filter(p => p.date >= shiftDay(today(), -7) && p.date < today() && !isLo(p)).forEach(p => { if (!recentAt.has(p.recipeId) || recentAt.get(p.recipeId) < p.date) recentAt.set(p.recipeId, p.date); });
   const subs = Object.entries(ING_SUB).map(([k]) => { const o = subOf(k); return o ? `${k}→${o.use}${o.amount && o.amount !== "同量" ? `（${o.amount}）` : ""}` : ""; }).filter(Boolean);
   return `■レシピ帳（献立は必ずこの中から選ぶ。新しい料理は作らない）
 - 料理は必ず下の一覧から選び、meals に recipe_id を書く。recipe は書かない（材料・手順・栄養はレシピ帳のものを使う）。
@@ -3443,8 +3440,9 @@ function catalogText() {
 - 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
 - 朝の「簡単なもの」の枠は、一覧で「朝向き（火も包丁もほぼ使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む（朝は包丁もなるべく使わない。しそ・ねぎなどの薬味を少し刻むくらいはよい）。
 - ほかの「簡単なもの」の枠は、一覧で「朝向き」か「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
+- 「最近作った」と付いた料理（この7日以内に作った本のレシピ）は、同じ料理が続かないように選ばない。ほかに合う料理がどうしても無いときだけ使う。
 - 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
-${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${recentAt.has(r.id) && bookOf(r) ? `｜最近作った（${recentAt.get(r.id).slice(5).replace("-", "/")}）` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
 function pickFix(meals) {
