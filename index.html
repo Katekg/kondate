@@ -3502,6 +3502,8 @@ function catalogText() {
   const Rt = rates(), list = recipeBook().filter(r => Rt[r.id] !== "bad" && ingsOf(r).length);
   [RICE_AM, RICE_LD].forEach(id => { const r = recipeOf(id); if (r && !list.includes(r)) list.push(r); });
   const main = r => ingsOf(r).filter(i => !SEAS_RE.test(normName(i.name)) && !/^(水|湯)$/.test(normName(i.name))).slice(0, 6).map(i => `${normName(i.name)}${i.amount}`).join("・");
+  // 2026-11-27: しばらく使っていない調味料を使うレシピに印を付ける（一覧の材料には調味料を出していないため、AIが選べなかった）
+  const stale = staleSeasonings(S.plans.filter(p => p.date <= today())), staleOf = r => stale.filter(st => ingsOf(r).some(i => { const m = matchStock(i.name); return m && m.id === st.id; })).map(st => normName(st.name));
   const recentAt = new Map(); (S.plans || []).filter(p => p.date >= shiftDay(today(), -7) && p.date < today() && !isLo(p)).forEach(p => { if (!recentAt.has(p.recipeId) || recentAt.get(p.recipeId) < p.date) recentAt.set(p.recipeId, p.date); });
   const subs = Object.entries(ING_SUB).map(([k]) => { const o = subOf(k); return o ? `${k}→${o.use}${o.amount && o.amount !== "同量" ? `（${o.amount}）` : ""}` : ""; }).filter(Boolean);
   return `■レシピ帳（献立は必ずこの中から選ぶ。新しい料理は作らない）
@@ -3512,9 +3514,9 @@ function catalogText() {
 - 在庫に無い材料のうち、次の物は在庫で代用できる（その料理を選んでよい。買い物に入れない）: ${subs.join("、") || "なし"}
 - 朝の「簡単なもの」の枠は、一覧で「朝向き（火も包丁もほぼ使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む（朝は包丁もなるべく使わない。しそ・ねぎなどの薬味を少し刻むくらいはよい）。
 - ほかの「簡単なもの」の枠は、一覧で「朝向き」か「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
-- 「最近作った」と付いた料理（この7日以内に作った本のレシピ）は、同じ料理が続かないように選ばない。ほかに合う料理がどうしても無いときだけ使う。
+- 「しばらく使っていない調味料」と付いた料理は、在庫で眠っている調味料を使える。期間中に、それぞれの調味料を1回ずつ使えるように選ぶ（ほかの決まりより優先はしない）。\n- 「最近作った」と付いた料理（この7日以内に作った本のレシピ）は、同じ料理が続かないように選ばない。ほかに合う料理がどうしても無いときだけ使う。
 - 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
-${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${recentAt.has(r.id) && bookOf(r) ? `｜最近作った（${recentAt.get(r.id).slice(5).replace("-", "/")}）` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
+${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${(t => t.length ? `｜しばらく使っていない調味料: ${t.join("・")}` : "")(staleOf(r))}${recentAt.has(r.id) && bookOf(r) ? `｜最近作った（${recentAt.get(r.id).slice(5).replace("-", "/")}）` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
 function pickFix(meals) {
