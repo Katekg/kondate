@@ -2235,19 +2235,22 @@ function openNegi() {
 }
 
 // --- 器具 ---
-// 2026-11-27: あると節約につながる器具のおすすめ。持っている器具（名前が合う物）と「いらない」にした物は出さない
+// 2026-11-27: あると節約につながる器具のおすすめ。レシピ帳の本のレシピに、その器具が無いと作れない料理が実際にある物だけを出す（作れるレシピの数と例を添える）。
+//   持っている器具（名前が合う物）と「外す」にした物は出さない。今ある器具で代わりに作れる物（トースター→オーブンレンジ、フードプロセッサー→ハンドブレンダーなど）や、使わない決まりの物（魚焼きグリル）は入れない
 const EQ_REC = [
-  { name: "ホームベーカリー", own: /ホームベーカリー|パン焼き機/, price: "約1万円", why: "毎週買う食パンを家で焼けます。1斤 約60円（市販 約170円）で、週1斤なら月 約450円の節約。", stockNote: ["強力小麦粉", "ドライイースト"] },
-  { name: "電気圧力鍋", own: /圧力鍋|圧力なべ/, price: "約1〜1.5万円", why: "安い豚肩・すね肉や乾燥豆を短時間でやわらかくできます。入れて放っておけるので作り置きがはかどり、ガス代も減ります。" },
-  { name: "保温調理鍋（シャトルシェフなど）", own: /保温調理|シャトルシェフ|保温鍋/, price: "約5,000円〜", why: "煮込みを数分だけ火にかけ、あとは保温で仕上げます。カレー・豚汁・煮物のガス代を大きく減らせます。" },
-  { name: "耐熱ガラスの保存容器（作り置き用）", own: /保存容器|タッパー|イワキ|iwaki|パック&レンジ/i, price: "約2,000円（3〜4個）", why: "作り置きをそのままレンジで温め直せて、においも移りにくいです。作り置きを最後まで食べ切りやすくなり、食べ残しが減ります。" },
-  { name: "キッチンスケール", own: /スケール|はかり|秤/, price: "約1,500円", why: "レシピの分量どおりに肉・調味料を量れるので、使いすぎを防げます。在庫の残りも正確に分かります。" },
-  { name: "ヨーグルトメーカー", own: /ヨーグルトメーカー/, price: "約3,000円", why: "牛乳1Lからヨーグルト1Lが作れて、市販の約半額になります。朝の単品やおやつに使えます。" },
+  { name: "蒸し器（フライパンに置く蒸し板でも可）", use: /蒸し器|せいろ|蒸籠/, own: /蒸し器|せいろ|蒸籠|蒸し板|スチーマー/, price: "蒸し板なら約1,000円", why: "茶わん蒸しや鶏しんじょ蒸しなど、卵・鶏ひき肉・白菜のような安い材料で作るおかずが増え、油も使いません。" },
+  { name: "卵焼き器", use: /卵焼き器|玉子焼き器|卵焼き用のフライパン/, own: /卵焼き|玉子焼き/, price: "約1,500円", why: "卵2〜3個で作れる安いおかずで、作り置きや翌日の昼にも回せます。" },
+  { name: "すり鉢・すりこぎ", use: /すり鉢|すりこぎ/, own: /すり鉢|すりこぎ/, price: "約1,500円", why: "いりごまをすって使えるので、すりごまを買うより安く、ごまあえの衣などが作れます。" },
+  { name: "圧力鍋", use: /圧力鍋|圧力なべ/, own: /圧力鍋|圧力なべ/, price: "約1万円", why: "安い肉や豆を短時間でやわらかくでき、ガス代も減ります。" },
+  { name: "ホームベーカリー", use: /ホームベーカリー/, own: /ホームベーカリー|パン焼き機/, price: "約1万円", why: "食パンを家で焼くと、1斤 約60円（市販 約170円）です。" },
 ];
+// その器具が無いと作れない本のレシピ
+const eqRecNeeds = (r, t) => String(t || "").split(/[。\n●]/).some(z => { const m = z.match(r.use); return !!m && !/てもよい|てもいい|でもよい|でもいい|なければ|ない場合/.test(z) && !/^(など|や|か|の代わり)|^.{0,8}か、/.test(z.slice(m.index + m[0].length)); });
+const eqRecRecipes = r => (S.recipes || []).filter(x => bookOf(x) && eqRecNeeds(r, `${x.steps || ""}\n${x.ingredients || ""}`));
 const eqRecHide = () => { try { return JSON.parse(SET("器具おすすめ_非表示") || "[]") || []; } catch (e) { return []; } };
-const eqRecs = () => { const eq = S.equipment || [], hide = eqRecHide(); return EQ_REC.filter(r => !hide.includes(r.name) && !eq.some(e => r.own.test(`${e.name} ${e.model || ""}`))); };
-const eqRecHtml = () => { const l = eqRecs(); if (!l.length) return ""; return `<details class="card eqrecs"${lsGet("eqRecOpen") ? " open" : ""}><summary><b>💡 あると節約につながる器具（${l.length}）</b></summary><p class="note">持っている器具と、今の献立・買い物から選んでいます。持っている物や、いらない物は「外す」で消せます。</p>
-  ${l.map(r => `<section class="card eqrec"><div class="secthead"><b>${esc(r.name)}</b><small>${esc(r.price)}</small></div><small>${esc(r.why)}${r.stockNote && r.stockNote.every(n => matchStock(n)) ? `${esc(r.stockNote.join("と"))}は在庫にあります。` : ""}</small><div class="row" style="gap:6px;margin-top:6px"><button class="chip" data-rec-own="${esc(r.name)}">持っている</button><button class="chip" data-rec-hide="${esc(r.name)}">外す</button></div></section>`).join("")}</details>`; };
+const eqRecs = () => { const eq = S.equipment || [], hide = eqRecHide(); return EQ_REC.filter(r => !hide.includes(r.name) && !eq.some(e => r.own.test(`${e.name} ${e.model || ""}`))).map(r => ({ ...r, rs: eqRecRecipes(r) })).filter(r => r.rs.length).sort((a, b) => b.rs.length - a.rs.length); };
+const eqRecHtml = () => { const l = eqRecs(); if (!l.length) return ""; return `<details class="card eqrecs"${lsGet("eqRecOpen") ? " open" : ""}><summary><b>💡 あると節約につながる器具（${l.length}）</b></summary><p class="note">レシピ帳に、その器具が無いと作れない料理がある物だけを出しています。持っている物や、いらない物は「外す」で消せます。</p>
+  ${l.map(r => `<section class="card eqrec"><div class="secthead"><b>${esc(r.name)}</b><small>${esc(r.price)}</small></div><small>${esc(r.why)}</small><small class="note">レシピ帳で作れるようになる料理: ${r.rs.length}品（${esc([...new Set(r.rs.map(x => x.title))].slice(0, 3).join("・"))}${r.rs.length > 3 ? "など" : ""}）</small><div class="row" style="gap:6px;margin-top:6px"><button class="chip" data-rec-own="${esc(r.name)}">持っている</button><button class="chip" data-rec-hide="${esc(r.name)}">外す</button></div></section>`).join("")}</details>`; };
 function drawTools() {
   const eq = S.equipment || [];
   const bt = (+SET("予算_材料") || 0) + (+SET("予算_米") || 0) + (+SET("予算_調味料") || 0);
