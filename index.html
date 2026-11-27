@@ -1088,9 +1088,9 @@ const recipeOf = id => S.recipes.find(r => r.id === id) || (S.tmpRecipes || []).
 const isLo = p => String(p.leftover).toUpperCase() === "TRUE";
 const notYet = p => p.status !== "作った" && p.date >= today();
 // これから食べる予定を、日付・料理・食事ごとにまとめる（作り置きは、その前に作る予定があるときだけ数える）
-function planGroups(plans) {
+function planGroups(plans, keep) {
   const g = new Map();
-  for (const p of (plans || S.plans).filter(notYet)) {
+  for (const p of (plans || S.plans).filter(p => notYet(p) || (keep && keep(p)))) {
     const r = recipeOf(p.recipeId); const key = `${p.date}|${p.recipeId || p.title}|${p.meal}`;
     const x = g.get(key) || { key, date: p.date, meal: p.meal, title: p.title, recipe: r, n: 0, n0: 0, lo: true, ids: [] };
     x.n0 += +p.people || 1; x.n += isSik(p) ? 0 : +p.people || 1; x.lo = x.lo && isLo(p); x.ids.push(p.id); g.set(key, x);
@@ -1643,7 +1643,9 @@ async function openSearch() {
 }
 // 食事の枠: 料理をまとめて表示（材料は合計、作り方は料理ごと）
 function slotInfo(d, m) {
-  const list = S.plans.filter(p => p.date === d && p.meal === m), uniq = uniqPlans(list), gs = planGroups();
+  const list = S.plans.filter(p => p.date === d && p.meal === m), uniq = uniqPlans(list), mi = MEALS_ALL.indexOf(m);
+  // 2026-11-27: 作った後も、作り置きの分を含めた量（作った時の量）で出す。作った食事は「まだ」の計算から外れるので、この食事から後の予定を全部入れて数え直す
+  const gs = list.some(p => !notYet(p)) ? planGroups(S.plans, x => x.date > d || (x.date === d && MEALS_ALL.indexOf(x.meal) >= mi)) : planGroups();
   const cooks = uniq.filter(p => !isLo(p) && !isOut(p) && recipeOf(p.recipeId)).map(p => {
     const r = recipeOf(p.recipeId), g = gs.find(x => x.ids.includes(p.id));
     // 作り置きは、次に同じ料理を作るまでの分だけ（その先の作り置きは、次に作ったときの分）
