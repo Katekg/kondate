@@ -1860,9 +1860,12 @@ function stockSortSetup(cats) {
 // 「期限を延ばす」か「捨てる（在庫から消す）」を選んでもらう。延ばせば、その期限で献立に使う
 const expiredList = () => (S.stock || []).filter(s => s.exp && s.exp < today() && hasQty(s)).sort((a, b) => a.exp.localeCompare(b.exp));
 const daysPast = s => Math.round((new Date(today() + "T00:00:00") - new Date(s.exp + "T00:00:00")) / 864e5);
-function expiredRows(l) {
-  return `<ul class="list exlist">${l.map(s => `<li data-xid="${esc(s.id)}"><span class="nm"><b>${esc(s.name)}</b><small>${esc(vegQ(s.name, s.qty))}・期限 ${+s.exp.slice(5, 7)}/${+s.exp.slice(8)}（${daysPast(s)}日過ぎ）</small></span>
-    <span class="exbtns"><button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
+// 2026-11-27: 期限が近い物（7日以内）。期限の入力が間違っていることもあるので、献立を作る前に本当にその日までか確かめてもらう。「合っている」を押した物は、アプリを開いている間は聞かない
+const soonOk = new Set();
+const soonList = () => (S.stock || []).filter(s => s.exp && s.exp >= today() && s.exp <= shiftDay(today(), 7) && hasQty(s) && !soonOk.has(s.id)).sort((a, b) => a.exp.localeCompare(b.exp));
+function expiredRows(l, soon) {
+  return `<ul class="list exlist">${l.map(s => `<li data-xid="${esc(s.id)}"><span class="nm"><b>${esc(s.name)}</b><small>${esc(vegQ(s.name, s.qty))}・期限 ${+s.exp.slice(5, 7)}/${+s.exp.slice(8)}（${soon ? (-daysPast(s) ? `あと${-daysPast(s)}日` : "今日まで") : `${daysPast(s)}日過ぎ`}）</small></span>
+    <span class="exbtns">${soon ? `<button type="button" class="chip" data-xok>合っている</button>` : ""}<button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
 }
 function expiredCard() {
   const l = expiredList(); if (!l.length) return "";
@@ -1874,17 +1877,19 @@ function expiredBind(root, done) {
   const ext = async (id, exp) => { const s = S.stock.find(x => x.id === id); if (!s || !exp) return; await run("saveStock", [{ ...s, exp }]); done(); };
   root.querySelectorAll(".exlist [data-xd]").forEach(b => b.onclick = e => { e.preventDefault(); const id = b.closest("li").dataset.xid, n = b.dataset.xd; ext(id, n === "m" ? addMonth(today(), 1) : shiftDay(today(), +n)); });
   root.querySelectorAll(".exlist [data-xdate]").forEach(i => i.onchange = () => { if (i.value >= today()) ext(i.closest("li").dataset.xid, i.value); });
+  root.querySelectorAll(".exlist [data-xok]").forEach(b => b.onclick = e => { e.preventDefault(); soonOk.add(b.closest("li").dataset.xid); done(); });
   root.querySelectorAll(".exlist [data-xdel]").forEach(b => b.onclick = async e => { e.preventDefault(); const li = b.closest("li"), s = S.stock.find(x => x.id === li.dataset.xid); if (!s || !confirm(`${s.name} を捨てて、在庫から消しますか？`)) return; await run("deleteStock", [s.id]); done(); });
 }
 // 献立を作る・考え直す前に、期限が切れた物をどうするか聞く。進むなら true
 function expiredGate() {
-  if (!expiredList().length) return Promise.resolve(true);
+  if (!expiredList().length && !soonList().length) return Promise.resolve(true);
   return new Promise(ok => {
     const paint = () => {
-      const l = expiredList();
-      openSheet(`<h2>⚠ 期限が切れた物があります</h2><p class="note">献立を作る前に、まだ使えるなら期限を延ばし、だめなら「捨てる」を選んでください。延ばした物は献立で使います。</p>
-        ${l.length ? expiredRows(l) : `<p class="note okmark">✅ 全部決まりました</p>`}
-        <button class="btn wide" id="xGo">${l.length ? "このまま献立を作る（残りも使える物として使う）" : "献立を作る"}</button><button class="btn ghost wide" id="xNo">やめる</button>`);
+      const l = expiredList(), n = soonList();
+      openSheet(`<h2>⚠ 献立を作る前に、期限を確かめてください</h2>
+        ${expiredList().length || l.length ? `<h3>期限が切れた物</h3><p class="note">まだ使えるなら期限を延ばし、だめなら「捨てる」を選んでください。延ばした物は献立で使います。</p>${l.length ? expiredRows(l) : `<p class="note okmark">✅ 全部決まりました</p>`}` : ""}
+        ${n.length ? `<h3>期限が近い物（7日以内）</h3><p class="note">期限の入力が違っていないか確かめてください。合っていれば「合っている」、違っていれば正しい日付に直してください。合っている物は、期限までに使い切る献立にします。</p>${expiredRows(n, true)}` : `<p class="note okmark">✅ 期限が近い物の確認は済みました</p>`}
+        <button class="btn wide" id="xGo">${l.length || n.length ? "このまま献立を作る（今の期限のまま使う）" : "献立を作る"}</button><button class="btn ghost wide" id="xNo">やめる</button>`);
       expiredBind($("sheetBody"), paint);
       $("xGo").onclick = () => ok(true); $("xNo").onclick = () => { closeSheet(); ok(false); };
     };
