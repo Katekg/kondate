@@ -177,6 +177,10 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .s-夜 .slabel { background: var(--miso-bg); color: var(--miso); }
 .s-仕込み .slabel { background: color-mix(in srgb, var(--lav) 50%, var(--miso-bg)); color: var(--ink); }
 .mcbody { display: grid; gap: 1px; min-width: 0; font-size: .86rem; font-weight: 700; line-height: 1.35; }
+.whorow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; font-size: .88rem; }
+.whorow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.whorow .seg { flex: none; }
+.whorow .seg button { font-size: .78rem; padding: 4px 10px; }
 .mcbody .mcempty { color: var(--muted); font-weight: 400; }
 .mcgo { color: var(--muted); }
 .mcards { display: grid; gap: 8px; }
@@ -1433,6 +1437,22 @@ function dayNut(d, plans) {
 const soloMap = () => { try { return JSON.parse(SET("食べる人") || "{}") || {}; } catch (e) { return {}; } };
 const soloOf = (d, m) => +soloMap()[d + "|" + m] || 0;
 const soloPeople = so => so ? Math.round(sh(so) * 10) / 10 : 2;   // 1人だけの食事の人数（その人の盛り分けの比。例 🧑🏻1.1人分）
+// 1人だけで食べる料理（設定「1人の料理」: {"日付|食事|料理名": 食べる人の番号}）。そのまま食べる物が1つしか無いときなど。料理名の頭に、その人の顔文字を付ける
+const whoMap = () => { try { return JSON.parse(SET("1人の料理") || "{}") || {}; } catch (e) { return {}; } };
+const dishWho = p => !p ? 0 : p.who !== undefined ? +p.who || 0 : +whoMap()[p.date + "|" + p.meal + "|" + p.title] || 0;
+const whoMark = p => (w => w ? `${esc(SET("人" + w))} ` : "")(dishWho(p));
+const eatsDish = (p, i) => { const w = dishWho(p); return !w || w === i; };
+async function saveWho(entries) {
+  const mp = whoMap(), old = shiftDay(today(), -30); entries.forEach(([k, w]) => { if (w) mp[k] = w; else delete mp[k]; });
+  Object.keys(mp).forEach(x => { if (x.slice(0, 10) < old) delete mp[x]; });
+  const v = JSON.stringify(mp); S.settings["1人の料理"] = v; await run("saveSetting", "1人の料理", v);
+}
+async function setDishWho(d, m, title, w) {
+  const ps = S.plans.filter(p => p.date === d && p.meal === m && p.title === title && p.status !== "作った"), pe = String(w ? soloPeople(w) : soloPeople(soloOf(d, m)));
+  busy(true, "保存しています…");
+  try { await saveWho([[d + "|" + m + "|" + title, w]]); const ch = ps.filter(p => String(p.people) !== pe); if (ch.length) await run("savePlans", ch.map(p => { const { _row, ...o } = p; return { ...o, people: pe }; })); await load(); } catch (e) { alert(e.message); }
+  busy(false); openSlot(d, m);
+}
 const soloTag = (d, m) => { const so = soloOf(d, m); return so ? `${SET("人" + so)}だけ` : ""; };
 // その人の1日の栄養（盛り分けの比を掛けた後の値）。1人だけの食事で食べない側は、外食の標準的な1食分
 function nutP(d, i, plans) {
@@ -1440,6 +1460,7 @@ function nutP(d, i, plans) {
   (plans || S.plans).filter(p => p.date === d && !isSik(p)).forEach(p => {
     const so = soloOf(d, p.meal);
     if (so && so !== i) { if (outM.has(p.meal)) return; outM.add(p.meal); ["kcal", "p", "f", "c"].forEach(k => { t[k] += OUT_EST[p.meal][k] || 0; }); return; }
+    if (!eatsDish(p, i)) return;
     const key = p.meal + "|" + p.title; if (seen.has(key)) return; seen.add(key);
     const n = isOut(p) ? OUT_EST[p.meal] : recipeOf(p.recipeId); if (!n) return;
     ["kcal", "p", "f", "c"].forEach(k => { t[k] += (+n[k] || 0) * sh(i); });
@@ -1510,8 +1531,8 @@ function drawMenu() {
         const list = ps.filter(p => p.meal === m), uniq = uniqPlans(list);
         if (!list.length && (m === "おやつ" || m === SIKOMI)) return "";
         const lk = uniq.some(p => { const g = gs.find(x => x.ids.includes(p.id)); return g && lacksOf(g).length; }), done = list.length && list.every(p => p.status === "作った");
-        const ph = photoOf(S.day, m), kc = m === SIKOMI ? 0 : Math.round(uniq.reduce((s, p) => s + (isOut(p) ? OUT_EST[m].kcal : +(recipeOf(p.recipeId) || {}).kcal || 0), 0));
-        return `<button class="mcard s-${m}${list.length ? "" : " empty"}${done ? " done" : ""}${ph ? " hasph" : ""}" data-m="${m}"${ph ? ` style="--ph:url('${ph.thumb}')"` : ""}><span class="slcol"><span class="slabel">${MEAL_LABEL[m]}</span>${(st => st ? `<small class="mst st-${st}">${SLT[st]}</small>` : "")(slotTypeOf(S.day, m, list))}${soloOf(S.day, m) && list.length ? `<small class="mst st-solo">${esc(soloTag(S.day, m))}</small>` : ""}${kc ? (so => `<small class="mkc">${uniq.some(isOut) ? "想定" : "約"}${so === 2 ? "外食" : Math.round(kc * sh(1))}/${so === 1 ? "外食" : Math.round(kc * sh(2))}kcal</small>`)(soloOf(S.day, m)) : ""}</span><span class="mcbody">${uniq.length ? uniq.map(p => `<span>${esc(p.title)}${isOut(p) ? `<span class="tag">食後に内容を入力</span>` : ""}</span>`).join("") : `<span class="mcempty">まだ空き</span>`}${lk ? `<span class="tag lack" style="justify-self:start">足りない材料あり</span>` : ""}</span><span class="mcgo">›</span></button>`;
+        const ph = photoOf(S.day, m), kcOf = i => m === SIKOMI ? 0 : uniq.filter(p => eatsDish(p, i)).reduce((s, p) => s + (isOut(p) ? OUT_EST[m].kcal : +(recipeOf(p.recipeId) || {}).kcal || 0), 0), kc = Math.max(kcOf(1), kcOf(2));
+        return `<button class="mcard s-${m}${list.length ? "" : " empty"}${done ? " done" : ""}${ph ? " hasph" : ""}" data-m="${m}"${ph ? ` style="--ph:url('${ph.thumb}')"` : ""}><span class="slcol"><span class="slabel">${MEAL_LABEL[m]}</span>${(st => st ? `<small class="mst st-${st}">${SLT[st]}</small>` : "")(slotTypeOf(S.day, m, list))}${soloOf(S.day, m) && list.length ? `<small class="mst st-solo">${esc(soloTag(S.day, m))}</small>` : ""}${kc ? (so => `<small class="mkc">${uniq.some(isOut) ? "想定" : "約"}${so === 2 ? "外食" : Math.round(kcOf(1) * sh(1))}/${so === 1 ? "外食" : Math.round(kcOf(2) * sh(2))}kcal</small>`)(soloOf(S.day, m)) : ""}</span><span class="mcbody">${uniq.length ? uniq.map(p => `<span>${whoMark(p)}${esc(p.title)}${isOut(p) ? `<span class="tag">食後に内容を入力</span>` : ""}</span>`).join("") : `<span class="mcempty">まだ空き</span>`}${lk ? `<span class="tag lack" style="justify-self:start">足りない材料あり</span>` : ""}</span><span class="mcgo">›</span></button>`;
       }).join("")}</div>
 </section>`;
   $("app").querySelectorAll(".dbtn").forEach(b => b.onclick = () => { S.day = b.dataset.d; drawMenu(); });
@@ -1669,12 +1690,12 @@ function openSlot(d, m) {
   const done = list.length && list.every(p => p.status === "作った");
   // レシピ元の画像（作り置きの料理も含める）
   const bkIds = [...new Set(uniq.map(p => p.recipeId).filter(id => id && bookPageOf(id)))];
-  const kc = uniq.reduce((t, p) => t + (isOut(p) ? OUT_EST[m].kcal : +(recipeOf(p.recipeId) || {}).kcal || 0), 0);
-  const pr = uniq.reduce((t, p) => t + (isOut(p) ? OUT_EST[m].p : +(recipeOf(p.recipeId) || {}).p || 0), 0);
+  const nOf = (k, i) => uniq.filter(p => !i || eatsDish(p, i)).reduce((t, p) => t + (isOut(p) ? OUT_EST[m][k] : +(recipeOf(p.recipeId) || {})[k] || 0), 0);
+  const kc = nOf("kcal"), pr = nOf("p");
   openSheet(`<h2>${fmtDay(d)} ${MEAL_LABEL[m]}${(st => st ? ` <small class="mst st-${st}" style="vertical-align:middle">${SLT[st]}</small>` : "")(slotTypeOf(d, m, list))}</h2>
     <div class="slotacts">${cooks.some(c => stepsOf(c.r).length) ? `<button class="btn alt" id="slCook">🍳 調理開始</button>` : cooks.some(c => ingsOf(c.r).length) && !done ? `<button class="btn alt" id="slCook">📦 在庫から引く</button>` : ""}<button class="btn ghost" id="slPhAdd">📷 ${ph ? "写真変更" : "写真追加"}</button>${bkIds.length ? `<button class="btn ghost" id="slBook">🖼 元の画像</button>` : ""}</div>
     ${ph ? `<div class="phbox"><img src="${esc(ph.thumb)}" alt="料理の写真" id="slPh"></div><button class="chip" id="slPhDel" style="justify-self:end">写真を消す</button>` : ""}
-    ${uniq.length ? `<div class="card"><div class="secthead"><span class="dishes">${uniq.map(p => `<span>${esc(p.title)}${isLo(p) ? `<span class="tag lo">作り置き</span>` : ""}${notBookPlans().some(q => q.id === p.id) ? `<span class="tag lo" style="background:#fde2e2;color:#a33">本にない</span>` : ""}</span>`).join("")}</span>${list.some(p => p.status !== "作った") ? `<button class="chip" id="slDel">外す</button>` : ""}</div><p class="note">${m === SIKOMI ? `仕込みです。ここでは食べず、${uniq.map(p => (o => o ? `「${esc(o.name)}」として在庫に入ります（${o.ready ? `${+shiftDay(d, o.ready).slice(5, 7)}/${+shiftDay(d, o.ready).slice(8)}から使える・` : ""}${o.days}日もつ）` : "後の食事の作り置き（副菜）として食べます")(stockOutOf(recipeOf(p.recipeId)))).join("。")}` : ""}${m === SIKOMI ? "" : `${uniq.some(isOut) ? "外食予定（食後に内容を入力）・" : ""}${(so => [1, 2].map(i => so && so !== i ? `${esc(SET("人" + i))} 外食` : `${esc(SET("人" + i))} 約${Math.round(kc * sh(i))}kcal・P${Math.round(pr * sh(i))}`).join("／"))(soloOf(d, m))}`}</p>${uniq.some(p => !isOut(p)) && m !== SIKOMI ? `<p class="note" style="margin:6px 0 2px">食べる人</p><div class="seg eatrow">${[[0, "2人"], [1, `${esc(SET("人1"))}だけ`], [2, `${esc(SET("人2"))}だけ`]].map(([v, l]) => `<button class="chip" data-eat="${v}" aria-pressed="${soloOf(d, m) === v}">${l}</button>`).join("")}</div>` : ""}${soloOf(d, m) ? `<p class="note">👤 この食事は${esc(soloTag(d, m))}（${soloPeople(soloOf(d, m))}人分の量で作る。もう1人は外食として栄養を数える）</p>` : moriHtml(cooks)}${riceNote(d, m)}${stockState(d, m)}</div>` : `<p class="note">まだ空きです。</p>`}
+    ${uniq.length ? `<div class="card"><div class="secthead"><span class="dishes">${uniq.map(p => `<span>${whoMark(p)}${esc(p.title)}${isLo(p) ? `<span class="tag lo">作り置き</span>` : ""}${notBookPlans().some(q => q.id === p.id) ? `<span class="tag lo" style="background:#fde2e2;color:#a33">本にない</span>` : ""}</span>`).join("")}</span>${list.some(p => p.status !== "作った") ? `<button class="chip" id="slDel">外す</button>` : ""}</div><p class="note">${m === SIKOMI ? `仕込みです。ここでは食べず、${uniq.map(p => (o => o ? `「${esc(o.name)}」として在庫に入ります（${o.ready ? `${+shiftDay(d, o.ready).slice(5, 7)}/${+shiftDay(d, o.ready).slice(8)}から使える・` : ""}${o.days}日もつ）` : "後の食事の作り置き（副菜）として食べます")(stockOutOf(recipeOf(p.recipeId)))).join("。")}` : ""}${m === SIKOMI ? "" : `${uniq.some(isOut) ? "外食予定（食後に内容を入力）・" : ""}${(so => [1, 2].map(i => so && so !== i ? `${esc(SET("人" + i))} 外食` : `${esc(SET("人" + i))} 約${Math.round(nOf("kcal", i) * sh(i))}kcal・P${Math.round(nOf("p", i) * sh(i))}`).join("／"))(soloOf(d, m))}`}</p>${uniq.some(p => !isOut(p)) && m !== SIKOMI ? `<p class="note" style="margin:6px 0 2px">食べる人</p><div class="seg eatrow">${[[0, "2人"], [1, `${esc(SET("人1"))}だけ`], [2, `${esc(SET("人2"))}だけ`]].map(([v, l]) => `<button class="chip" data-eat="${v}" aria-pressed="${soloOf(d, m) === v}">${l}</button>`).join("")}</div>` : ""}${!soloOf(d, m) && m !== SIKOMI && uniq.some(p => !isOut(p) && p.status !== "作った") ? `<p class="note" style="margin:8px 0 2px">料理ごとに1人だけにする（納豆が1つしか無いときなど）</p>${uniq.filter(p => !isOut(p) && p.status !== "作った").map((p, j) => `<div class="whorow"><span>${esc(p.title)}</span><div class="seg eatrow">${[[0, "2人"], [1, esc(SET("人1"))], [2, esc(SET("人2"))]].map(([v, l]) => `<button class="chip" data-who="${v}" data-wt="${esc(p.title)}" aria-pressed="${dishWho(p) === v}">${l}</button>`).join("")}</div></div>`).join("")}` : ""}${soloOf(d, m) ? `<p class="note">👤 この食事は${esc(soloTag(d, m))}（${soloPeople(soloOf(d, m))}人分の量で作る。もう1人は外食として栄養を数える）</p>` : moriHtml(cooks)}${riceNote(d, m)}${stockState(d, m)}</div>` : `<p class="note">まだ空きです。</p>`}
     ${(() => { // 2026-11-27: 「作った」になった料理だけ聞く
       const rs = uniq.filter(p => p.status === "作った" && !isOut(p) && p.recipeId && p.recipeId !== RICE_AM && p.recipeId !== RICE_LD && recipeOf(p.recipeId)); if (d > today() || !rs.length) return ""; const Rt = rates();
       return `<div class="card"><h3>🍽 食べてみてどうでしたか？</h3><p class="note">AIが次の献立を考えるときの参考にします。「また食べたい」でも同じ料理ばかりにはせず、「いまいち」でもこの作り方を避けるだけで、似た料理は出ます。</p>${uniqPlans(rs.map(p => ({ ...p, title: recipeOf(p.recipeId).title }))).map(p => `<div class="raterow"><span>${esc(p.title)}</span><span class="seg">${[["good", "また食べたい"], ["ok", "ふつう"], ["bad", "いまいち"]].map(([v, l]) => `<button data-rid="${esc(p.recipeId)}" data-rv="${v}" aria-pressed="${Rt[p.recipeId] === v}">${l}</button>`).join("")}</span></div>`).join("")}</div>`; })()}
@@ -1700,6 +1721,7 @@ function openSlot(d, m) {
   $("slPhAdd").onclick = () => pickPhoto(d, m);
   if ($("slBook")) $("slBook").onclick = () => showBookPage(bkIds);
   $("sheetBody").querySelectorAll("[data-eat]").forEach(b => b.onclick = () => setSolo(d, m, +b.dataset.eat));
+  $("sheetBody").querySelectorAll("[data-who]").forEach(b => b.onclick = () => setDishWho(d, m, b.dataset.wt, +b.dataset.who));
   $("sheetBody").querySelectorAll("[data-rv]").forEach(b => b.onclick = () => {
     const Rt = rates(), id = b.dataset.rid; if (Rt[id] === b.dataset.rv) delete Rt[id]; else Rt[id] = b.dataset.rv;
     const v = JSON.stringify(Rt); S.settings["レシピ評価"] = v;
@@ -1986,6 +2008,8 @@ function openRules() {
     ["🍽 献立の選び方", [
       "料理は、料理本のレシピ・【自分】のレシピ・白ごはん・そのまま食べる物（納豆・冷ややっこ・牛乳・果物など）から選ぶ。新しい料理は作らない",
       "そのまま食べる物は、栄養が足りないときか、料理より安いときに入れる",
+      "そのまま食べる物（納豆など）が1つしか残っていないときは、1人だけの分として入れてよい（もう1人は別の物を食べる）。献立では料理名の頭に、食べる人の顔文字が付く。枠の画面で料理ごとに変えられる",
+      "火を使う食材（鮭1切れなど）が1つだけのときは、2人で分ける料理に使うか、買い足して2人分にする",
       "「簡単」の枠は火を使わない（レンジ・トースターはOK）",
       "朝は火も包丁もほぼ使わない（しそ・ねぎなどの薬味を刻む程度はOK）",
       "7日以内に作った料理は選ばない（ほかに合う料理がどうしても無いときだけ）",
@@ -3690,10 +3714,11 @@ const RULES = `【献立のルール】
 - 栄養は1人分の推定。1日の目標に近づくように組む。和・洋・中が偏らないようにする。
 - 料理名（dish）は、ふだん呼ぶような短い名前にする（12文字くらいまで）。材料を全部並べない。例:「豚バラ大根」「鮭のムニエル」「具だくさん味噌汁」。`;
 const FORMAT = `JSONだけで答える:
-{"meals":[{"date":"YYYY-MM-DD","meal":"朝|昼|夜|おやつ|仕込み","dish":"料理名","people":2,"leftover":false,"recipe_id":"既存のレシピを使うときだけ","recipe":{"servings":作る人数,"cuisine":"和|洋|中|その他","keep_days":日数,"ingredients":[{"name":"食材名","amount":"量"}],"steps":["手順1［器具］","手順2［器具］"],"kcal":1人分,"p":0,"f":0,"c":0,"stock_out":{"name":"仕込みで在庫に入れる物（塩麹など。無ければこの項目ごと省く）","amount":"できる量","days":日持ち日数,"ready_days":使えるまでの日数}}}],"cost":期間の材料費の合計の円（在庫から使う分も相場で含める）,"buy_cost":そのうち買い足す分の円,"prices":{"買い足す食材名":その買う量の値段の円},"note":"案のポイント1〜2行"}
+{"meals":[{"date":"YYYY-MM-DD","meal":"朝|昼|夜|おやつ|仕込み","dish":"料理名","people":2,"who":0,"leftover":false,"recipe_id":"既存のレシピを使うときだけ","recipe":{"servings":作る人数,"cuisine":"和|洋|中|その他","keep_days":日数,"ingredients":[{"name":"食材名","amount":"量"}],"steps":["手順1［器具］","手順2［器具］"],"kcal":1人分,"p":0,"f":0,"c":0,"stock_out":{"name":"仕込みで在庫に入れる物（塩麹など。無ければこの項目ごと省く）","amount":"できる量","days":日持ち日数,"ready_days":使えるまでの日数}}}],"cost":期間の材料費の合計の円（在庫から使う分も相場で含める）,"buy_cost":そのうち買い足す分の円,"prices":{"買い足す食材名":その買う量の値段の円},"note":"案のポイント1〜2行"}
 - prices: 在庫に無い・足りないため買い足す食材ごとの、買う量の値段の見積もり（円）。調味料も含める。
 - leftover:true（作り置きを食べる枠）は recipe を書かず、dish に作る枠と同じ料理名を書く。既存のレシピを使うときも recipe は書かない。
 - 1つの枠に複数の料理（主菜と副菜など）があるときは、料理ごとに meals の要素を分ける。
+- who: ふだんは0（2人で食べる）。そのまま食べる物（納豆・冷ややっこ・果物・チーズ・魚肉ソーセージなど、火も包丁も使わない物）が在庫に1つしか無いときだけ、1（${SET("人1")}だけ）か2（${SET("人2")}だけ）にしてよい。そのときは、もう1人の分として同じ枠に別のそのまま食べる物を who にもう1人の番号を入れて入れ、people はその人の分（${SET("人1")}=${soloPeople(1)}・${SET("人2")}=${soloPeople(2)}）にする。火を使う食材（鮭1切れなど）は who を使わず、2人で分ける料理に使うか、買い足して2人分にする。
 - steps の各手順の最後に、使う器具を［ ］で書く（器具一覧の名前で。コンロは火加減、レンジはW数、オーブンは温度も。例:［フライパン・中火］［オーブンレンジ｜600W］［包丁・まな板］）。待ち時間がある手順と、加熱する手順（焼く・炒める・煮る・ゆでる・沸かす・レンジ・オーブン・グリル・ホットプレート）は、必ず目安の時間を［ ］の中に書く（例:［大フライパン・中火 3分］）。終わりの目安（焼き色がつく・竹串が通る・しんなりする など）も手順の文に書く。`;
 
 // 枠の選び方
@@ -3947,7 +3972,7 @@ async function applyAi(res, meta, prompt, id) {
   const c = meta.ctx || {}; if (!S.slotSel && c.slotSel) S.slotSel = c.slotSel; if (!S.rbWish) S.rbWish = c.rbWish || ""; if (!S.dealText) S.dealText = c.dealText || "";
   // 週の献立: 選んだ枠（外食・なしを除く）以外に入れてきた料理は捨てる
   const okKeys = meta.mode === "week" && meta.slotKeys && meta.slotKeys.length ? new Set(meta.slotKeys) : null, okDays = okKeys ? new Set([...okKeys].map(k => k.slice(0, 10))) : null;
-  let meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; return { ...m, meal, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : (+m.people || 2) }; });
+  let meals = (res.meals || []).filter(m => m && m.date && m.meal && m.dish).filter(m => !okKeys || (m.meal === "仕込み" ? okDays.has(m.date) : okKeys.has(m.date + "|" + (m.meal === "間食" ? "おやつ" : m.meal)))).map(m => { const meal = m.meal === "間食" ? "おやつ" : m.meal; const who = soloOf(m.date, meal) ? 0 : [1, 2].includes(+m.who) && !m.recipe ? +m.who : 0; return { ...m, meal, who, people: soloOf(m.date, meal) ? soloPeople(soloOf(m.date, meal)) : who ? soloPeople(who) : (+m.people || 2) }; });
   const shop = (Array.isArray(res.shopping) ? res.shopping : []).filter(x => x && x.name).map(x => ({ name: String(x.name), amount: String(x.amount || ""), reason: String(x.reason || ""), mark: "" }));
   const { ctx, prompt: _p, ...m0 } = meta;
   // AIは選ぶだけ: レシピ帳に無い料理を作ってきたら、1回だけ選び直してもらう（それでも残る料理は外す）
@@ -4177,7 +4202,7 @@ function draftToPlans(D) {
     }
     if (rid) byDish[m.dish] = rid;
   });
-  D.meals.forEach(m => { const rid = (m.recipe_id && S.recipes.some(r => r.id === m.recipe_id) ? m.recipe_id : "") || byDish[m.dish] || ""; plans.push({ id: "", date: m.date, meal: m.meal, title: m.dish, recipeId: rid, people: String(m.people || 2), leftover: m.leftover ? "TRUE" : "", status: "予定" }); });
+  D.meals.forEach(m => { const rid = (m.recipe_id && S.recipes.some(r => r.id === m.recipe_id) ? m.recipe_id : "") || byDish[m.dish] || ""; plans.push({ id: "", date: m.date, meal: m.meal, title: m.dish, recipeId: rid, people: String(m.people || 2), leftover: m.leftover ? "TRUE" : "", status: "予定", who: +m.who || 0 }); });
   (D.outKeys || []).forEach(k => { const [d, m] = k.split("|"); plans.push({ id: "", date: d, meal: m, title: "外食予定", recipeId: "OUT", people: "2", leftover: "", status: "予定" }); });
   return { tmp, plans };
 }
@@ -4381,7 +4406,9 @@ function drawDraft() {
       // 選んだ枠の種類を残す（献立の画面で「朝ごはん」などの下に出す）。30日より前の分は消す
       if (D.slotTypes) { const old = shiftDay(today(), -30), v = Object.fromEntries(Object.entries({ ...slotTypes(), ...D.slotTypes }).filter(([k]) => k.slice(0, 10) >= old)), sv = JSON.stringify(v); S.settings["枠の種類"] = sv; await run("saveSetting", "枠の種類", sv); }
       await wqDrain();
-      await run("commitPlan", { recipes: st.tmp, removeIds: st.removeIds, plans: st.newPlans });
+      await run("commitPlan", { recipes: st.tmp, removeIds: st.removeIds, plans: st.newPlans.map(({ who, ...o }) => o) });
+      // 1人だけの料理の印（案に入った枠は、いったん印を外してから付け直す）
+      { const ks = new Set(D.meals.map(x => x.date + "|" + x.meal)), ent = Object.keys(whoMap()).filter(k => ks.has(k.split("|").slice(0, 2).join("|"))).map(k => [k, 0]).concat(D.meals.filter(x => x.who).map(x => [x.date + "|" + x.meal + "|" + x.dish, x.who])); if (ent.length) await saveWho(ent); }
       // カゴに入れた物を在庫に入れる
       const cats = String(S.settings["カテゴリ"] || "").split(",").map(x => x.trim()).filter(Boolean);
       // 「後で」にしていない物は、カゴの印が無くても買った物として在庫に入れる。買った物の確認の画面のために、元の在庫の量を覚えておく
