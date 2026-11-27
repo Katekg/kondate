@@ -1153,10 +1153,14 @@ function availableQty(s, res) {
   }
   return null;
 }
+const GARNISH_RE = /パセリ|ピンクペッパー|木の芽|パクチー|香菜|ミント|ディル|チャービル|セルフィーユ|クレソン|ローズマリー|タイム|バジル|小ねぎ|万能ねぎ|青ねぎ|三つ葉|貝割れ|かいわれ|白ごま|黒ごま|いりごま|糸とうがらし|フライドオニオン|粉チーズ/;
+const isOptIng = (name, amt, seas) => /あれば|好みで|お好み|飾り|トッピング/.test(name + " " + amt) || (GARNISH_RE.test(name) && /少量|少々|適量|適宜|好み|^$/.test(amt)) || (!seas && /^(少量|少々)/.test(amt));
 function stockLack(x, k, res, stock) {
   const nm = normName(x.name), amt = String(scaleAmount(x.amount, k) || "").trim();
   if (!nm || /^(水|湯|お湯|熱湯)$/.test(nm) || /^(少々|適量|適宜|お好み|ひとつまみ)/.test(amt)) return null;
   const sq = spoonQ(x.name, scaleAmount(x.amount, k * partK(x.name))), s = matchStock(x.name, stock), seas = !!sq || !!isSeas(s);
+  // 2026-11-27: 飾り・省いてよい材料（パセリ少量・あれば・好みで など）は、在庫に無ければ省く。買い物リストにも載せない
+  if ((!s || s.qty === OUT) && isOptIng(x.name, amt, seas)) return null;
   if (!s || s.qty === OUT) return { red: "在庫なし", buy: sq ? spoonBuy(x.name, sq) : scaleExact(x.amount, k * partK(x.name)), seas };
   const av = res[s.id] ? availableQty(s, res) : null, L = pqAll(av != null ? av : s.qty), Nd = pqAll(sq || scaleExact(x.amount, k * partK(x.name)));
   for (const need0 of Nd) {
@@ -2033,6 +2037,7 @@ function openRules() {
       "献立を作る・考え直す前に、「期限の確認」を0件にする（期限切れと7日以内の物を、合っている・延ばす・捨てるで決める）",
       "肉は買ったら瞬冷凍に入れる。期限は1週間",
       "7日以上使っていない調味料・粉物・乾物は、古い順に5つまで、献立の期間中に1回ずつ使う（米・押麦・いつもの飲み物は除く）",
+      "飾り・省いてよい材料（パセリ・小ねぎ・ごまなどを少量、「あれば」「好みで」と書かれた物）は、在庫に無ければ省き、買い物リストに載せない",
       "少しだけ足りない調味料・粉物（大さじ2以下で、使う量の2割以下）は買わずに、料理の量を少しずつ減らす",
       "どの本のレシピでも（代用しても）使えない調味料・粉物・乾物は、「今週使わない食材」で黄色く囲う",
       "量が少なすぎて、使えるレシピがどれも足りない調味料・粉物・乾物は、期限内に買い足してそのレシピに使い、端数が残らないように使い切る。買い足す間もなく期限が切れる物は、先に知らせる",
@@ -2970,7 +2975,7 @@ function ingState(name, amount, k) {
   const sb = subOf(name) || (own && ING_SUB[n0] ? { s: own, ...ING_SUB[n0][0] } : null); if (sb) return { st: "sub", s: sb.s, sub: { ...sb, amount: dashiSub(n0, sb, scaleAmount(amount, k || 1)) || sb.amount } };
   const nm = normName(name), seas = SPOON_G.some(([re]) => re.test(nm)) || LIQ_RE.test(nm) || /^(塩|砂糖|こしょう)/.test(nm);
   const a = scaleAmount(amount, k || 1), g = (pqAll(withGram(name, a)).find(p => p.u === "g") || {}).n;
-  if (!seas && (/少量|適量|好み|飾り/.test(a) || (g && g <= 30))) return { st: "skip" };
+  if ((!seas && (/少量|適量|好み|飾り/.test(a) || (g && g <= 30))) || isOptIng(name, a, seas)) return { st: "skip" };
   return { st: "none" };
 }
 // だしを和風だし顆粒で代用するときは、その分量の水と顆粒のグラム数で出す（水200mlに顆粒小さじ1/2＝約1.5g）
