@@ -2798,18 +2798,34 @@ function bookPlan(cooks) {
   // 1つの手順に「鶏肉は…切り、玉ねぎは…切る」と両方あるときは、文を分けて野菜を先にする
   const rawNames = c => ingsOf(c.r).filter(g => ingState(g.name, g.amount, c.k).st !== "skip").map(g => ingBase(c.r, g.name)).filter(b => { const n = normName(b); return RAW_RE.test(n) && !NOT_RAW.test(n); });
   const hasRaw = (c, t) => rawNames(c).some(b => ingHit(b, t)) || /(^|[、。])(肉|魚|鶏肉|豚肉|牛肉)は/.test(t);
-  const endForm = t => { t = t.replace(/[、。\s]+$/, ""); return (/煮$/.test(t) ? t + "る" : /り$/.test(t) ? t.replace(/り$/, "る") : /し$/.test(t) ? t.replace(/し$/, "す") : /き$/.test(t) ? t.replace(/き$/, "く") : /み$/.test(t) ? t.replace(/み$/, "む") : /[けせてねべめれえげぜでへ]$/.test(t) ? t + "る" : t) + "。"; };
+  const endForm = t => { t = t.replace(/[、。\s]+$/, ""); return (/煮$/.test(t) ? t + "る" : /(に|と)し$/.test(t) ? t.replace(/し$/, "する") : /り$/.test(t) ? t.replace(/り$/, "る") : /し$/.test(t) ? t.replace(/し$/, "す") : /き$/.test(t) ? t.replace(/き$/, "く") : /み$/.test(t) ? t.replace(/み$/, "む") : /[けせてねべめれえげぜでへ]$/.test(t) ? t + "る" : t) + "。"; };
   const vegParts = [], rawParts = [];
+  const SEG_RE = /、(?=[^、。をにでへ]{1,12}は)|(?<=。)(?=[^、。をにでへ]{1,12}は)/;
   list.forEach(x => {
-    while (x.i < x.n) { const t = splitTool(stepsOf(x.c.r)[x.i]).text; if (PAN_STEP_RE.test(t) || /盛|電子レンジ|レンジ|オーブン|トースター/.test(t)) break;
+    while (x.i < x.n) { const t = splitTool(stepsOf(x.c.r)[x.i]).text; if (PAN_STEP_RE.test(t) || /(?<!目)盛|電子レンジ|レンジ|オーブン|トースター/.test(t)) break;
       const i = x.i++; if (skipStep(x.c, i)) continue;
-      const cl = t.split(/、(?=[^、。をにでとがへ]{1,12}は)|(?<=。)(?=[^、。をにでとがへ]{1,12}は)/).filter(x => x.trim()), rw = cl.map(p => hasRaw(x.c, p));
+      const cl = t.split(SEG_RE).filter(x => x.trim()), rw = cl.map(p => hasRaw(x.c, p));
       if (cl.length > 1 && rw.some(Boolean) && rw.some(r => !r)) {
         vegParts.push({ c: x.c, i, part: endForm(cl.filter((_, j) => !rw[j]).join("、")) });
         rawParts.push({ c: x.c, i, part: endForm(cl.filter((_, j) => rw[j]).join("、")) });
       } else (rw.some(Boolean) ? rawParts : vegParts).push({ c: x.c, i, part: "" });
     }
   });
+  // 火を使う手順の中にある「野菜を切るだけ」の文も、下ごしらえへ前に出す（生の肉・魚より先に切るため）。
+  //   例: 「大根は…せん切りにする。…油揚げはゆでて…」の大根、「じゃが芋はいちょう切りにし、ゆでる」の切るところ（→ 残りは「じゃが芋をゆでる」）
+  //   ゆでてから切る物・「①の」など前の手順の物・冷ましてから切る物は、そのまま
+  const rest = {}, NOMOVE = /[①-⑳]|さめ|冷め|粗熱|残り|ゆでた|焼いた|煮た|いためた|蒸した|(?<!目)盛/, TOPIC = /^([^、。]{1,14}?)は/, CUT = t => KNIFE_RE.test(t) || /笹がき|ささがき|ちぎ|小房に分|石づきを/.test(t), STOP = t => PAN_STEP_RE.test(t) || /電子レンジ|レンジ|オーブン|トースター|耐熱|ラップ/.test(t);
+  list.forEach(x => { for (let i = x.i; i < x.n; i++) { if (skipStep(x.c, i)) continue; const st = splitTool(stepsOf(x.c.r)[i]), cl = st.text.split(SEG_RE).filter(y => y.trim()), keep = [], mv = [];
+    cl.forEach(sg => { const tp = sg.match(TOPIC);
+      if (!tp || hasRaw(x.c, sg) || NOMOVE.test(sg)) { keep.push(sg); return; }
+      if (CUT(sg) && !STOP(sg)) { mv.push(sg); return; }
+      // 前のほうの「切り、」だけを出す
+      const cs = sg.split("、"); let k = 0; while (k < cs.length - 1 && !STOP(cs[k])) k++;
+      const lead = cs.slice(0, k).join("、");
+      if (k > 0 && CUT(lead)) { mv.push(lead); keep.push(tp[1] + "を" + cs.slice(k).join("、")); } else keep.push(sg); });
+    if (!mv.length) continue;
+    vegParts.push({ c: x.c, i, part: mv.map(endForm).join("") });
+    rest[x.c.r.id + "|" + i] = keep.length ? keep.map(y => /。$/.test(y) ? y : endForm(y)).join("") + (st.tool ? `［${st.tool}］` : "") : ""; } });
   vegParts.forEach(p => pushAt(p.c, p.i, p.part, ""));
   rawParts.forEach((p, j) => pushAt(p.c, p.i, p.part, j === 0 && vegParts.length ? "生の肉・魚は、野菜の下ごしらえが終わってからまな板に出す" : ""));
   // 火を使う手順は、長く待つところ（8分以上「15分煮る」など）で分ける。待つあいだにほかの料理の手順を進め、
@@ -2817,8 +2833,8 @@ function bookPlan(cooks) {
   const splitWait = t => { const cl = t.match(/[^、。]+[、。]?/g) || [t], out = []; let cur = [];
     cl.forEach((x, j) => { cur.push(x); if (j < cl.length - 1 && timerSec(x) >= 480 && cl.slice(j + 1).join("").replace(/[、。\s]/g, "")) { out.push({ text: endForm(cur.join("")), wait: timerSec(x) }); cur = []; } });
     if (cur.length) out.push({ text: cur.join(""), wait: 0 }); return out; };
-  list.forEach(x => { x.units = []; for (let i = x.i; i < x.n; i++) { if (skipStep(x.c, i)) continue; const t = splitTool(stepsOf(x.c.r)[i]).text, ps = splitWait(t);
-    if (ps.length < 2) x.units.push({ i, part: "", wait: timerSec(t) }); else ps.forEach((q, j) => x.units.push({ i, part: q.text, wait: q.wait, after: j ? ps[j - 1].wait : 0 })); } x.u = 0; });
+  list.forEach(x => { x.units = []; for (let i = x.i; i < x.n; i++) { if (skipStep(x.c, i)) continue; const rk = x.c.r.id + "|" + i; if (rest[rk] === "") continue; const t = splitTool(rest[rk] || stepsOf(x.c.r)[i]).text, ps = splitWait(t);
+    if (ps.length < 2) x.units.push({ i, part: rest[rk] || "", wait: timerSec(t) }); else ps.forEach((q, j) => x.units.push({ i, part: q.text, wait: q.wait, after: j ? ps[j - 1].wait : 0 })); } x.u = 0; });
   const fmtMin = v => v % 60 ? `${Math.floor(v / 60)}分${v % 60}秒` : `${v / 60}分`;
   let k = 0;
   while (list.some(x => x.u < x.units.length)) {
