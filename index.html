@@ -1947,7 +1947,7 @@ function drawStock() {
         if (hit) { const cur = ups.get(hit.id) || { ...hit }; cur.qty = cur.qty === OUT || !cur.qty ? add : addQty(cur.qty, add); ups.set(hit.id, cur); }
         else { const g = guessExp(x.i.name, ""), c = cats.includes(g.cat) ? g.cat : ""; ups.set("new:" + x.i.name, { name: x.i.name, qty: add, cat: c, exp: guessExp(x.i.name, c).exp }); } });
       busy(true, `${sel.length}品を在庫に入れています…`);
-      try { await run("saveStock", [...ups.values()]); const lt = lsGet("laterBuy") || {}; names.forEach(n => { delete lt[n]; delete ed[n]; }); lsSet("laterBuy", lt); await load(); } catch (e) { alert(e.message); }
+      try { await run("saveStock", [...ups.values()]); logRiceSeas(sel.map(x => ({ name: x.i.name, qty: qtyVal(x.box) }))); const lt = lsGet("laterBuy") || {}; names.forEach(n => { delete lt[n]; delete ed[n]; }); lsSet("laterBuy", lt); await load(); } catch (e) { alert(e.message); }
       busy(false);
     };
   }
@@ -2043,7 +2043,7 @@ function openAdd(cats) {
     rows.forEach(r => { const hit = S.stock.find(s => normName(s.name) === normName(r.name)), k = hit ? hit.id : "new:" + normName(r.name), cur = ups.get(k);
       if (cur) cur.qty = addQty(cur.qty, r.qty);
       else ups.set(k, hit ? { ...hit, qty: hit.qty === OUT || !hit.qty ? r.qty : addQty(hit.qty, r.qty), exp: r.exp || hit.exp } : { name: r.name, qty: r.qty, cat: r.cat, exp: r.exp }); });
-    busy(true, `${rows.length}品を追加しています…`); try { await run("saveStock", [...ups.values()]); await load(); openAdd(cats); } catch (e) { alert(e.message); } busy(false);
+    busy(true, `${rows.length}品を追加しています…`); try { await run("saveStock", [...ups.values()]); logRiceSeas(rows.map(r => ({ name: r.name, qty: r.qty }))); await load(); openAdd(cats); } catch (e) { alert(e.message); } busy(false);
   };
 }
 // 在庫確認モード: カテゴリごとに1画面ずつ、量と期限を見直す。「なくなった」で消す・「＋ 追加」で足す。次へ進むときに、変えた分だけ保存する
@@ -3233,27 +3233,50 @@ const budget = () => { const food = +SET("予算_材料") || 23000; return { foo
 // 今月使った食費: 設定「今月の食費」に「2026年11月 12000」の形で保存する（月が変わったら使わない）
 const ymKey = () => { const t = today(); return `${+t.slice(0, 4)}年${+t.slice(5, 7)}月`; };
 const spentNow = () => { const m = String(SET("今月の食費")).match(/^(\d+年\d+月)\s+(\d+)/); return m && m[1] === ymKey() ? +m[2] : null; };
+// 2026-11-27: 米・調味料（酒・みりんなど）の買った記録。今月の食費にはこれらも含まれるので、買い物リストや在庫の追加で買った記録から金額を見積もり、
+//   材料費の残りを数えるときに食費から引く（かずやさんが手で引かなくてよいように）。記録は設定「米・調味料の買った記録」に JSON で60日分残す
+const RS_SEAS_RE = /^(料理酒|酒|清酒|本みりん|みりん|みりん風調味料|醤油|しょうゆ|濃口醤油|薄口醤油|味噌|みそ|砂糖|上白糖|三温糖|塩|食塩|酢|米酢|穀物酢|リンゴ酢|サラダ油|キャノーラ油|ごま油|ゴマ油|オリーブオイル|オリーブ油|油)$/;
+const isRiceSeas = name => isRice(name) || RS_SEAS_RE.test(normName(name));
+// 値段の目安（1kg・1L・1本あたり）。AIの見積もりが無いときに使う
+const RS_PRICE = [[/米/, { kg: 800 }], [/酒/, { L: 500, ml: .5 }], [/みりん/, { L: 550, ml: .55 }], [/醤油|しょうゆ/, { L: 450, ml: .45 }], [/味噌|みそ/, { kg: 800, g: .8 }], [/糖/, { kg: 300, g: .3 }], [/塩/, { kg: 200, g: .2 }], [/酢/, { L: 350, ml: .35 }], [/油|オイル/, { kg: 600, g: .6, L: 550, ml: .55 }]];
+const rsEst = (name, qty) => { const n = normName(name), q = pq(String(qty || "").replace(/^約/, "")), e = RS_PRICE.find(([re]) => re.test(isRice(name) ? "米" : n)); if (!e) return 300; if (!q) return Object.values(e[1])[0];
+  const u = q.u === "キロ" ? "kg" : q.u === "リットル" || q.u === "l" ? "L" : q.u; let v = e[1][u] != null ? q.n * e[1][u] : null;
+  if (v == null && u === "g" && e[1].kg) v = q.n / 1000 * e[1].kg; if (v == null && u === "ml" && e[1].L) v = q.n / 1000 * e[1].L;
+  if (v == null && u === "合" && e[1].kg) v = q.n * .15 * e[1].kg; return Math.round(v != null ? v : Object.values(e[1])[0]); };
+const rsLog = () => { try { const v = JSON.parse(SET("米・調味料の買った記録") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+// list: [{ name, qty, est? }]。米・調味料だけを記録する
+function logRiceSeas(list) {
+  const add = (list || []).filter(x => x && isRiceSeas(x.name)).map(x => ({ d: today(), name: x.name, qty: x.qty || "", est: +x.est > 0 ? Math.round(+x.est) : rsEst(x.name, x.qty) }));
+  if (!add.length) return;
+  const old = shiftDay(today(), -60), v = JSON.stringify([...rsLog().filter(x => x.d >= old), ...add]);
+  S.settings["米・調味料の買った記録"] = v; run("saveSetting", "米・調味料の買った記録", v).catch(() => {});
+}
+// 今月の食費を入れた日までに買った、今月の米・調味料の見積もり額
+const rsSpent = () => { const m = String(SET("今月の食費")).match(/^(\d+)年(\d+)月\s+\d+(?:\s+(\d{4}-\d\d-\d\d))?/); if (!m) return { yen: 0, items: [] };
+  const ym = `${m[1]}-${String(m[2]).padStart(2, "0")}`, upto = m[3] || today(), items = rsLog().filter(x => x.d.slice(0, 7) === ym && x.d <= upto);
+  return { yen: items.reduce((s, x) => s + (+x.est || 0), 0), items }; };
 // 予算の残り具合: 1か月の食費の予算（材料・米・調味料）の残りの割合 ÷ 月の残り日数の割合。今月の日の材料費の目安を、この割合で増減する（0.5〜1.5倍）
 function budgetAdj() {
   const sp = spentNow(); if (sp == null) return null;
-  const all = (+SET("予算_材料") || 23000) + (+SET("予算_米") || 0) + (+SET("予算_調味料") || 0);
-  const t = today(), dim = new Date(+t.slice(0, 4), +t.slice(5, 7), 0).getDate(), left = dim - +t.slice(8) + 1, rest = all - sp;
+  // 米・調味料の買った記録があれば、その分を食費から引いて、材料費だけを材料の予算と比べる。記録が無いときは、食費を米・調味料込みの予算の合計と比べる
+  const rs = rsSpent(), food = +SET("予算_材料") || 23000, all = rs.yen ? food : food + (+SET("予算_米") || 0) + (+SET("予算_調味料") || 0);
+  const t = today(), dim = new Date(+t.slice(0, 4), +t.slice(5, 7), 0).getDate(), left = dim - +t.slice(8) + 1, rest = all - (sp - rs.yen);
   const r = Math.max(0.5, Math.min(1.5, rest / all / (left / dim)));
-  return { sp, all, rest, left, perDay: Math.round(budget().perDay * r), month: t.slice(0, 7) };
+  return { sp, all, rest, left, rs: rs.yen, perDay: Math.round(budget().perDay * r), month: t.slice(0, 7) };
 }
 const perDayOf = d => { const a = budgetAdj(); return a && d.slice(0, 7) === a.month ? a.perDay : budget().perDay; };
 // 期間の材料費: 1日の目安を 朝2割・昼4割・夜4割 に分け、外食・なしの枠の分は数えない（isOff(d, m) が true の枠）
 const MEAL_W = { 朝: .2, 昼: .4, 夜: .4 };
 const dayShare = (d, isOff) => Math.max(0, 1 - Object.keys(MEAL_W).reduce((s, m) => s + (isOff(d, m) ? MEAL_W[m] : soloOf(d, m) ? MEAL_W[m] / 2 : 0), 0));
 const budgetFor = (days, isOff) => Math.round(days.reduce((s, d) => s + perDayOf(d) * (isOff ? dayShare(d, isOff) : 1), 0));
-const budgetNote = () => { const a = budgetAdj(); if (!a) return ""; return `<p class="note">${a.rest >= 0 ? `今月の予算の残り 約${a.rest.toLocaleString()}円・あと${a.left}日` : `今月の予算を約${(-a.rest).toLocaleString()}円こえています`} → 材料費の目安 1日 約${a.perDay.toLocaleString()}円（ふだんは約${budget().perDay.toLocaleString()}円）</p>`; };
+const budgetNote = () => { const a = budgetAdj(); if (!a) return ""; return `<p class="note">${a.rs ? `うち米・調味料 約${a.rs.toLocaleString()}円（買った記録からの見積もり）を除いた材料費で数えています。` : ""}${a.rest >= 0 ? `今月の${a.rs ? "材料の" : ""}予算の残り 約${a.rest.toLocaleString()}円・あと${a.left}日` : `今月の${a.rs ? "材料の" : ""}予算を約${(-a.rest).toLocaleString()}円こえています`} → 材料費の目安 1日 約${a.perDay.toLocaleString()}円（ふだんは約${budget().perDay.toLocaleString()}円）</p>`; };
 // 今月の食費の入力欄（週の献立を作るとき・作り直すとき・案を考え直すとき）。id を変えて使う
 const spentHtml = id => `<label>今月使った食費（円）<input id="${id}" inputmode="numeric" value="${spentNow() ?? ""}" placeholder="例: 12000（家計簿の今月の食費）"></label><div class="spNote">${budgetNote()}</div><p class="note" style="font-size:.78rem">買い物リストにあって、まだ買っていない物は、これから払う分としてAIが差し引いて考えます。</p>`;
 // 入れた食費を保存する（変わったときだけ）。true: 変わった
 function saveSpent(raw) {
   if (raw == null) return false;
-  const v = String(raw).normalize("NFKC").replace(/[^\d]/g, ""), val = v ? `${ymKey()} ${+v}` : "";
-  if (val === String(SET("今月の食費"))) return false;
+  const v = String(raw).normalize("NFKC").replace(/[^\d]/g, ""), val = v ? `${ymKey()} ${+v} ${today()}` : "";
+  if (val.replace(/ \S+$/, "") === String(SET("今月の食費")).replace(/^(\S+ \d+).*$/, "$1")) return false;
   S.settings["今月の食費"] = val; run("saveSetting", "今月の食費", val).catch(e => alert(e.message)); return true;
 }
 const bindSpent = id => { const el = $(id); if (!el) return; el.onchange = () => { saveSpent(el.value); const n = el.closest("label") && el.closest("label").nextElementSibling; if (n && n.classList.contains("spNote")) n.innerHTML = budgetNote(); }; };
@@ -4077,6 +4100,7 @@ function drawDraft() {
       const addOf = i => typeof cart[i.name] === "string" && cart[i.name] !== "later" && cart[i.name] !== "ng" ? withUnit(i, cart[i.name]) : buyText(i), chk = [];
       const bought = items.filter(i => !isLater(i)).map(i => { const add = addOf(i), hit = matchStock(i.name); chk.push({ name: i.name, sname: hit ? hit.name : isRice(i.name) ? "米" : i.name, before: hit && hit.qty !== OUT ? hit.qty : "", qty: add, plan: buyText(i), est: priceOf(D, i.name), ck: !!got(i) }); if (hit) return { ...hit, qty: addQty(hit.qty, add), exp: hit.qty === OUT || !hit.exp ? guessExp(i.name, hit.cat).exp : hit.exp }; const g = guessExp(i.name, ""), cat = cats.includes(g.cat) ? g.cat : ""; return { name: isRice(i.name) ? "米" : i.name, qty: add, cat, exp: guessExp(i.name, cat).exp }; });
       if (bought.length) await run("saveStock", bought);
+      logRiceSeas(chk.map(c => ({ name: c.name, qty: c.qty, est: c.est })));
       const more = items.filter(i => typeof cart[i.name] === "string" && cart[i.name] !== "later").map(i => i.name);
       // 「後で買う」にした物は、在庫タブの買い物リストでも印を付ける
       const lt = lsGet("laterBuy") || {}; items.filter(isLater).forEach(i => { lt[i.name] = today(); }); lsSet("laterBuy", lt);
