@@ -244,6 +244,7 @@ details.add summary { font-weight: 700; cursor: pointer; }
 .bkpt { display: flex; gap: 6px; overflow-x: auto; flex: none; }
 .bkpt .chip { white-space: nowrap; }
 .bkpimg { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+.bkpbook { color: #fff; font-size: .9rem; font-weight: 700; text-align: center; margin: 0 0 6px; }
 .bkpz { color: #cfc9dc; font-size: .78em; text-align: center; margin: 0; }
 .phv .bkpimg img { width: 100%; max-width: none; max-height: none; border-radius: 6px; }
 .bkpx { flex: none; background: #fff; }
@@ -1301,7 +1302,7 @@ async function showBookPage(rids) {
   const v = $("phv"); let cur = 0; v.onclick = null;
   const paint = async () => {
     const r = recipeOf(rids[cur]), pg = bookPageOf(rids[cur]);
-    v.innerHTML = `<div class="bkpv">${rids.length > 1 ? `<div class="bkpt">${rids.map((id, k) => `<button class="chip${k === cur ? " on" : ""}" data-bk="${k}">${esc((recipeOf(id) || {}).title || "")}</button>`).join("")}</div>` : ""}<div class="bkpimg"><p class="note" style="color:#fff">レシピ元の画像を読み込んでいます…</p></div><p class="bkpz">2本指で広げると拡大・ダブルタップでも拡大／元に戻す</p><button class="btn ghost bkpx">閉じる</button></div>`;
+    v.innerHTML = `<div class="bkpv">${rids.length > 1 ? `<div class="bkpt">${rids.map((id, k) => `<button class="chip${k === cur ? " on" : ""}" data-bk="${k}">${esc((recipeOf(id) || {}).title || "")}</button>`).join("")}</div>` : ""}${(b => b ? `<p class="bkpbook">📖 ${esc(b.book)}${b.page ? `（${esc(String(b.page).replace(/^p?\.?/i, "p."))}）` : ""}${r ? `・${esc(r.title)}` : ""}</p>` : "")(bookOf(r))}<div class="bkpimg"><p class="note" style="color:#fff">レシピ元の画像を読み込んでいます…</p></div><p class="bkpz">2本指で広げると拡大・ダブルタップでも拡大／元に戻す</p><button class="btn ghost bkpx">閉じる</button></div>`;
     v.hidden = false;
     v.querySelectorAll("[data-bk]").forEach(b => b.onclick = e => { e.stopPropagation(); cur = +b.dataset.bk; paint(); });
     v.querySelector(".bkpx").onclick = e => { e.stopPropagation(); v.hidden = true; v.innerHTML = ""; };
@@ -1715,6 +1716,8 @@ function openSlot(d, m) {
     ${lk.length ? `<div class="msg">足りない材料: ${lk.map(o => `${esc(normName(o.it.name))} ${esc(o.lk.red)}`).join("、")}</div>` : ""}
     ${cooks.length ? `<div class="card"><h3>材料（${cooks.map(c => `${esc(c.p.title)} ${c.total}人分`).join("・")}）</h3><ul class="list">${[...ings.values()].map(i => { const s = matchStock(i.name), x = ingState(i.name, i.amts[0], 1), amt = esc((sumAmounts(i.amts) || i.amts.join(" ＋ ")).split(" ＋ ").map(a => withGram(i.name, a)).join(" ＋ ") + lessTag(i.name));
         // 調理モードと同じ見方: 在庫に無い飾りなどは「省く」、代わりの在庫があれば「〇〇で代用」
+        // 2026-11-27: 作った後は、在庫の状態（代用・在庫なし）は出さず「調理済み」とだけ出す（もう在庫から引いてあるため）
+        if (done && x.st !== "skip") return `<li><span class="nm">${esc(i.name)}<small>調理済み</small></span><b>${amt}</b></li>`;
         return x.st === "skip" ? `<li class="ingskip"><span class="nm">${esc(i.name)}<small>在庫に無いので省く</small></span><b><s>${amt}</s> 省く</b></li>`
           : x.st === "sub" ? `<li><span class="nm">${esc(i.name)}<small>${esc(x.sub.use.split("・")[0])}で代用${x.sub.amount ? `（${esc(x.sub.amount)}）` : ""}${x.s ? `・在庫: ${esc(x.s.qty)}` : ""}</small></span><b>${amt}<br><small>→ ${esc(x.sub.use.split("・")[0])}で代用</small></b></li>`
           : `<li><span class="nm">${esc(i.name)}<small>${s ? `在庫: ${esc(s.qty)}` : "在庫なし"}</small></span><b>${amt}</b></li>`; }).join("")}</ul></div>
