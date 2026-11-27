@@ -179,7 +179,7 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .qf.vq { align-items: flex-end; }
 .qf.vq .qn { width: 3.4em; padding-right: 6px; }
 .qf.vq .vplus { font-weight: 700; color: var(--muted); padding-bottom: .55em; }
-.qf.vq select.vnum { height: 2.6em; width: 3.6em; text-align: center; }
+.qf.vq select.vnum { height: 2.6em; width: 4.6em; text-align: center; }
 .qf.vq .vden { font-weight: 700; color: var(--ink); font-size: 1rem; padding-bottom: .5em; white-space: nowrap; }
 .tilebtn { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .tile { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -340,6 +340,28 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .cprep .prest .qf { flex: 1; min-width: 0; }
 .cprep .left { font-size: .72rem; color: var(--muted); flex: none; }
 .cprep { min-width: 0; }
+.cprep .pleg { font-size: .75rem; }
+.cprep .pgh { padding: 8px 2px 2px; font-size: .8rem; font-weight: 700; color: var(--butter-ink); }
+.cprep li.pck { padding: 7px 0; gap: 3px; }
+.cprep .pckh { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cprep .pckh b { font-size: 1.05rem; }
+.cprep .pckh small { color: var(--muted); font-size: .75rem; }
+.cprep .pck3 { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
+.cprep .pc { display: flex; flex-direction: column; min-width: 0; flex: none; }
+.cprep .pc small { font-size: .68rem; color: var(--muted); white-space: nowrap; }
+.cprep .pc > b { font-size: .95rem; white-space: nowrap; padding-bottom: .55em; }
+.cprep .pc.pin { flex: 1; }
+.cprep .pc.pin small { color: var(--accent); font-weight: 700; }
+.cprep .pop { color: var(--muted); font-weight: 700; padding-bottom: .6em; flex: none; }
+.cprep .pc.pin .qf { flex-wrap: nowrap; }
+.cprep .pc.pin .qf .qfl small { display: none; }
+.cprep .pc.pin .qf.vq .qn { width: 2.6em; }
+.cprep .pc.pin .qf:not(.vq) .qn { width: 4.2em; }
+.cprep ul.pother li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 5px 0; font-size: .9rem; }
+.cprep ul.pother li > small { color: var(--muted); font-size: .72rem; text-align: right; }
+.cprep ul.pother li.pskp { opacity: .5; }
+.ctray.cput { display: flex; flex-direction: column; gap: 2px; font-weight: 400; }
+.ctray.cput > span:first-child { font-weight: 700; }
 .ck { flex: none; width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 700; color: #fff; background: var(--surface); }
 .ctbar { display: flex; align-items: center; gap: 5px; background: var(--surface); border: 2px solid var(--accent); border-radius: 18px; padding: 5px 7px 5px 10px; min-width: 0; }
 .ctbar .tbox { flex: 1; min-width: 0; display: grid; }
@@ -898,7 +920,7 @@ const QF_RE = /^(\d+(?:と\d+\/\d+|\/\d+|\.\d+)?)\s*([^\d\s（(＋+]+?)\s*(?:[�
 const QF_W = /^(g|kg|ml|mL|cc|あり)$/;
 function vegBox(q, cls, i, name, v) {
   v = v || vegOf(name); const n = Math.round((vegN(name, q, v) || 0) * v.d), w = Math.floor(n / v.d), f = n % v.d;
-  return `<div class="qf vq${cls ? " " + cls : ""} nog"${i != null ? ` data-i="${i}"` : ""} data-vu="${esc(v.u)}" data-vd="${v.d}"><span class="qfl"><small>${esc(v.u)}</small><input class="qn" inputmode="numeric" value="${w}" data-prev="${w}" aria-label="${esc(v.u)}の数"></span>${v.d > 1 ? `<span class="vplus">＋</span><span class="qfl"><small>&nbsp;</small><select class="vnum" aria-label="分数">${[...Array(v.d)].map((_, k) => `<option value="${k}" ${k === f ? "selected" : ""}>${k}</option>`).join("")}</select></span><span class="vden">/${v.d}${esc(v.u)}</span>` : `<span class="vden">${esc(v.u)}</span>`}<input type="hidden" class="qu" value="${esc(v.u)}"><input type="hidden" class="qg" value=""><input type="hidden" class="qgu" value="g"></div>`;
+  return `<div class="qf vq${cls ? " " + cls : ""} nog"${i != null ? ` data-i="${i}"` : ""} data-vu="${esc(v.u)}" data-vd="${v.d}"><span class="qfl"><small>${esc(v.u)}</small><input class="qn" inputmode="numeric" value="${w}" data-prev="${w}" aria-label="${esc(v.u)}の数"></span>${v.d > 1 ? `<span class="vplus">＋</span><span class="qfl"><small>&nbsp;</small><select class="vnum" aria-label="分数">${[...Array(v.d)].map((_, k) => `<option value="${k}" ${k === f ? "selected" : ""}>${k ? `${k / gcdN(k, v.d)}/${v.d / gcdN(k, v.d)}` : "0"}</option>`).join("")}</select></span><span class="vden">${esc(v.u)}</span>` : `<span class="vden">${esc(v.u)}</span>`}<input type="hidden" class="qu" value="${esc(v.u)}"><input type="hidden" class="qg" value=""><input type="hidden" class="qgu" value="g"></div>`;
 }
 function qtyBox(q, cls, i, name) {
   if (name && vegOf(name)) return vegBox(q, cls, i, name);
@@ -1285,7 +1307,7 @@ function draw() {
 let lastW = innerWidth;
 const fixRotate = () => { if (Math.abs(innerWidth - lastW) < 40) return; lastW = innerWidth; setTimeout(() => {
   window.scrollTo(0, 0); document.documentElement.scrollLeft = 0;
-  if (CK && !$("cook").hidden) { if (CK.phase === "cook" && CK.steps.length) drawCook(); else paintPrepMap(); } else if ($("sheet").hidden) draw();
+  if (CK && !$("cook").hidden) { if (CK.phase === "cook" && CK.steps.length) drawCook(); } else if ($("sheet").hidden) draw();
 }, 300); };
 addEventListener("orientationchange", fixRotate); addEventListener("resize", fixRotate);
 // 献立タブ: 横スワイプで前後の日へ（指についてカードが動き、離すと次の日のカードが滑りこむ）。日の画面は縦に動かないように固定
@@ -2853,11 +2875,11 @@ async function startCook(cooks, d, m) {
     if (e.clientX > innerWidth / 2) { if (CK.idx < CK.steps.length) CK.idx++; else { endCook(); return; } } else if (CK.idx > 0) CK.idx--;
     drawCook();
   };
-  // 最初に、材料を調理台に出す（そのとき残りの量を入れて在庫を更新）。その間にAIが段取りを考える
+  // 最初に、材料の確認（在庫・使う量・残り）。残りの量を入れて在庫を更新する。調理台に出すのは手順の中で
   drawPrep();
   // 段取り: AIを使わず、レシピの材料の分け方と手順から決める
   { const bp = bookPlan(cooks); bp.steps.book = true; begin(bp); }
-  function begin(p) { if (!CK || CK.cooks !== cooks || CK.steps.length) return; CK.steps = mergeSteps(cooks, p && p.steps); CK.fires = p && p.steps && p.steps.book ? bookFires(CK.steps) : null; CK.prep = p && p.prep && p.prep.book ? p.prep : cleanPrep(p && p.prep); CK.colors = dishColors(cooks, p && p.colors); if (CK.phase === "cook") drawCook(); else if ($("cStep") && $("cStep").querySelector(".cprep")) { CK.prepVals = {}; $("cStep").querySelectorAll(".pq").forEach(b => { CK.prepVals[b.dataset.i] = qtyVal(b); }); const sc = $("cStep").querySelector(".pil"), top = sc ? sc.scrollTop : 0; drawPrep(); const sc2 = $("cStep").querySelector(".pil"); if (sc2) sc2.scrollTop = top; } else paintPrepMap(); }
+  function begin(p) { if (!CK || CK.cooks !== cooks || CK.steps.length) return; CK.steps = mergeSteps(cooks, p && p.steps); CK.fires = p && p.steps && p.steps.book ? bookFires(CK.steps) : null; CK.prep = p && p.prep && p.prep.book ? p.prep : cleanPrep(p && p.prep); CK.colors = dishColors(cooks, p && p.colors); CK.putAt = null; if (CK.phase === "cook") drawCook(); }
 }
 const cookPlansOf = (d, m) => S.plans.filter(p => p.date === d && p.meal === m && !isLo(p) && !isOut(p));
 const spoonMl = a => { const m = String(a || "").match(/^(大さじ|小さじ)\s*(\d+(?:\.\d+)?)(?:\/(\d+))?/); return m ? `${(m[3] ? m[2] / m[3] : +m[2]) * (m[1] === "大さじ" ? 15 : 5)}ml` : ""; };
@@ -2883,70 +2905,58 @@ function smallKind(id) {
   return placed.length && !placed.some(x => LIQ_RE.test(normName(x.name)) && !/顆粒|粉/.test(normName(x.name))) ? "小皿" : "小鉢";
 }
 // 材料を出す画面の並び: 容器ごとに見出しを付けてまとめる。合わせ調味料の材料をほかの料理でも使うときは、その料理の分だけを容器に入れ、残りは別に分ける
-const boxOrder = to => to === "省く" ? "zz" : !to ? "z" : /^\d$/.test(to) ? "a" + to : /^s\d$/i.test(to) ? "c" + to : "b" + to;
 const mixOf = id => ((CK && CK.prep && CK.prep.mixes) || []).find(m => m.id === id);
-const boxHead = to => to === "炊" ? "炊飯器" : to === "省く" ? "使わない（在庫に無い飾りなど）" : !to ? "そのまま使う（その都度量る）" : mixOf(to) && mixOf(to).label ? `${mixKind(to)}「${mixOf(to).label}」` : /^b\d$/i.test(to) ? "ボウル" : /^\d$/.test(to) ? `バット${"①②③④"[+to - 1] || to}` : /^s\d$/i.test(to) ? `${smallKind(to)}${to.slice(1)}` : `${mixKind(to)}${to}（合わせる）`;
 // その合わせ調味料を使う料理（手順の scene の mix から）
 const mixDishes = id => new Set((CK.steps || []).filter((st, j) => (sceneAt(j).mix || []).map(String).includes(String(id))).map(st => st.c));
-function prepEntries(list) {
-  if (!CK.prep) return list.map(i => ({ i, to: "", amts: i.amts, row: true }));
-  const out = [];
-  list.forEach(i => {
-    const p = placeOf(i.name, i.rid), to = i.st && i.st.st === "skip" ? "省く" : p && p.to || "";
-    if (to && to !== "省く" && !/^(\d|s\d)$/i.test(to)) {
-      const md = mixDishes(to), inMix = i.per.filter(x => !md.size || md.has(x.c)), rest = i.per.filter(x => md.size && !md.has(x.c));
-      if (inMix.length && rest.length) {
-        out.push({ i, to, amts: inMix.map(x => x.amt), note: `${inMix.map(x => x.c.r.title).join("・")}の分だけ`, row: true });
-        out.push({ i, to: "", amts: rest.map(x => x.amt), note: `${rest.map(x => x.c.r.title).join("・")}の分。合わせる容器には入れない`, row: false });
-        return;
-      }
-    }
-    out.push({ i, to, amts: i.amts, row: true });
-  });
-  out.sort((a, b) => boxOrder(a.to).localeCompare(boxOrder(b.to)));
-  let last = null; out.forEach(e => { if (e.to !== last) { e.head = boxHead(e.to); last = e.to; } });
-  return out;
-}
 // 材料の置き場所（AIの段取りの prep）
 function placeOf(name, rid) { const P = CK.prep; if (!P) return null; if (P.book) return P.place.find(x => x.name === name && (!rid || x.rid === rid)) || null; const n = normName(name); return P.place.find(x => normName(x.name) === n) || P.place.find(x => { const m = normName(x.name); return m.length >= 2 && n.length >= 2 && (m.includes(n) || n.includes(m)); }) || null; }
-function paintPrepMap() {
-  if (!CK || CK.phase !== "prep" || !$("prepMap")) return;
-  $("prepMap").innerHTML = CK.prep ? kitchenSvg(-1) : `<p class="note" style="margin:4px">${CK.noAi ? "置き場所は手順の画面で確かめてください。" : "バットと合わせ調味料の置き場所を、AIが考えています…"}</p>`;
-  (CK.prepList || []).forEach((i, n) => { const t = $("cStep").querySelector(`[data-tag="${n}"]`), p = placeOf(i.name, i.rid); if (t) t.textContent = !p || !p.to ? "" : p.to === "炊" ? "→ 炊飯器" : /^b\d$/i.test(p.to) ? "→ ボウル" : /^\d$/.test(p.to) ? `→ バット${"①②③④"[+p.to - 1] || p.to}` : /^s\d$/i.test(p.to) ? `→ ${smallKind(p.to)}${p.to.slice(1)}` : mixOf(p.to) && mixOf(p.to).label ? `→ ${mixKind(p.to)}「${mixOf(p.to).label}」` : `→ ${mixKind(p.to)}${p.to}（合わせる）`; });
-  // 用意する容器
-  const box = $("prepBox"); if (!box) return;
-  const P = CK.prep || { mixes: [], place: [] }, ns = new Set();
-  P.place.forEach(x => { if (/^(\d|s\d|b\d)$/i.test(x.to)) ns.add(x.to.toLowerCase()); });
-  CK.steps.forEach((st, j) => (sceneAt(j).trays || []).forEach(x => ns.add(String(x.no).toLowerCase())));
-  const cs = [...[...ns].filter(k => /^\d$/.test(k)).sort().map(k => ({ k, t: `バット${"①②③④"[+k - 1] || k}` })), ...[...ns].filter(k => /^s/.test(k)).sort().map(k => ({ k, t: `${smallKind(k)}${k.slice(1)}` })), ...[...ns].filter(k => /^b\d$/.test(k)).slice(0, 1).map(k => ({ k, t: "ボウル" })), ...P.mixes.filter(m => !m.kind || /^(ボウル|小ボウル|小鉢|小皿|ポリ袋)$/.test(m.kind)).map(m => ({ k: "m" + m.id, t: m.label ? `${mixKind(m.id)}「${m.label}」` : `${mixKind(m.id)}${m.id}` }))];
-  const got = CK.gotC || (CK.gotC = {});
-  $("cprep").className = "cprep one";
-  $("ppH").textContent = "① 容器と材料を調理台に出す";
-  $("ppN").innerHTML = CK.ingNote;
-  box.innerHTML = cs.length ? `<b>容器</b>${cs.map(c => `<button class="chip cbox${got[c.k] ? " on" : ""}" data-cb="${c.k}">${got[c.k] ? "✓ " : ""}${c.t}</button>`).join("")}` : CK.prep || CK.noAi ? "" : `<small class="note">使う容器と置き場所を、AIが考えています…</small>`;
-  box.querySelectorAll("[data-cb]").forEach(b => b.onclick = e => { e.stopPropagation(); got[b.dataset.cb] = !got[b.dataset.cb]; paintPrepMap(); });
+// 置き場所の名前（手順の「調理台に出す」に使う）。容器を使わない物は ""
+const placeName = to => { if (!to) return ""; const mx = mixOf(to); if (mx && /容器なし/.test(mx.kind || "")) return ""; if (mx && /計量カップ/.test(mx.kind || "")) return `計量カップ「${mx.label}」`;
+  return to === "炊" ? "炊飯器" : /^b\d$/i.test(to) ? "ボウル" : /^\d$/.test(to) ? `バット${"①②③④"[+to - 1] || to}` : /^s\d$/i.test(to) ? `${smallKind(to)}${to.slice(1)}` : mx && mx.label ? `${mixKind(to)}「${mx.label}」` : `${mixKind(to)}${to}`; };
+// 手順で「調理台に出す」材料: その材料を最初に使う手順で、入れる容器ごとにまとめて出す
+function putOutHtml(idx) {
+  if (!CK.putAt) { CK.putAt = {}; CK.steps.forEach((s, j) => hitNames(s.c, splitTool(stepTxt(s)).text, s.i).forEach(n => { const k = s.c.r.id + "|" + n; if (!(k in CK.putAt)) CK.putAt[k] = j; })); }
+  const s = CK.steps[idx], groups = new Map();
+  ingsOf(s.c.r).forEach(g => {
+    if (CK.putAt[s.c.r.id + "|" + g.name] !== idx || /^(水|湯|お湯|熱湯)$/.test(normName(g.name)) || isRice(g.name)) return;
+    const x = ingState(g.name, g.amount, s.c.k); if (x.st === "skip") return;
+    const p = placeOf(g.name, s.c.r.id), to = placeName(p && p.to), am = cookAmt(withGram(g.name, scaleAmount(g.amount, s.c.k * kOf(g.name)))).main;
+    const t = x.st === "sub" ? `${x.sub.use.split("・")[0]}（${ingBase(s.c.r, g.name)}の代用）${x.sub.amount && !/^同量$/.test(x.sub.amount) ? " " + x.sub.amount : ""}` : `${ingBase(s.c.r, g.name)}${am ? " " + am : ""}`;
+    if (!groups.has(to)) groups.set(to, []); groups.get(to).push(t);
+  });
+  if (!groups.size) return "";
+  return `<div class="ctray cput"><span>🥣 調理台に出す</span>${[...groups].sort((a, b) => (a[0] ? 0 : 1) - (b[0] ? 0 : 1)).map(([to, l]) => `<span>${to ? `<b>${esc(to)}</b>に: ` : ""}${esc(l.join("・"))}</span>`).join("")}</div>`;
 }
-// ① 材料を調理台に出す: 出したらタップ。冷蔵庫などに戻す残りの量を直すと、ここで在庫を更新する
+// ① 材料の確認: 材料ごとに「在庫・使う量・残り」を出す。残りが違っていたら直して、在庫から引く。
+//   調理台や容器に出すのは、手順の中で（その材料を最初に使う手順で）案内する
 function drawPrep() {
-  const cooks = CK.cooks, done = CK.d && cookPlansOf(CK.d, CK.m).every(p => p.status === "作った"), rows = done ? [] : stockRows(cooks);
-  const bk = CK.prep && CK.prep.book, ings = new Map(); cooks.forEach(c => ingsOf(c.r).forEach(i => { if (/^(水|湯|お湯|熱湯)$/.test(normName(i.name))) return;
-    // 本のレシピは、分け方（下味・a など）ごとに別の行にする（同じ酒でも、下味用と炒める用は別）
-    const k = bk ? c.r.id + "|" + i.name : normName(i.name) || i.name, o = ings.get(k) || { name: i.name, show: ingBase(c.r, i.name), rid: bk ? c.r.id : "", st: ingState(i.name, i.amount, c.k), amts: [], per: [] }, a = withGram(i.name, scaleAmount(i.amount, c.k * kOf(i.name))) + lessTag(i.name); o.amts.push(a); o.per.push({ c, amt: a }); ings.set(k, o); }));
+  const cooks = CK.cooks, multi = cooks.length > 1, done = CK.d && cookPlansOf(CK.d, CK.m).every(p => p.status === "作った"), rows = done ? [] : stockRows(cooks);
+  const no = c => multi ? "①②③④⑤⑥"[cooks.indexOf(c)] || "" : "";
+  // 同じ材料は、料理や分け方（下味・a など）が違っても1行にまとめる
+  const ings = new Map(); cooks.forEach(c => ingsOf(c.r).forEach(i => { if (/^(水|湯|お湯|熱湯)$/.test(normName(i.name))) return;
+    const b = ingBase(c.r, i.name), k = normName(b) || b, o = ings.get(k) || { name: i.name, show: b, st: ingState(i.name, i.amount, c.k), amts: [], per: [] }, a = withGram(i.name, scaleAmount(i.amount, c.k * kOf(i.name))) + lessTag(i.name); o.amts.push(a); o.per.push({ c, amt: a }); ings.set(k, o); }));
   const list = [...ings.values()].map(i => { const s = i.st.st === "sub" ? i.st.s : matchStock(i.name, null, true), ri = s && i.st.st !== "sub" ? rows.findIndex(x => x.s.id === s.id) : -1; return { ...i, s, ri }; });
   // 調味料など、少しだけ使う物も在庫の量を直せるように（大さじ・小さじは ml の在庫なら引いておく）
   list.forEach(i => { if (done || !i.s || i.ri >= 0 || i.s.qty === OUT || i.st.st === "sub") return; const j = rows.findIndex(x => x.s.id === i.s.id); if (j >= 0) { i.ri = j; return; } let after = i.s.qty; i.amts.forEach(a => { const ml = spoonQ(i.name, a), r = ml ? subQty(after, ml) : null; if (r) after = r === "gone" ? "" : r; }); rows.push({ s: i.s, used: [], show: i.amts, after }); i.ri = rows.length - 1; });
   CK.prepList = list;
-  const seenRow = new Set();
   $("cProg").style.width = "0";
-  CK.ingNote = `${done ? "この料理の在庫は、もう引いてあります。" : "容器を図の場所に並べ、野菜は札のバットへ、調味料はボウル・小鉢（粉末などは小皿）へ量って入れます。戻す<b>残りの量</b>を直して、下のボタンで在庫を引きます。"}`;
-  $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}<h3 id="ppH"></h3><p class="note" id="ppN"></p>
-    <div class="cboxes" id="prepBox"></div>
-    <div class="plist pil"><ul class="list">${prepEntries(list).map(e => { const i = e.i, row = e.row && i.ri >= 0 && !seenRow.has(i.ri) ? rows[i.ri] : null; if (row) seenRow.add(i.ri); const v = CK.prepVals && CK.prepVals[i.ri];
-      const lb = i.st.st === "sub" ? `${i.st.sub.use.split("・")[0]}で代用${i.st.sub.amount ? `（${i.st.sub.amount}）` : ""}${i.st.sub.note ? `。${i.st.sub.note}` : ""}` : i.st.st === "skip" ? "在庫に無いので省く" : "";
-      return `${e.head ? `<li class="pgh">${esc(e.head)}</li>` : ""}<li${i.st.st === "skip" ? ` style="opacity:.5"` : ""}><span class="pnm"><span><b>${esc(i.show || i.name)}</b> ${i.st.st === "skip" ? `<s>${esc(e.amts.join("＋"))}</s>` : esc(e.amts.join("＋"))}${lb ? `<em class="pnote">${i.st.st === "sub" ? "🔄 " : ""}${esc(lb)}</em>` : ""}${e.note ? `<em class="pnote">${esc(e.note)}</em>` : ""}<small>${i.st.st === "skip" ? "" : i.s ? `在庫: ${i.st.st === "sub" ? esc(i.s.name) + " " : ""}${esc(i.s.qty)}` : "在庫なし"}</small></span></span>${row ? `<span class="prest"><span class="left">戻す残り</span>${qtyBox(v != null ? v : row.after, "q pq", i.ri, row.s.name)}</span>` : ""}</li>`; }).join("")}</ul></div>
-    <div class="prepmap" id="prepMap"></div>
+  // 使う量の合計: 野菜などは単位の数で足す（1/8株＋1/8株 → 1/4株）。ほかは同じ単位どうしを足す
+  const total = (name, amts) => { const v = vegOf(name), ns = v ? amts.map(a => vegN(name, a, v)) : []; if (v && ns.length && ns.every(n => n != null)) return vegFmt(ns.reduce((a, b) => a + b, 0), v); return amts.length > 1 ? sumAmounts(amts) : amts[0] || ""; };
+  const perTxt = i => i.per.length > 1 ? i.per.map(x => `${no(x.c)}${x.amt}`).join("＋") : multi && i.per.length ? `${no(i.per[0].c)}だけ` : "";
+  const seen = new Set(), withRow = [], other = [];
+  list.forEach(i => { if (i.ri >= 0 && !seen.has(i.ri) && i.st.st !== "skip") { seen.add(i.ri); withRow.push(i); } else if (!(i.ri >= 0 && seen.has(i.ri))) other.push(i); else { const w = withRow.find(x => x.ri === i.ri); if (w) { w.amts = w.amts.concat(i.amts); w.per = w.per.concat(i.per); } } });
+  const subNote = i => i.st.st === "sub" ? `🔄 ${i.st.sub.use.split("・")[0]}で代用${i.st.sub.amount ? `（${i.st.sub.amount}）` : ""}${i.st.sub.note ? `。${i.st.sub.note}` : ""}` : "";
+  const rowHtml = i => { const row = rows[i.ri], v = CK.prepVals && CK.prepVals[i.ri], pt = perTxt(i);
+    return `<li class="pck"><div class="pckh"><b>${esc(i.show || i.name)}</b>${pt ? `<small>${esc(pt)}</small>` : ""}</div>${subNote(i) ? `<em class="pnote">${esc(subNote(i))}</em>` : ""}
+      <div class="pck3"><span class="pc"><small>在庫</small><b>${esc(row.s.qty || "なし")}</b></span><span class="pop">−</span><span class="pc"><small>今回使う</small><b>${esc(total(row.s.name, i.amts))}</b></span><span class="pop">＝</span><span class="pc pin"><small>残り（直せます）</small>${qtyBox(v != null ? v : row.after, "q pq", i.ri, row.s.name)}</span></div></li>`; };
+  const otherHtml = i => { const lb = i.st.st === "skip" ? "在庫に無いので省く" : subNote(i), amt = i.amts.length > 1 ? i.amts.join("＋") : i.amts[0] || "";
+    return `<li${i.st.st === "skip" ? ` class="pskp"` : ""}><span><b>${esc(i.show || i.name)}</b> ${i.st.st === "skip" ? `<s>${esc(amt)}</s>` : esc(amt)}${multi && i.per.length === 1 ? `<small> ${no(i.per[0].c)}</small>` : ""}</span><small>${lb ? esc(lb) : i.s ? `在庫 ${esc(i.s.qty || "なし")}` : "在庫なし"}</small></li>`; };
+  $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}<h3>材料の確認</h3>
+    <p class="note">${done ? "この料理の在庫は、もう引いてあります。" : "残りが違っていたら直してください。容器や調理台に出すのは、手順の中で案内します。"}</p>
+    ${multi ? `<p class="note pleg">${cooks.map((c, j) => `${no(c)}${esc(c.r.title)}`).join("　")}</p>` : ""}
+    <div class="plist pil">${withRow.length ? `<ul class="list pcks">${withRow.map(rowHtml).join("")}</ul>` : ""}
+    ${other.length ? `<div class="pgh">${withRow.length ? "ほかの材料（在庫は引きません）" : "材料"}</div><ul class="list pother">${other.map(otherHtml).join("")}</ul>` : ""}</div>
     <button class="btn wide" id="ppGo">${done ? "手順へ" : CK.steps.length || cooks.some(c => stepsOf(c.r).length) ? "在庫から引いて手順へ" : "在庫から引く"}</button>${!done && cooks.some(c => stepsOf(c.r).length) ? `<button class="chip pskip" id="ppSkip">在庫は引かずに手順を見る</button>` : ""}</div>`;
-  paintPrepMap();
   const go = async upd => {
     if (upd) {
       const ups = [], rems = [];
@@ -3016,7 +3026,7 @@ function drawCook() {
   $("cProg").style.width = `${Math.min(CK.idx, n) / n * 100}%`;
   if (CK.idx >= n) {
     $("cIngs").innerHTML = ""; ov.style.background = "";
-    $("cStep").innerHTML = `<div class="cno">完成</div><div class="ctext">おつかれさまでした</div><p class="note">在庫は、材料を出したときに引いてあります。</p><button class="btn" id="cEnd2">調理モードを終える</button>`;
+    $("cStep").innerHTML = `<div class="cno">完成</div><div class="ctext">おつかれさまでした</div><p class="note">在庫は、材料の確認のときに引いてあります。</p><button class="btn" id="cEnd2">調理モードを終える</button>`;
     $("cEnd2").onclick = e => { e.stopPropagation(); endCook(); };
     paintTimers(); return;
   }
@@ -3034,6 +3044,7 @@ function drawCook() {
     ${CK.noAi && CK.idx === 0 ? `<p class="note">AIに段取りを頼めなかったため、レシピの順に並べています。</p>` : ""}
     ${(() => { const why = s.note ? `<span class="cwhy${/洗|生/.test(s.note) ? " warn" : ""}">${esc(s.note)}</span>` : "";
       return `<div class="ctext">${stepHtml(s.c, s.i, s.part).replace(/。$/, "")}${stepExtra(s, st).map(x => `。${esc(x).replace(QTY_RE, m0 => `<mark>${m0}</mark>`)}`).join("")}${why}</div>`; })()}
+    ${putOutHtml(CK.idx)}
     ${s.tray && !s.scene ? `<div class="ctray">🥣 ${esc(s.tray)}</div>` : ""}
     ${st.tool && !s.scene ? `<div class="ctool">🍳 ${esc(st.tool)}</div>` : ""}
     ${kitchenSvg(CK.idx)}`;
