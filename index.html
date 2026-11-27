@@ -144,6 +144,8 @@ ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; }
 .dbtn i.none { background: transparent; }
 .kcalrow { display: flex; justify-content: center; align-items: baseline; gap: 6px; font-size: .8rem; white-space: nowrap; }
 .kcalrow b { font-size: 1.05rem; }
+.kcalrow b.kok { color: var(--accent); }
+.kcalrow b.kng { color: var(--alert); }
 .kcalrow .kdot, .kcalrow .kunit { color: var(--muted); }
 .mcard { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; text-align: left; font: inherit; color: var(--ink); background: var(--bg); border: 0; border-radius: 18px; padding: 10px 12px; cursor: pointer; }
 /* 2026-11-27: 食事のラベル・状態・kcalは上の1行に、料理名は下に行の幅いっぱいで（改行しない） */
@@ -1526,7 +1528,7 @@ function drawMenu() {
     ${(l => l.length ? `<section class="card jobbn stack"><div><b>📕 本のレシピではない料理</b><small>${esc(uniqPlans(l).map(p => `${+p.date.slice(5, 7)}/${+p.date.slice(8)}${MEAL_LABEL[p.meal]}「${p.title}」`).join("・"))}</small></div><button class="chip" id="nbOpen" data-d="${l[0].date}" data-m="${l[0].meal}">開く</button></section>` : "")(notBookPlans())}
     ${future ? planCardHtml(ws) : ""}
     <section class="card daycard">
-      <button class="kcalrow" id="kcal"><span>${esc(SET("人1"))} <b>${Math.round(nutP(S.day, 1).kcal)}</b>/${t1.kcal}</span><span class="kdot">・</span><span>${esc(SET("人2"))} <b>${Math.round(nutP(S.day, 2).kcal)}</b>/${t2.kcal}</span><span class="kunit">kcal</span></button>
+      <button class="kcalrow" id="kcal"><span>${esc(SET("人1"))} <b class="${kOk(nutP(S.day, 1).kcal, t1.kcal)}">${Math.round(nutP(S.day, 1).kcal)}</b>/${t1.kcal}</span><span class="kdot">・</span><span>${esc(SET("人2"))} <b class="${kOk(nutP(S.day, 2).kcal, t2.kcal)}">${Math.round(nutP(S.day, 2).kcal)}</b>/${t2.kcal}</span><span class="kunit">kcal</span></button>
       <div class="mcards">${MEALS_ALL.map(m => {
         const list = ps.filter(p => p.meal === m), uniq = uniqPlans(list);
         if (!list.length && (m === "おやつ" || m === SIKOMI)) return "";
@@ -4304,6 +4306,8 @@ function eventsIn(days) {
 }
 // 1日ごとの栄養（1人分）を目標と比べて、大きく少ない日（今日の過ぎた食事は数えない）
 // 2026-11-27: 栄養と予算の許容値（好み・予算の画面で変えられる）。栄養は1日の目標の何%以上、材料費は予算の何%までを合格にする
+// 1日のカロリーが目標を満たしているか（許容値の%以上なら緑、足りなければ赤）
+const kOk = (v, t) => !t ? "" : v >= t * tolNut() / 100 ? "kok" : "kng";
 const tolNut = () => +SET("許容_栄養") || 90, tolBud = () => +SET("許容_予算") || 105;
 function nutShort(plans, days) {
   const tg = { kcal: (target(1).kcal + target(2).kcal) / 2, p: (target(1).p + target(2).p) / 2 };
