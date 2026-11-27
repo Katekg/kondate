@@ -297,6 +297,8 @@ button.kcalrow { width: 100%; border: 0; background: none; font: inherit; color:
 .phv:has(.dp3) { place-items: stretch; }
 .cook { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: grid; grid-template-rows: auto auto minmax(0, .95fr) minmax(0, 1.3fr) auto auto; gap: 4px; transition: background-color .25s; padding: calc(8px + env(safe-area-inset-top)) 14px calc(4px + env(safe-area-inset-bottom)); }
 .cook[hidden] { display: none; }
+.cook .chead:has(.crev) { flex-wrap: wrap; }
+.cook .crev { flex-basis: 100%; background: var(--fill); color: var(--fill-ink); font-size: .8rem; font-weight: 700; border-radius: 999px; padding: 3px 12px; margin: 6px 0 2px; justify-self: start; width: fit-content; }
 .chead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .chead .btn { white-space: nowrap; flex: none; padding: 6px 14px; }
 .chead { align-items: flex-start; }
@@ -1706,7 +1708,7 @@ function openSlot(d, m) {
   const nOf = (k, i) => uniq.filter(p => !i || eatsDish(p, i)).reduce((t, p) => t + (isOut(p) ? OUT_EST[m][k] : +(recipeOf(p.recipeId) || {})[k] || 0), 0);
   const kc = nOf("kcal"), pr = nOf("p");
   openSheet(`<h2>${fmtDay(d)} ${MEAL_LABEL[m]}${(st => st ? ` <small class="mst st-${st}" style="vertical-align:middle">${SLT[st]}</small>` : "")(slotTypeOf(d, m, list))}</h2>
-    <div class="slotacts">${cooks.some(c => stepsOf(c.r).length) ? `<button class="btn alt" id="slCook">🍳 調理開始</button>` : cooks.some(c => ingsOf(c.r).length) && !done ? `<button class="btn alt" id="slCook">📦 在庫から引く</button>` : ""}<button class="btn ghost" id="slPhAdd">📷 ${ph ? "写真変更" : "写真追加"}</button>${bkIds.length ? `<button class="btn ghost" id="slBook">🖼 元の画像</button>` : ""}</div>
+    <div class="slotacts">${cooks.some(c => stepsOf(c.r).length) ? `<button class="btn alt" id="slCook">${done ? "📖 調理を振り返る" : "🍳 調理開始"}</button>` : cooks.some(c => ingsOf(c.r).length) && !done ? `<button class="btn alt" id="slCook">📦 在庫から引く</button>` : ""}<button class="btn ghost" id="slPhAdd">📷 ${ph ? "写真変更" : "写真追加"}</button>${bkIds.length ? `<button class="btn ghost" id="slBook">🖼 元の画像</button>` : ""}</div>
     ${ph ? `<div class="phbox"><img src="${esc(ph.thumb)}" alt="料理の写真" id="slPh"></div><button class="chip" id="slPhDel" style="justify-self:end">写真を消す</button>` : ""}
     ${uniq.length ? `<div class="card"><div class="secthead"><span class="dishes">${uniq.map(p => `<span>${whoMark(p)}${esc(p.title)}${isLo(p) ? `<span class="tag lo">作り置き</span>` : ""}${notBookPlans().some(q => q.id === p.id) ? `<span class="tag lo" style="background:#fde2e2;color:#a33">本にない</span>` : ""}</span>`).join("")}</span>${list.some(p => p.status !== "作った") ? `<button class="chip" id="slDel">外す</button>` : ""}</div><p class="note">${m === SIKOMI ? `仕込みです。ここでは食べず、${uniq.map(p => (o => o ? `「${esc(o.name)}」として在庫に入ります（${o.ready ? `${+shiftDay(d, o.ready).slice(5, 7)}/${+shiftDay(d, o.ready).slice(8)}から使える・` : ""}${o.days}日もつ）` : "後の食事の作り置き（副菜）として食べます")(stockOutOf(recipeOf(p.recipeId)))).join("。")}` : ""}${m === SIKOMI ? "" : `${uniq.some(isOut) ? "外食予定（食後に内容を入力）・" : ""}${(so => [1, 2].map(i => so && so !== i ? `${esc(SET("人" + i))} 外食` : `${esc(SET("人" + i))} 約${Math.round(nOf("kcal", i) * sh(i))}kcal・P${Math.round(nOf("p", i) * sh(i))}`).join("／"))(soloOf(d, m))}`}</p>${uniq.some(p => !isOut(p)) && m !== SIKOMI ? `<p class="note" style="margin:6px 0 2px">食べる人</p><div class="seg eatrow">${[[0, "👬"], [1, `${esc(SET("人1"))}だけ`], [2, `${esc(SET("人2"))}だけ`]].map(([v, l]) => `<button class="chip" data-eat="${v}" aria-pressed="${soloOf(d, m) === v}">${l}</button>`).join("")}</div>` : ""}${!soloOf(d, m) && m !== SIKOMI && uniq.some(p => !isOut(p) && p.status !== "作った") ? `<p class="note" style="margin:8px 0 2px">料理ごとに1人だけにする（納豆が1つしか無いときなど）</p>${uniq.filter(p => !isOut(p) && p.status !== "作った").map((p, j) => `<div class="whorow"><span>${esc(p.title)}</span><div class="seg eatrow">${[[0, "👬"], [1, esc(SET("人1"))], [2, esc(SET("人2"))]].map(([v, l]) => `<button class="chip" data-who="${v}" data-wt="${esc(p.title)}" aria-pressed="${dishWho(p) === v}">${l}</button>`).join("")}</div></div>`).join("")}` : ""}${soloOf(d, m) ? `<p class="note">👤 この食事は${esc(soloTag(d, m))}（${soloPeople(soloOf(d, m))}人分の量で作る。もう1人は外食として栄養を数える）</p>` : moriHtml(cooks)}${(l => l.length ? `<p class="note" style="color:var(--alert)">⚠ 同じ日に似た料理があります: ${l.map(([x, y]) => `${MEAL_LABEL[x.meal]}「${esc(x.title)}」と${MEAL_LABEL[y.meal]}「${esc(y.title)}」`).join("、")}。どちらかを別の料理に変えるのがおすすめです</p>` : "")(likeOnDay(d).filter(([x, y]) => x.meal === m || y.meal === m))}${riceNote(d, m)}${stockState(d, m)}</div>` : `<p class="note">まだ空きです。</p>`}
     ${(() => { // 2026-11-27: 「作った」になった料理だけ聞く
@@ -1761,7 +1763,7 @@ function openSlot(d, m) {
   bindSwap(d, m);
   if (ph) { $("slPh").onclick = () => showPhoto(ph); $("slPhDel").onclick = async () => { if (!confirm("この写真を消しますか？")) return; busy(true, "消しています…"); try { await run("deletePhoto", ph.id); S.photos = S.photos.filter(x => x.id !== ph.id); draw(); openSlot(d, m); } catch (e) { alert(e.message); } busy(false); }; }
   const sd = $("slDel"); if (sd) sd.onclick = async () => { const ids = list.filter(x => x.status !== "作った").map(x => x.id); if (!confirm(`${fmtDay(d)} ${MEAL_LABEL[m]}の料理（${uniq.map(p => p.title).join("・")}）を献立から外しますか？`)) return; const lo0 = new Set(leftovers(S.plans).map(x => x.s.id + x.left)); busy(true, "外しています…"); try { await run("deletePlans", ids); await load(); busy(false); if (await offerLeftovers(lo0)) return; openSlot(d, m); } catch (e) { alert(e.message); } busy(false); };
-  const ck = $("slCook"); if (ck) ck.onclick = () => askServings(cooks, d, m);
+  const ck = $("slCook"); if (ck) ck.onclick = () => done ? startCook(cooks, d, m) : askServings(cooks, d, m);
 }
 // 予定の並び順（日付＋食事）
 const ordOf = p => p.date + MEALS_ALL.indexOf(p.meal);
@@ -3113,9 +3115,10 @@ async function startCook(cooks, d, m) {
   closeSheet();
   const ov = $("cook"); keepAwake("cook", true);
   run("setCooking", true).catch(() => {});   // 調理中は、段取りの先作りでAIをふさがない
-  CK = { cooks, d, m, steps: [], idx: 0, sw: { acc: 0, start: 0, goal: 0, from: -1, rung: false }, tick: null, colors: dishColors(cooks, null), peek: false, phase: "prep" };
+  const review = !!d && cookPlansOf(d, m).length > 0 && cookPlansOf(d, m).every(p => p.status === "作った");
+  CK = { review, cooks, d, m, steps: [], idx: 0, sw: { acc: 0, start: 0, goal: 0, from: -1, rung: false }, tick: null, colors: dishColors(cooks, null), peek: false, phase: "prep" };
   ov.className = "cook prep" + (cooks.length > 1 ? " multi" : "");
-  ov.innerHTML = `<div class="chead"><b>${esc(cooks.map(c => c.r.title).join("・"))}</b><span class="chbtns">${cooks.some(c => bookPageOf(c.r.id)) ? `<button class="btn alt" id="cBookB">🖼 元の画像</button>` : ""}<button class="btn ghost" id="cEnd">終了</button></span></div>
+  ov.innerHTML = `<div class="chead"><b>${esc(cooks.map(c => c.r.title).join("・"))}</b><span class="chbtns">${cooks.some(c => bookPageOf(c.r.id)) ? `<button class="btn alt" id="cBookB">🖼 元の画像</button>` : ""}<button class="btn ghost" id="cEnd">終了</button></span>${review ? `<div class="crev">✅ 調理済み・振り返り（${fmtDay(d)}${MEAL_LABEL[m] || m}）</div>` : ""}</div>
     <div class="cprog"><i id="cProg"></i></div>
     <div class="cings" id="cIngs"></div><div class="cstep" id="cStep"></div>
     <div class="ctbar" id="cTbar"><span class="tbox"><span class="tv" id="tV">0:00</span><span class="tl" id="tL"></span></span><button class="chip" id="tGo">▶ スタート</button><button class="chip" id="tRe">リセット</button><button class="chip" id="tAlm" aria-label="タイマー">⏰</button><div class="calms" id="cAlms"></div></div>
@@ -3221,12 +3224,12 @@ function drawPrep() {
     return `<li class="pck"><div class="pckh"><b>${esc(i.show || i.name)}</b>${pt ? `<small>${esc(pt)}</small>` : ""}</div>${subNote(i) ? `<em class="pnote">${esc(subNote(i))}</em>` : ""}
       <div class="pck3"><span class="pc"><small>在庫</small><b>${amtHtml(row.s.qty || "なし")}</b></span><span class="pop">−</span><span class="pc"><small>今回使う</small><b>${amtHtml(total(row.s.name, i.amts))}</b></span><span class="pop">＝</span><span class="pc pin${/[（(]約?\d/.test(v != null ? v : row.after || "") ? " pg" : ""}"><small>残り（直せます）</small>${qtyBox(v != null ? v : row.after, "q pq", i.ri, row.s.name)}</span></div></li>`; };
   const otherHtml = i => { const lb = i.st.st === "skip" ? "在庫に無いので省く" : subNote(i), amt = i.amts.length > 1 ? i.amts.join("＋") : i.amts[0] || "";
-    return `<li${i.st.st === "skip" ? ` class="pskp"` : ""}><span><b>${esc(i.show || i.name)}</b> ${i.st.st === "skip" ? `<s>${esc(amt)}</s>` : esc(amt)}${multi && i.per.length === 1 ? `<small> ${no(i.per[0].c)}</small>` : ""}</span><small>${lb ? esc(lb) : i.s ? `在庫 ${esc(i.s.qty || "なし")}` : "在庫なし"}</small></li>`; };
-  $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}<h3>材料の確認</h3>
-    <p class="note">${done ? "この料理の在庫は、もう引いてあります。" : "残りが違っていたら直してください。容器や調理台に出すのは、手順の中で案内します。"}</p>
+    return `<li${i.st.st === "skip" ? ` class="pskp"` : ""}><span><b>${esc(i.show || i.name)}</b> ${i.st.st === "skip" ? `<s>${esc(amt)}</s>` : esc(amt)}${multi && i.per.length === 1 ? `<small> ${no(i.per[0].c)}</small>` : ""}</span><small>${done && i.st.st !== "skip" ? "調理済み" : lb ? esc(lb) : i.s ? `在庫 ${esc(i.s.qty || "なし")}` : "在庫なし"}</small></li>`; };
+  $("cStep").innerHTML = `<div class="cprep" id="cprep">${CK.d ? riceNote(CK.d, CK.m) : ""}<h3>${done ? "使った材料（振り返り）" : "材料の確認"}</h3>
+    <p class="note">${done ? "この食事は調理済みです。在庫はもう引いてあるので、ここでは引きません。手順を振り返れます。" : "残りが違っていたら直してください。容器や調理台に出すのは、手順の中で案内します。"}</p>
     ${multi ? `<p class="note pleg">${cooks.map((c, j) => `${no(c)}${esc(c.r.title)}`).join("　")}</p>` : ""}
     <div class="plist pil">${withRow.length ? `<ul class="list pcks">${withRow.map(rowHtml).join("")}</ul>` : ""}
-    ${other.length ? `<div class="pgh">${withRow.length ? "ほかの材料（在庫は引きません）" : "材料"}</div><ul class="list pother">${other.map(otherHtml).join("")}</ul>` : ""}</div>
+    ${other.length ? `<div class="pgh">${done ? "使った材料" : withRow.length ? "ほかの材料（在庫は引きません）" : "材料"}</div><ul class="list pother">${other.map(otherHtml).join("")}</ul>` : ""}</div>
     <button class="btn wide" id="ppGo">${done ? "手順へ" : CK.steps.length || cooks.some(c => stepsOf(c.r).length) ? "在庫から引いて手順へ" : "在庫から引く"}</button>${!done && cooks.some(c => stepsOf(c.r).length) ? `<button class="chip pskip" id="ppSkip">在庫は引かずに手順を見る</button>` : ""}</div>`;
   const go = async upd => {
     if (upd) {
@@ -3297,7 +3300,7 @@ function drawCook() {
   $("cProg").style.width = `${Math.min(CK.idx, n) / n * 100}%`;
   if (CK.idx >= n) {
     $("cIngs").innerHTML = ""; ov.style.background = "";
-    $("cStep").innerHTML = `<div class="cno">完成</div><div class="ctext">おつかれさまでした</div><p class="note">在庫は、材料の確認のときに引いてあります。</p><button class="btn" id="cEnd2">調理モードを終える</button>`;
+    $("cStep").innerHTML = (CK.review ? `<div class="cno">振り返り終わり</div><div class="ctext">この食事は調理済みです</div><p class="note">在庫は、作ったときに引いてあります。</p>` : `<div class="cno">完成</div><div class="ctext">おつかれさまでした</div><p class="note">在庫は、材料の確認のときに引いてあります。</p>`) + `<button class="btn" id="cEnd2">調理モードを終える</button>`;
     $("cEnd2").onclick = e => { e.stopPropagation(); endCook(); };
     paintTimers(); return;
   }
