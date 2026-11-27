@@ -568,6 +568,8 @@ li.gone .ckout { background: var(--fill); color: var(--fill-ink); border-color: 
 /* 期限が切れた物 */
 .excard { border: 1.5px solid var(--alert); }
 .excard h3 { color: var(--alert); }
+.exh { font-size: .95rem; margin: 10px 0 2px; }
+.exh.red { color: var(--alert); }
 .exlist li { flex-wrap: wrap; gap: 6px; padding: 8px 0; }
 .exlist .nm { flex-basis: 100%; }
 .exlist .nm b { font-size: 1.05rem; }
@@ -1440,7 +1442,7 @@ function drawMenu() {
   document.documentElement.classList.toggle("lock", !future && ws <= curWs); if (!future && ws <= curWs) window.scrollTo(0, 0);
   $("app").innerHTML = `<section class="card" style="position:relative"><button class="srchbtn" id="mSrch" aria-label="これまでの献立を材料で探す">🔍 探す</button>${!future ? topChips(ws) : ""}<button class="monthbtn" id="mCal">${mon}月 ▾</button><div class="daystrip" style="grid-template-columns:auto repeat(${days.length}, minmax(0, 1fr)) auto"><button class="nav" id="wPrev">‹</button>${days.map((d, i) => { const w = new Date(d + "T00:00:00").getDay(); return `<button class="dbtn${d === today() ? " today" : ""}${w === 0 ? " sun" : w === 6 ? " sat" : ""}${i === 0 ? " shop" : ""}" data-d="${d}" ${d === S.day ? "aria-current" : ""}${i === 0 ? ` title="買い物の日${shopDayTag(d) ? "（" + shopDayTag(d) + "）" : ""}"` : ""}><small>${i === 0 ? "🛒" : ""}${"日月火水木金土"[w]}</small><b>${+d.slice(8)}</b><i class="${S.plans.some(p => p.date === d) ? "" : "none"}"></i></button>`; }).join("")}<button class="nav" id="wNext">›</button></div><p class="shopline">🛒 買い物の日 ${+ws.slice(5, 7)}/${+ws.slice(8)}（${"日月火水木金土"[new Date(ws + "T00:00:00").getDay()]}）${shopDayTag(ws) ? `・${shopDayTag(ws)}` : ""} 〜 ${+we.slice(5, 7)}/${+we.slice(8)}（${days.length}日）</p></section>
     ${lsGet("buyChk") ? `<section class="card jobbn"><b>🧾 買った物の確認がまだです</b><small>量の直しと、合計金額の入力（相場合わせ）ができます。</small><button class="chip" id="bcOpen">開く</button></section>` : ""}
-    ${(l => l.length ? `<section class="card jobbn stack"><div><b>🥕 期限までに使い切れない食材があります</b><small>${esc(l.map(x => `${x.s.name} ${x.left}（期限 ${+x.s.exp.slice(5, 7)}/${+x.s.exp.slice(8)}）`).join("・"))}。「違うものを食べたい」や見直しで使い切る料理に替えてください。</small></div></section>` : "")(S.tab === "menu" ? wasteRaw() : [])}
+    ${(l => l.length ? `<section class="card jobbn stack"><div><b>🥕 期限までに使い切れない食材があります</b><small>${esc(l.map(x => `${x.s.name} ${x.left}（期限 ${+x.s.exp.slice(5, 7)}/${+x.s.exp.slice(8)}）`).join("・"))}。「違うものを食べたい」や見直しで使い切る料理に替えてください。</small></div><span class="jbtn"><button type="button" class="chip" id="wasteExp">期限を確かめる</button></span></section>` : "")(S.tab === "menu" ? wasteRaw() : [])}
     ${(l => l.length ? `<section class="card jobbn stack"><div><b>📕 本のレシピではない料理が献立に入っています</b><small>${esc(uniqPlans(l).map(p => `${+p.date.slice(5, 7)}/${+p.date.slice(8)}${MEAL_LABEL[p.meal]}「${p.title}」`).join("・"))}。タップして「違うものを食べたい」などで本のレシピに替えてください。</small></div><button class="chip" id="nbOpen" data-d="${l[0].date}" data-m="${l[0].meal}">開く</button></section>` : "")(notBookPlans())}
     ${future ? planCardHtml(ws) : ""}
     <section class="card daycard">
@@ -1890,12 +1892,29 @@ const soonOk = new Set();
 const soonList = () => (S.stock || []).filter(s => s.exp && s.exp >= today() && s.exp <= shiftDay(today(), 7) && hasQty(s) && !soonOk.has(s.id)).sort((a, b) => a.exp.localeCompare(b.exp));
 function expiredRows(l, soon) {
   return `<ul class="list exlist">${l.map(s => `<li data-xid="${esc(s.id)}"><span class="nm"><b>${esc(s.name)}</b><small>${esc(vegQ(s.name, s.qty))}・期限 ${+s.exp.slice(5, 7)}/${+s.exp.slice(8)}（${soon ? (-daysPast(s) ? `あと${-daysPast(s)}日` : "今日まで") : `${daysPast(s)}日過ぎ`}）</small></span>
-    <span class="exbtns">${soon ? `<button type="button" class="chip" data-xok>合っている</button>` : ""}<button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
+    <span class="exbtns">${soon ? (soonOk.has(s.id) ? `<span class="chip okmark">✓ 確認済み</span>` : `<button type="button" class="chip" data-xok>合っている</button>`) : ""}<button type="button" class="chip" data-xd="3">＋3日</button><button type="button" class="chip" data-xd="7">＋1週間</button><button type="button" class="chip" data-xd="m">＋1ヶ月</button><label class="chip expick">日付<input type="date" data-xdate value="${esc(today())}"></label><button type="button" class="chip danger" data-xdel>捨てる</button></span></li>`).join("")}</ul>`;
 }
+// 在庫タブの一番上: 期限が切れた物と、7日以内の物をいつも出す（無いときは小さく「ありません」）
+const soonAll = () => (S.stock || []).filter(s => s.exp && s.exp >= today() && s.exp <= shiftDay(today(), 7) && hasQty(s)).sort((a, b) => a.exp.localeCompare(b.exp));
+function expiryBody() {
+  const l = expiredList(), n = soonAll();
+  if (!l.length && !n.length) return `<p class="note okmark">✅ 期限が切れた物も、7日以内の物もありません</p>`;
+  return `${l.length ? `<h3 class="exh red">⚠ 期限が切れた物（${l.length}品）</h3><p class="note">まだ使えそうなら期限を延ばし、だめなら「捨てる」で在庫から消してください。延ばした物は、その期限で献立に使います。</p>${expiredRows(l)}` : ""}
+    ${n.length ? `<h3 class="exh">期限が近い物（7日以内・${n.length}品）</h3><p class="note">期限の入力が違っていないか確かめてください。違っていれば「＋」か「日付」で直します。合っていれば「合っている」を押してください。</p>${expiredRows(n, true)}` : ""}`;
+}
+let expOpen = false;
+document.addEventListener("toggle", e => { if (e.target.id === "expCard") expOpen = e.target.open; }, true);
 function expiredCard() {
-  const l = expiredList(); if (!l.length) return "";
-  return `<section class="card excard"><div class="secthead"><h3>⚠ 期限が切れています（${l.length}品）</h3></div><p class="note">まだ使えそうなら期限を延ばし、だめなら「捨てる」で在庫から消してください。延ばした物は、その期限で献立に使います。</p>${expiredRows(l)}</section>`;
+  const l = expiredList(), n = soonAll(), todo = n.filter(s => !soonOk.has(s.id)).length;
+  if (!l.length && !n.length) return `<section class="card" id="expCard"><small class="okmark">📅 ✅ 期限が切れた物も、7日以内の物もありません</small></section>`;
+  return `<details class="card${l.length ? " excard" : ""}" id="expCard"${l.length || expOpen ? " open" : ""}><summary><b>📅 期限の確認</b> <small>${[l.length ? `切れた物 ${l.length}品` : "", n.length ? `7日以内 ${n.length}品${todo < n.length ? `（未確認 ${todo}）` : ""}` : ""].filter(Boolean).join("・")}</small></summary>${expiryBody()}</details>`;
 }
+// 黄色い警告などから開く、期限の確認画面
+function expirySheet() {
+  const paint = () => { openSheet(`<h2>📅 期限の確認</h2>${expiryBody()}<button class="btn wide" id="xClose">閉じる</button>`); expiredBind($("sheetBody"), () => { paint(); draw(); }); $("xClose").onclick = () => closeSheet(); };
+  paint();
+}
+document.addEventListener("click", e => { if (e.target.closest("#wasteExp")) expirySheet(); });
 // 期限を延ばす・捨てるボタン。1品済むごとに done() を呼ぶ（画面を描き直す）
 function expiredBind(root, done) {
   if (!root) return;
