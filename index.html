@@ -2539,7 +2539,8 @@ function drawTools() {
 // 本から入れたレシピは、メモの先頭に「【本】本の名前 p.ページ｜種類｜食材｜説明」と書いておく（シートの列を増やさずに持つため）
 const BOOK_RE = /^【本】(.+?) p\.(\d*)｜([^｜]*)｜([^｜]*)｜?/;
 const bookOf = r => { const m = String((r && r.memo) || "").match(BOOK_RE); return m ? { book: m[1], page: m[2], kind: m[3], food: m[4], note: String(r.memo).slice(m[0].length) } : null; };
-const R_KINDS = ["主菜", "副菜", "主食", "汁物", "その他"];
+// 2026-11-28: おやつの本（種類が「おやつ」のレシピ）は「その他」にせず「おやつ」として扱う。本以外のレシピの種類は今までどおり
+const R_KINDS = ["主菜", "副菜", "主食", "汁物", "おやつ", "その他"];
 const kindOf = r => {
   const b = bookOf(r); if (b && b.kind) { const k = R_KINDS.find(x => b.kind.startsWith(x)); return k || "その他"; }
   const t = String(r.title || "");
