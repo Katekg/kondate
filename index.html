@@ -2993,7 +2993,14 @@ const ingBase = (r, name) => { const t = ingTag(r, name); return t ? (LEAD_TAG.t
 // 分け方の名前（手順の文に出てくる書き方）: 「下味1・a」→ 手順では「a」
 const tagWord = t => { const l = t.split("・").filter(x => /^[a-fA-F]$/.test(x)); return l.length ? l[l.length - 1] : t.split("・")[0]; };
 // 在庫に無く、代わりも無い材料のうち、飾り・添え物（野菜などで少しだけ）は省く
+// 2026-11-28: 調理モード中は、開いたとき（在庫を引く前）の判定をそのまま使う。引いた後に判定し直すと、使い切った材料が「在庫なし」や「使わない」に変わってしまうため
 function ingState(name, amount, k) {
+  if (!CK) return ingState0(name, amount, k);
+  const key = `${name}\u0001${amount}\u0001${k}`, m = CK.ist || (CK.ist = new Map());
+  if (!m.has(key)) m.set(key, ingState0(name, amount, k));
+  return m.get(key);
+}
+function ingState0(name, amount, k) {
   // 「白ワインまたは水」はどれか1つあればよい。「かたくり粉＋水」は全部そろえば在庫あり
   { const b = String(name).replace(/[（(].*$/, ""); const alt = b.split("または"), all = b.split(/[＋・]/).map(a => a.replace(/\d.*$/, ""));
     if (alt.length > 1) { const xs = alt.map(a => ingState(a, amount, k)); return xs.find(x => x.st === "ok") || xs.find(x => x.st === "sub") || xs[0]; }
@@ -3331,7 +3338,7 @@ function drawCook() {
   // 上: 材料（今の手順に出てくる材料は強調）。まとめて作るときは料理ごとに色分け
   const hits = hitNames(s.c, st.text, s.i);
   $("cIngs").innerHTML = CK.cooks.map((c, j) => `<div class="cgrp${multi && j === ci ? " now" : ""}" style="${multi ? `background:${tintOf(CK.colors[j])}` : ""}"><div class="cih">${multi ? `${j + 1}品目 ` : ""}${esc(c.r.title)}（${c.total}人分）</div><ul>${ingsOf(c.r).map(g => { const b = ingBase(c.r, g.name), tg = ingTag(c.r, g.name), x = ingState(g.name, g.amount, c.k), am = cookAmt(withGram(g.name, scaleAmount(g.amount, c.k * kOf(g.name))));
-      const sub = x.st === "sub" ? `→ ${x.sub.use.split("・")[0]}${x.sub.amount && !/^同量$/.test(x.sub.amount) ? `（${x.sub.amount}）` : ""}` : x.st === "none" ? "在庫なし" : "";
+      const sub = x.st === "sub" ? `→ ${x.sub.use.split("・")[0]}${x.sub.amount && !/^同量$/.test(x.sub.amount) ? `（${x.sub.amount}）` : ""}` : "";   // 2026-11-28: 手順中は「在庫なし」は出さない（材料の確認で見ているため）
       return `<li class="${x.st === "skip" ? "skip" : j === ci && hits.has(g.name) ? "hit" : ""}" data-ing="${esc(g.name)}"><span class="ci1"><span class="cin">${esc(b)}${tg ? `<i>${esc(tagWord(tg))}</i>` : ""}</span><b>${x.st === "skip" ? "使わない" : esc(am.main)}${am.sub && x.st !== "skip" ? `<small>${esc(am.sub)}</small>` : ""}</b></span>${sub ? `<span class="ci2${x.st === "sub" ? " sb" : ""}">${esc(sub)}</span>` : ""}${lessTag(g.name) ? `<span class="ci2">${esc(lessTag(g.name))}</span>` : ""}</li>`; }).join("")}</ul></div>`).join("");
   const now = $("cIngs").querySelector(".cgrp.now") || $("cIngs").querySelector("li.hit"); if (now) now.scrollIntoView({ block: "nearest" });
   $("cStep").innerHTML = `${multi ? `<div class="cdish" style="background:${tintOf(CK.colors[ci])}">${ci + 1}品目 ${esc(s.c.r.title)}</div>` : ""}
