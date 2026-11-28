@@ -1555,7 +1555,7 @@ function drawMenu() {
         if (!list.length && (m === "おやつ" || m === SIKOMI)) return "";
         const lk = uniq.some(p => { const g = gs.find(x => x.ids.includes(p.id)); return g && lacksOf(g).length; }), done = list.length && list.every(p => p.status === "作った");
         const ph = photoOf(S.day, m), kcOf = i => m === SIKOMI ? 0 : uniq.filter(p => eatsDish(p, i)).reduce((s, p) => s + (isOut(p) ? OUT_EST[m].kcal : +(recipeOf(p.recipeId) || {}).kcal || 0), 0), kc = Math.max(kcOf(1), kcOf(2));
-        return `<button class="mcard s-${m}${list.length ? "" : " empty"}${done ? " done" : ""}${ph ? " hasph" : ""}" data-m="${m}"${ph ? ` style="--ph:url('${ph.thumb}')"` : ""}><span class="slcol"><span class="slabel">${MEAL_LABEL[m]}</span>${(st => st ? `<small class="mst st-${st}">${SLT[st]}</small>` : "")(slotTypeOf(S.day, m, list))}${soloOf(S.day, m) && list.length ? `<small class="mst st-solo">${esc(soloTag(S.day, m))}</small>` : ""}${kc ? (so => `<small class="mkc">${uniq.some(isOut) ? "想定" : "約"}${so === 2 ? "外食" : Math.round(kcOf(1) * sh(1))}/${so === 1 ? "外食" : Math.round(kcOf(2) * sh(2))}kcal</small>`)(soloOf(S.day, m)) : ""}</span><span class="mcbody">${uniq.length ? uniq.map(p => `<span>${whoMark(p)}${esc(p.title)}${isOut(p) ? `<span class="tag">食後に内容を入力</span>` : ""}</span>`).join("") : `<span class="mcempty">まだ空き</span>`}${lk ? `<span class="tag lack" style="justify-self:start">足りない材料あり</span>` : ""}${likeOnDay(S.day).some(([a, b]) => (a.date === S.day && a.meal === m) || (b.date === S.day && b.meal === m)) ? `<span class="tag lack" style="justify-self:start">似た料理あり</span>` : ""}</span><span class="mcgo">›</span></button>`;
+        return `<button class="mcard s-${m}${list.length ? "" : " empty"}${done ? " done" : ""}${ph ? " hasph" : ""}" data-m="${m}"${ph ? ` style="--ph:url('${ph.thumb}')"` : ""}><span class="slcol"><span class="slabel">${MEAL_LABEL[m]}</span>${(st => st ? `<small class="mst st-${st}">${SLT[st]}</small>` : "")(slotTypeOf(S.day, m, list))}${soloOf(S.day, m) && list.length ? `<small class="mst st-solo">${esc(soloTag(S.day, m))}</small>` : ""}${kc ? (so => `<small class="mkc">${uniq.some(isOut) ? "想定" : "約"}${so === 2 ? "外食" : Math.round(kcOf(1) * sh(1))}/${so === 1 ? "外食" : Math.round(kcOf(2) * sh(2))}kcal</small>`)(soloOf(S.day, m)) : ""}</span><span class="mcbody">${uniq.length ? uniq.map(p => `<span>${whoMark(p)}${esc(p.title)}${isOut(p) ? `<span class="tag">食後に内容を入力</span>` : ""}</span>`).join("") : `<span class="mcempty">まだ空き</span>`}${lk ? `<span class="tag lack" style="justify-self:start">足りない材料あり</span>` : ""}${likeOnDay(S.day).some(([a, b]) => (a.date === S.day && a.meal === m) || (b.date === S.day && b.meal === m)) ? `<span class="tag lack" style="justify-self:start">似た料理あり</span>` : ""}${(c => c ? `<span class="tag lack" style="justify-self:start">${esc(c.join("・"))}なし</span>` : "")(comboLack(S.day, m))}</span><span class="mcgo">›</span></button>`;
       }).join("")}</div>
 </section>`;
   $("app").querySelectorAll(".dbtn").forEach(b => b.onclick = () => { S.day = b.dataset.d; drawMenu(); });
@@ -2034,6 +2034,7 @@ function openRules() {
   const R = [
     ["🍽 献立の選び方", [
       "料理は、料理本のレシピ・【自分】のレシピ・白ごはん・そのまま食べる物（納豆・冷ややっこ・牛乳・果物など）から選ぶ。新しい料理は作らない",
+      "昼・夜は「主食＋主菜＋副菜か汁物」の組み合わせにする（丼・カレーなど主食が入る料理は主菜を兼ねる）。主菜を2品にして副菜・汁物を無くさない。在庫で作れないときは、買い物リストに副菜・汁物の材料を入れて補う。足りない食事は、献立に「副菜か汁物なし」と出る",
       "そのまま食べる物は、栄養が足りないときか、料理より安いときに入れる",
       "そのまま食べる物（納豆など）が1つしか残っていないときは、1人だけの分として入れてよい（もう1人は別の物を食べる）。献立では料理名の頭に、食べる人の顔文字が付く。枠の画面で料理ごとに変えられる",
       "火を使う食材（鮭1切れなど）が1つだけのときは、2人で分ける料理に使うか、買い足して2人分にする",
@@ -3738,7 +3739,7 @@ function catalogText() {
 - ほかの「簡単なもの」の枠は、一覧で「朝向き」か「簡単（火を使わない）」の料理と、白ごはん・牛乳・果物・納豆・豆腐・チーズなどそのまま食べる物だけで組む。「火を使う」料理（コンロで炒める・煮る・焼く・ゆでる・揚げる、魚焼きグリル・オーブン）は入れない。電子レンジ・オーブンレンジ・トースターはよい。
 - 「しばらく使っていない在庫」と付いた料理は、在庫で眠っている調味料・粉物・乾物を使える。期間中に、それぞれを1回ずつ使えるように選ぶ（ほかの決まりより優先はしない）。\n- 「最近作った」と付いた料理（この7日以内に作った本のレシピ）は、同じ料理が続かないように選ばない。ほかに合う料理がどうしても無いときだけ使う。
 - 同じ日の中と、続く日（前の日・次の日）で、主な材料と種類・調理法が似た料理を2回入れない（例: 昼にキャロットラペなら、その日の夜と次の日ににんじんサラダは入れない。同じ日は作り置きを食べる枠も数える。次の日に作り置きを食べるのはよい）。
-- 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。
+- 1食の組み合わせ: 夜・昼は主食（白ごはん）＋主菜＋副菜か汁物。主食が入る料理（丼・カレー・パスタなど）には副菜か汁物を1品。主菜を2品にして副菜・汁物を無くさない（卵料理・豆腐料理も主菜に数える）。作り置きを食べる昼も、副菜か汁物の作り置きを一緒に回すか、1品足す。
 ${list.map(r => { const b = bookOf(r); return `- id=${r.id}｜${r.title}｜${kindOf(r)}｜${b ? "本" : "家"}｜${r.servings || 2}人分${+r.kcal ? `｜1人${Math.round(+r.kcal)}kcal` : ""}${r.keepDays ? `｜日持ち${r.keepDays}日` : ""}${(t => t.length ? `｜しばらく使っていない在庫: ${t.join("・")}` : "")(staleOf(r))}${recentAt.has(r.id) && bookOf(r) ? `｜最近作った（${recentAt.get(r.id).slice(5).replace("-", "/")}）` : ""}${stepsOf(r).length ? (isMorningEasy(r) ? "｜朝向き（火も包丁もほぼ使わない）" : isEasyRecipe(r) ? "｜簡単（火を使わない）" : "｜火を使う") : ""}｜${main(r)}`; }).join("\n")}`;
 }
 // AIの答えを、レシピ帳のレシピだけにする: recipe_id が無い・違う料理は料理名で探し、見つからない料理は bad に
@@ -3779,7 +3780,7 @@ const RULES = `【献立のルール】
 - 出番の少ない材料は買わない: 主役の肉・魚と、ふだん使いの野菜（玉ねぎ・にんじん・じゃがいも・キャベツなど）以外で、在庫に無く買う必要がある材料（ピクルス・ザーサイ・わかめ・ハーブ・その料理専用の調味料など）は、この期間に2回以上の調理で使うときだけ使う。作り置きを次の食事に食べる分は、調理としては1回と数える（夜に作って翌日の昼に食べても1回）。1回しか使わないなら、その材料を使わない別のレシピを選ぶ。買うなら、同じ材料を使うレシピを別の日にも入れて使い切る（毎日でなくてよい）。「適量」「好みで」の飾り・薬味は無くてよいので、そのために買わない。
 - 在庫の食材（肉・魚・野菜・乳製品・パンなどすべて）で、期限が献立の期間内に来る物は、期限の日までに残さず使い切る（2切れある鮭を1切れだけ使って1切れ残す、のようにしない。分量を増やすか、その食材を使う本のレシピをもう1つ入れる）。
 - 卵は10個入り、納豆は3個入りで買う。卵が数個・納豆が1〜2個だけ足りない、という買い物は出さない。足りないときは、卵・納豆を使う量を在庫に収めるか、使わない料理に変える（買うなら1パックを使い切る計画にする）。
-- 夕食は「主食（ご飯など）＋主菜＋副菜か汁物」にする。ご飯は「白ごはん」という料理として meals に入れる。昼・夜は recipe_id=${RICE_LD}（米1.25合で2人分。1人 約210g・約335kcal。夜にまとめて炊き、翌日の昼に回す想定）、朝は recipe_id=${RICE_AM}（米1合で2人分）を使う。米は在庫から使い、買い物には入れない。カレー・丼など主食が入る料理は、それに副菜か汁物を1品足す。朝・昼も主食を入れる。朝は手軽なもの（トースト・卵かけご飯・納豆ご飯・冷奴など）にし、パンの枚数・塗る物は、決まりごとに従う（多く出さない）。朝のカロリーが足りない分は、調理のいらない牛乳・ヨーグルト・バナナ・きなこ・ゆで卵などで補う。鍋やフライパンを使う料理（雑炊・鍋で作る汁物など）は出さない。汁物を付けるなら、電気ケトルのお湯で作る即席スープにする。季節の旬の食材を使う。
+- 昼・夕食は「主食（ご飯など）＋主菜＋副菜か汁物」にする（主菜を2品にして副菜・汁物を無くさない。作り置きを食べる昼も同じ）。在庫だけで副菜・汁物が作れないときは、その材料を買い物に入れて補う（「在庫だけで」と頼まれたときは、在庫で作れる副菜・汁物や、冷ややっこ・納豆などの単品で補う）。ご飯は「白ごはん」という料理として meals に入れる。昼・夜は recipe_id=${RICE_LD}（米1.25合で2人分。1人 約210g・約335kcal。夜にまとめて炊き、翌日の昼に回す想定）、朝は recipe_id=${RICE_AM}（米1合で2人分）を使う。米は在庫から使い、買い物には入れない。カレー・丼など主食が入る料理は、それに副菜か汁物を1品足す。朝・昼も主食を入れる。朝は手軽なもの（トースト・卵かけご飯・納豆ご飯・冷奴など）にし、パンの枚数・塗る物は、決まりごとに従う（多く出さない）。朝のカロリーが足りない分は、調理のいらない牛乳・ヨーグルト・バナナ・きなこ・ゆで卵などで補う。鍋やフライパンを使う料理（雑炊・鍋で作る汁物など）は出さない。汁物を付けるなら、電気ケトルのお湯で作る即席スープにする。季節の旬の食材を使う。
 - 肉・魚の主菜には、なるべく付け合わせの野菜を添えて栄養のバランスをとる（例: ハンバーグにゆでブロッコリーとにんじんのグラッセ、生のミニトマト）。付け合わせは主菜のレシピの材料と手順に書き、別の料理にしなくてよい。
 - そのまま食べる物（牛乳・豆乳・ヨーグルト・バナナやみかんなどの果物・納豆・冷ややっこ・チーズ・キムチ・焼きのりなど）は、料理のレシピに含めず、単品の料理（recipe_id は一覧の「家」の牛乳・納豆・みかんなど）として入れる。入れるのは、(1) その食事や1日の栄養（カロリー・たんぱく質・カルシウム・ビタミン）が足りないとき、(2) 同じ栄養を料理で足すより単品の方が安く手間も少ないとき（コスパが良いとき）。どちらでもなければ足さない。
 - 1食の量の目安（1人分）: 朝 約500kcal、昼 約700〜800kcal、夜 約800〜900kcal。1日の合計が目標の9割以上になるようにし、たんぱく質も目標に近づける。
@@ -4084,6 +4085,8 @@ async function applyAi(res, meta, prompt, id) {
     { const odd = packShort(shopItems(st.plans)).filter(x => own.has(normName(x.i.name))); if (odd.length) bad.push(odd.map(x => `${x.label}が${x.n}${x.u}だけ足りない（${x.label}は${x.pack}${x.u}入りで買うので、数${x.u}だけの買い足しはしない）。${x.label}を使う量を在庫の分に収めるか、${x.label}を使わない料理に変える`).join("。")); }
     // 栄養が目標より大きく少ない日がある → 予算の中で、1回だけ組み直してもらう（それでも届かないときだけ、画面で知らせる）
     if (meta.mode === "week") { const sh = nutShort(st.plans, [...new Set(S.draft.meals.map(m => m.date))]); if (sh.short.length) bad.push(`次の日の栄養が目標より大きく少ない: ${sh.short.map(x => `${x.d}（1人 約${Math.round(x.n.kcal)}kcal・P${Math.round(x.n.p)}、目標 約${Math.round(sh.tg.kcal)}kcal・P${Math.round(sh.tg.p)}）`).join("、")}。予算は変えずに、ご飯の量・汁物・副菜・牛乳・納豆・豆腐・バナナなどの安い単品を足して、目標の${tolNut()}%以上にする`); }
+    // 昼・夜に主食か副菜・汁物が無い → 1回だけ組み直してもらう（在庫で足りないときは、副菜・汁物の材料を買い足してよい）
+    { const ds = [...new Set(S.draft.meals.map(m => m.date))], cs = comboShort(st.plans, ds).filter(x => S.draft.meals.some(m => m.date === x.d && m.meal === x.m)); if (cs.length) bad.push(`基本の組み合わせ（主食＋主菜＋副菜か汁物）になっていない食事がある: ${cs.map(x => `${x.d} ${x.m}（${x.miss.join("・")}が無い）`).join("、")}。主菜が2品あるときは1品を副菜か汁物に替え、無いときは副菜か汁物を1品足す${meta.stockOnly ? "（在庫で作れる物にする）" : "。在庫で作れないときは、その材料を買い物に入れてよい"}`); }
     // 材料費が予算の許容値をこえている → 栄養は保ったまま安くしてもらう
     if (meta.mode === "week" && S.draft.cost) { const ds = [...new Set(S.draft.meals.map(m => m.date))], lim = budgetFor(ds, (d, m) => { const l = st.plans.filter(p => p.date === d && p.meal === m); return !l.length || l.every(isOut); }); if (lim && S.draft.cost > lim * tolBud() / 100) bad.push(`材料費が約${S.draft.cost}円で、予算 約${lim}円の${tolBud()}%（約${Math.round(lim * tolBud() / 100)}円）をこえている。栄養は1日の目標の${tolNut()}%以上を保ったまま、安い料理・材料に変えて、予算の${tolBud()}%以内にする`); }
     { const rs = shopItems(st.plans).filter(i => i.rest && own.has(normName(i.name))); if (rs.length) bad.push(`売っている単位で買うと余る野菜がある: ${rs.map(i => `${i.name}（${buyText(i)}買って${i.rest}余る）`).join("、")}。余る分は、ほかの料理（炒め物・汁物・煮物・付け合わせなど）の分量を増やして入れてしまってよいので、買った分を使い切る。増やした料理は栄養（kcal・P・F・C）もその分足す。調味料のバランスは崩さない`); }
@@ -4396,6 +4399,19 @@ function eventsIn(days) {
 // 1日のカロリーが目標を満たしているか（許容値の%以上なら緑、足りなければ赤）
 const kOk = (v, t) => !t ? "" : v >= t * tolNut() / 100 ? "kok" : "kng";
 const tolNut = () => +SET("許容_栄養") || 90, tolBud = () => +SET("許容_予算") || 105;
+// 2026-11-28: 昼・夜の基本の組み合わせ（主食＋主菜＋副菜か汁物）。丼・カレーなど主食が入る料理は主菜を兼ねるので、主菜は無くてもよい。
+// 足りないのは「主食が無い」か「副菜も汁物も無い」とき。本の「常備菜」と、冷ややっこ・納豆・漬物などのそのまま食べる副菜も副菜として数える
+const sideLike = r => { const k = kindOf(r), b = bookOf(r); return k === "副菜" || k === "汁物" || (!!b && /^常備菜/.test(b.kind || "")) || /冷ややっこ|冷奴|納豆|漬け|キムチ|サラダ|あえ|和え|おひたし|浸し|ナムル|ピクルス/.test(String(r.title || "")); };
+function comboLack(d, m, plans) {
+  if (m !== "昼" && m !== "夜") return null;
+  const l = uniqPlans((plans || S.plans).filter(p => p.date === d && p.meal === m && !isOut(p))), rs = l.map(p => recipeOf(p.recipeId)).filter(Boolean);
+  if (!rs.length || (plans || S.plans).some(p => p.date === d && p.meal === m && isOut(p))) return null;
+  const miss = [];
+  if (!rs.some(r => kindOf(r) === "主食")) miss.push("主食");
+  if (!rs.some(sideLike)) miss.push("副菜か汁物");
+  return miss.length ? miss : null;
+}
+const comboShort = (plans, days) => days.filter(d => d > today()).flatMap(d => ["昼", "夜"].map(m => ({ d, m, miss: comboLack(d, m, plans) }))).filter(x => x.miss);
 function nutShort(plans, days) {
   const tg = { kcal: (target(1).kcal + target(2).kcal) / 2, p: (target(1).p + target(2).p) / 2 };
   const nutOf = d => { const n = dayNut(d, plans); return { d, n, pc: tg.kcal ? Math.round(n.kcal / tg.kcal * 100) : 100, pp: tg.p ? Math.round(n.p / tg.p * 100) : 100 }; };
